@@ -6,11 +6,11 @@ import json
 
 from langgraph.prebuilt import create_react_agent
 
-from agents.common import SYSTEM_PROMPT, make_tools
+from agents.common import SYSTEM_PROMPT, Execute, make_tools
 from healer.models import ErrorClass
 
 
-def build(registry, llm, store=None, run_id=""):
+def executor(registry) -> Execute:
     async def execute(name: str, args: dict) -> tuple[str, ErrorClass]:
         result = await registry.call(name, args)
         # ponytail: a successful payload that itself has an "error" key would be logged as an error.
@@ -20,5 +20,9 @@ def build(registry, llm, store=None, run_id=""):
         cls = ErrorClass(result["class"]) if "class" in result else ErrorClass.BUSINESS
         return json.dumps(result), cls
 
-    tools = make_tools(registry, execute, "healing", store, run_id)
+    return execute
+
+
+def build(registry, llm, store=None, run_id=""):
+    tools = make_tools(registry, executor(registry), "healing", store, run_id)
     return create_react_agent(llm, tools, prompt=SYSTEM_PROMPT)
