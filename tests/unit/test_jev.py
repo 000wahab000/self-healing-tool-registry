@@ -299,3 +299,22 @@ async def test_real_diff_and_candidates_render_and_round_trip(respx_mock, jev):
     respx_mock.post(URL).respond(json=reply("B", 0.95))
     picked = await jev.choose(state, "Which fix?", options)
     assert picked.index == 1
+
+
+def test_from_env_prefers_direct_key_then_openrouter_then_none():
+    from healer.jev import from_env
+
+    direct = from_env(
+        {
+            "JEV_API_KEY": "k",
+            "JEV_URL": "https://x/v1/systemone",
+            "OPENROUTER_API_KEY": "o",
+        }
+    )
+    assert (direct._url, direct._model) == ("https://x/v1/systemone", "jev-latest")
+    routed = from_env({"OPENROUTER_API_KEY": "o"})
+    assert (routed._url, routed._model) == (
+        "https://openrouter.ai/api/v1/systemone",
+        "~typesafe/jev-latest",
+    )
+    assert from_env({}) is None

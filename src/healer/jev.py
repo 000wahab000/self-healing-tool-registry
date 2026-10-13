@@ -5,6 +5,7 @@ Jev never produces operations or values (agent.md invariant 2); it only picks on
 
 from __future__ import annotations
 
+import os
 import string
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -146,3 +147,22 @@ def render_option(fix: dict) -> str:
         ("resp", o) for o in fix["response_ops"]
     ]
     return "; ".join(f"{side} {_OPS[o['op']](o)}" for side, o in ops)
+
+
+def from_env(env=None) -> JevClient | None:
+    """JEV_API_KEY (+ JEV_URL, JEV_MODEL) for TypeSafe direct, else Jev via OpenRouter, else none."""
+    env = os.environ if env is None else env
+    if key := env.get("JEV_API_KEY"):
+        extra = {
+            k: env[v]
+            for k, v in (("url", "JEV_URL"), ("model", "JEV_MODEL"))
+            if env.get(v)
+        }
+        return JevClient(key, **extra)
+    if key := env.get("OPENROUTER_API_KEY"):
+        return JevClient(
+            key,
+            url="https://openrouter.ai/api/v1/systemone",
+            model="~typesafe/jev-latest",
+        )
+    return None
