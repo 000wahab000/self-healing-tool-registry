@@ -1,1 +1,40 @@
-{"header_sources": {"Authorization": "OAUTH_BEARER", "X-Tenant-Id": "TENANT_ID"}, "tools": {}}
+{
+  "header_sources": {
+    "Authorization": "OAUTH_BEARER",
+    "X-Tenant-Id": "TENANT_ID"
+  },
+  "tools": {
+    "get_user": {
+      "idempotent": true,
+      "write": false,
+      "postchecks": [
+        {"type": "echo", "response": ["id"], "request": ["body", "user_id"]}
+      ]
+    },
+    "update_email": {
+      "idempotent": true,
+      "write": true,
+      "postchecks": [
+        {"type": "echo", "response": ["id"], "request": ["body", "user_id"]},
+        {"type": "echo", "response": ["email"], "request": ["body", "email"]}
+      ]
+    },
+    "set_manager": {
+      "idempotent": true,
+      "write": true,
+      "postchecks": [
+        {"type": "echo", "response": ["id"], "request": ["body", "user_id"]},
+        {"type": "echo", "response": ["manager_id"], "request": ["body", "manager_id"]}
+      ]
+    },
+    "create_ticket": {
+      "idempotent": false,
+      "idempotency_key": true,
+      "write": true,
+      "postchecks": [
+        {"type": "non_empty", "response": ["ticket_id"]},
+        {"type": "echo", "response": ["user_id"], "request": ["body", "user_id"]}
+      ]
+    }
+  }
+}
