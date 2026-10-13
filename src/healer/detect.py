@@ -34,6 +34,22 @@ def _violations(resp: httpx.Response) -> list[Violation]:
     return [Violation(Side.REQ, [], "rejected")]
 
 
+def _error_body(resp: httpx.Response) -> object:
+    """The API's own error detail for the agent; None when the body is not JSON."""
+    try:
+        return resp.json()
+    except ValueError:
+        return None
+
+
+def _retry_after(resp: httpx.Response) -> dict | None:
+    value = resp.headers.get("retry-after", "")
+    # ponytail: only the delay-seconds form; an HTTP-date is ignored.
+    return (
+        {"retry_after": float(value)} if value.replace(".", "", 1).isdigit() else None
+    )
+
+
 def _is_soft_error(body: object) -> bool:
     return isinstance(body, dict) and (
         body.get("success") is False
@@ -49,11 +65,17 @@ def classify(response: httpx.Response | None, exc: Exception | None = None) -> O
     status = response.status_code
     code = str(status)
     if status == 429 or status >= 500:
-        return Outcome(ErrorClass.E1, PROTOCOL, code)
+        return Outcome(ErrorClass.E1, PROTOCOL, code, data=_retry_after(response))
     if status == 409:
-        return Outcome(ErrorClass.BUSINESS, PROTOCOL, code)
+        return Outcome(ErrorClass.BUSINESS, PROTOCOL, code, _error_body(response))
     if 400 <= status < 500:
-        return Outcome(ErrorClass.E2, PROTOCOL, code, violations=_violations(response))
+        return Outcome(
+            ErrorClass.E2,
+            PROTOCOL,
+            code,
+            _error_body(response),
+            _violations(response),
+        )
     if not response.content:
         return Outcome(ErrorClass.OK, PROTOCOL, code, data={})
     media = response.headers.get("content-type", "").split(";")[0].strip().lower()

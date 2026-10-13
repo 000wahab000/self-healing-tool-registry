@@ -1,0 +1,352 @@
+"""Heal Controller (FR-10, FR-11): at most one heal attempt per failed call, one audit event per attempt."""
+
+from __future__ import annotations
+
+import asyncio
+import sqlite3
+import time
+from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any
+
+import httpx
+
+from healer import candidates, canonical, contract, diagnose, fingerprint, safety
+from healer.jev import JevClient, JevUnavailable, render_option, render_state
+from healer.models import (
+    AuditEvent,
+    DecisionPath,
+    ErrorClass,
+    Fix,
+    HealError,
+    HealOutcome,
+    Outcome,
+    Reason,
+    Tier,
+)
+from healer.openapi_loader import fetch_spec, operations
+from healer.ops import OpError, apply_ops
+from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S
+from healer.store import Store
+
+if TYPE_CHECKING:
+    from healer.registry import ToolDefinition
+
+QUESTION = (
+    "Which candidate fix correctly adapts the agent's request to the changed API?"
+)
+# FR-11.3: these abort reasons make the fingerprint KNOWN_UNFIXABLE for the next 60 s.
+NEGATIVE = frozenset(
+    {
+        Reason.VERIFY_FAILED,
+        Reason.POSTCHECK_FAILED_AFTER_WRITE,
+        Reason.NO_CANDIDATE,
+        Reason.NO_SAFE_VALUE,
+        Reason.LOW_CONFIDENCE,
+        Reason.UNSAFE_PATCH,
+        Reason.UNSAFE_REPLAY,
+    }
+)
+AUDIT_OUTCOME = {
+    Reason.NOT_DRIFT: HealOutcome.NOT_DRIFT,
+    Reason.VERIFY_FAILED: HealOutcome.VERIFY_FAILED,
+    Reason.POSTCHECK_FAILED_AFTER_WRITE: HealOutcome.VERIFY_FAILED,
+}
+
+
+def api_error(outcome: Outcome) -> dict:
+    return {
+        "error": "API_ERROR",
+        "class": outcome.cls.value,
+        "status": outcome.raw_code,
+        "detail": outcome.data,
+    }
+
+
+class _Abort(OpError):
+    """Ends the heal with a reason. An OpError from the interpreter ends it the same way."""
+
+
+@dataclass
+class _Heal:
+    tool: ToolDefinition
+    base: dict
+    outcome: Outcome
+    t0: float
+    fp: str = ""
+    signature: dict = field(default_factory=dict)
+    tier: Tier = Tier.T1
+    path: DecisionPath | None = None
+    fix_id: int | None = None
+    jev_tokens: int = 0
+    waiter: bool = False  # single-flight follower: writes no audit event
+    ops: dict | None = None  # operations of the current spec; None in clue mode
+    new_op: dict | None = None
+    entries: list[dict] = field(default_factory=list)
+    schema_hash: str = ""
+    transient: bool = False  # the replay hit E1
+
+
+class Healer:
+    def __init__(
+        self,
+        *,
+        store: Store,
+        jev: JevClient | None,
+        client: httpx.AsyncClient,
+        cfg: Mapping[str, str],
+        header_sources: Mapping[str, str],
+        attempt: Callable[..., Awaitable[Outcome]],
+        clock: Callable[[], float],
+    ) -> None:
+        self._store, self._jev, self._client = store, jev, client
+        self._cfg, self._header_sources = cfg, header_sources
+        self._attempt, self._clock = attempt, clock
+        self._flights: dict[str, asyncio.Future[Reason | None]] = {}
+        self._saved_specs: set[str] = set()
+
+    async def heal(
+        self, tool: ToolDefinition, base: dict, outcome: Outcome, t0: float
+    ) -> Any:
+        """The agent's result: data when recovered, an error dict otherwise."""
+        h = _Heal(tool, base, outcome, t0)
+        h.fp, h.signature = fingerprint.fingerprint(tool.name, outcome)
+        try:
+            async with asyncio.timeout(HEAL_DEADLINE_S - (self._clock() - t0)):
+                return await self._run(h)
+        except TimeoutError:
+            reason = Reason.DEADLINE
+        except OpError as e:
+            reason = e.reason
+        return self._abort(h, reason)
+
+    async def _run(self, h: _Heal) -> Any:
+        if h.outcome.cls is ErrorClass.E6:
+            # Its fingerprint carries the diff signature, so the spec comes first.
+            await self._diagnose(h)
+            diff_signature = (
+                diagnose.diff_signature(h.entries) if h.ops is not None else None
+            )
+            h.fp, h.signature = fingerprint.fingerprint(
+                h.tool.name, h.outcome, diff_signature
+            )
+        if self._store.is_negative(h.fp):
+            h.tier, h.path = Tier.T0, DecisionPath.cache
+            raise _Abort(Reason.KNOWN_UNFIXABLE)
+        if h.fp in self._flights:
+            return await self._follow(h, self._flights[h.fp])
+        flight = self._flights[h.fp] = asyncio.get_running_loop().create_future()
+        verdict: Reason | None = Reason.DEADLINE  # what a cancellation means
+        try:
+            data = await self._lead(h)
+            verdict = None
+            return data
+        except OpError as e:
+            verdict = e.reason
+            raise
+        finally:
+            del self._flights[h.fp]
+            flight.set_result(verdict)
+
+    async def _follow(self, h: _Heal, flight: asyncio.Future[Reason | None]) -> Any:
+        h.waiter = True
+        # shield: this call's own deadline must not cancel the leader's future
+        verdict = await asyncio.shield(flight)
+        if verdict is not None:
+            raise _Abort(verdict)
+        result = await self._send(h, h.tool.active_fix)
+        return result.data if result.cls is ErrorClass.OK else api_error(result)
+
+    async def _lead(self, h: _Heal) -> Any:
+        fix = self._store.get_active(h.fp)
+        if fix:
+            h.tier, h.path, h.fix_id = Tier.T0, DecisionPath.cache, fix.fix_id
+        else:
+            if h.outcome.cls is not ErrorClass.E6:
+                await self._diagnose(h)
+            fix = await self._candidate(h)
+        self._gate(h, fix)
+        result = await self._verify(h, fix)
+        if result.cls is not ErrorClass.OK:
+            # A transient replay failure says nothing about the fix: no loss, no negative cache.
+            h.transient = result.cls is ErrorClass.E1
+            if h.tier is Tier.T0 and not h.transient:
+                self._store.record_result(fix.fix_id, False)
+            raise _Abort(self._failure_reason(h, fix, result))
+        return self._commit(h, fix, result)
+
+    async def _diagnose(self, h: _Heal) -> None:
+        """Fetch and diff the current spec. Leaves `h.ops` None when it is unavailable (clue mode)."""
+        try:
+            spec, spec_hash = await fetch_spec(self._client)
+        except (httpx.HTTPError, ValueError):
+            return
+        if spec_hash not in self._saved_specs:
+            self._store.save_spec(spec_hash, spec)
+            self._saved_specs.add(spec_hash)
+        h.ops, h.schema_hash = operations(spec), spec_hash
+        route = h.base["route"]
+        if any(v.path == ["route"] for v in h.outcome.violations) and (
+            diagnose.route_exists(h.ops, route["method"], route["path"])
+        ):
+            raise _Abort(Reason.NOT_DRIFT)
+        h.new_op = h.ops.get(h.tool.name)
+        if h.new_op is None:
+            raise _Abort(Reason.NO_CANDIDATE)
+        h.entries = diagnose.diff(h.tool.base_op, h.new_op)
+
+    async def _candidate(self, h: _Heal) -> Fix:
+        outcome, cfg_keys = h.outcome, set(self._cfg)
+        if h.ops is None:
+            h.path = DecisionPath.clue
+            found, reason = candidates.from_violations(
+                outcome.violations,
+                h.base,
+                self._header_sources,
+                cfg_keys,
+                outcome.data if outcome.cls is ErrorClass.E5 else None,
+                h.tool.output_schema,
+            )
+        else:
+            h.path = DecisionPath.diff
+            # No diff against the base: the API rolled back, so the candidate is "no operations".
+            found, reason = (
+                candidates.build(h.entries, h.base, self._header_sources, cfg_keys)
+                if h.entries
+                else ([{"request_ops": [], "response_ops": []}], None)
+            )
+        if reason is not None:
+            raise _Abort(reason)
+        index = await self._ask_jev(h, found) if len(found) > 1 else 0
+        pick = found[index]
+        return Fix(
+            h.fp,
+            h.signature,
+            h.tool.name,
+            outcome.cls,
+            pick["request_ops"],
+            pick["response_ops"],
+            h.tier,
+            h.path,
+            h.schema_hash,
+        )
+
+    async def _ask_jev(self, h: _Heal, found: list[dict]) -> int:
+        h.path = DecisionPath.jev
+        if self._jev is None:
+            raise _Abort(Reason.JEV_UNAVAILABLE)
+        try:
+            choice = await self._jev.choose(
+                render_state(h.entries, h.base),
+                QUESTION,
+                [render_option(f) for f in found],
+            )
+        except JevUnavailable:
+            raise _Abort(Reason.JEV_UNAVAILABLE) from None
+        h.jev_tokens = choice.tokens
+        if not safety.jev_ok(choice.confidence, bool(h.tool.config.get("write"))):
+            raise _Abort(Reason.LOW_CONFIDENCE)
+        return choice.index
+
+    def _gate(self, h: _Heal, fix: Fix) -> None:
+        spec_paths = spec_routes = None
+        if h.new_op is not None:
+            # Response ops write into the agent's (base) response shape, so its leaves count too.
+            spec_paths = (
+                set(diagnose.flatten_request(h.new_op))
+                | set(diagnose.flatten_response(h.new_op))
+                | set(diagnose.flatten_response(h.tool.base_op))
+            )
+            spec_routes = {(o["method"], o["path"]) for o in h.ops.values()}
+        reason = safety.check(
+            {"request_ops": fix.request_ops, "response_ops": fix.response_ops},
+            base_doc=h.base,
+            cfg=self._cfg,
+            cls=h.outcome.cls,
+            tool_cfg=h.tool.config,
+            # ponytail: tier 0 has no diff, so its op cap is counted from the violations alone.
+            n_evidence=max(len(h.entries), len(h.outcome.violations)),
+            spec_paths=spec_paths,
+            spec_routes=spec_routes,
+        )
+        if reason is not None:
+            raise _Abort(reason)
+
+    def _local(self, h: _Heal, fix: Fix) -> bool:
+        """A response-only fix on E5 reshapes the body already received; nothing is re-sent."""
+        return (
+            h.outcome.cls is ErrorClass.E5
+            and bool(fix.response_ops)
+            and not fix.request_ops
+        )
+
+    async def _verify(self, h: _Heal, fix: Fix) -> Outcome:
+        if not self._local(h, fix):
+            return await self._send(h, fix)
+        data = apply_ops(fix.response_ops, h.outcome.data, self._cfg)
+        return contract.check(
+            replace(h.outcome, cls=ErrorClass.OK, violations=[], data=data),
+            output_schema=h.tool.output_schema,
+            postchecks=h.tool.config["postchecks"],
+            base_doc=h.base,
+        )
+
+    async def _send(self, h: _Heal, fix: Fix | None) -> Outcome:
+        remaining = HEAL_DEADLINE_S - (self._clock() - h.t0)
+        return await self._attempt(
+            h.tool, h.base, fix, min(REPLAY_TIMEOUT_MAX_S, remaining)
+        )
+
+    def _failure_reason(self, h: _Heal, fix: Fix, result: Outcome) -> Reason:
+        wrote = result.cls is ErrorClass.E6 and h.tool.config.get("write")
+        if wrote and not self._local(h, fix):
+            return Reason.POSTCHECK_FAILED_AFTER_WRITE
+        return Reason.VERIFY_FAILED
+
+    def _commit(self, h: _Heal, fix: Fix, result: Outcome) -> Any:
+        try:
+            if h.tier is Tier.T0:
+                self._store.record_result(fix.fix_id, True)
+            else:
+                h.fix_id = self._store.save_fix(fix)
+            self._store.audit(self._event(h, HealOutcome.RECOVERED, None))
+        except sqlite3.Error:  # a fix that cannot be logged is not applied
+            raise _Abort(Reason.VERIFY_FAILED) from None
+        h.tool.active_fix = fix
+        h.tool.version += 1
+        if (
+            h.new_op is not None
+        ):  # tier 0 skips the spec fetch, so there is nothing newer
+            h.tool.wire_op = h.new_op
+        return result.data
+
+    def _abort(self, h: _Heal, reason: Reason) -> Any:
+        if not h.waiter:
+            if reason in NEGATIVE and not h.transient:
+                self._store.add_negative(h.fp)
+            outcome = AUDIT_OUTCOME.get(reason, HealOutcome.ABORTED)
+            self._store.audit(self._event(h, outcome, reason))
+        if reason is Reason.NOT_DRIFT:
+            return api_error(replace(h.outcome, cls=ErrorClass.BUSINESS))
+        return HealError(h.tool.name, h.outcome.cls, h.fp, reason).to_dict()
+
+    def _event(
+        self, h: _Heal, outcome: HealOutcome, reason: Reason | None
+    ) -> AuditEvent:
+        # The error body can echo request values, so the audit keeps only the violations.
+        violations = [[v.side, v.path, v.kind] for v in h.outcome.violations]
+        return AuditEvent(
+            ts_ms=time.time_ns() // 1_000_000,
+            tool=h.tool.name,
+            fingerprint=h.fp,
+            cls=h.outcome.cls,
+            raw_code=h.outcome.raw_code,
+            tier=h.tier,
+            path=h.path,
+            fix_id=h.fix_id,
+            outcome=outcome,
+            reason=reason,
+            mttr_ms=int((self._clock() - h.t0) * 1000),
+            jev_tokens=h.jev_tokens,
+            raw_error=canonical.dumps(violations),
+        )

@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
+import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 
 import httpx
 from jsonschema import Draft202012Validator
 
-from healer import contract, detect
+from healer import contract, detect, retry
 from healer.adapters import rest
+from healer.heal import Healer, api_error
+from healer.jev import JevClient
 from healer.models import ErrorClass, Fix, Outcome
 from healer.openapi_loader import fetch_spec, operations
 from healer.ops import apply_ops
-from healer.settings import REQUEST_TIMEOUT_S
+from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S
 from healer.store import Store
 
 
@@ -53,6 +57,11 @@ class Registry:
         tools_config: dict,
         cfg: Mapping[str, str],
         store: Store | None = None,
+        jev: JevClient | None = None,
+        *,
+        clock: Callable[[], float] = time.perf_counter,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        jitter: Callable[[], float] = retry.random_jitter,
     ) -> None:
         self.client = client
         self.tools_config = tools_config
@@ -60,6 +69,21 @@ class Registry:
         self.store = store
         self.defs: dict[str, ToolDefinition] = {}
         self.spec_hash = ""
+        self._clock, self._sleep, self._jitter = clock, sleep, jitter
+        # Healing needs somewhere to keep fixes and the audit log; without a store, errors pass through.
+        self.healer = (
+            Healer(
+                store=store,
+                jev=jev,
+                client=client,
+                cfg=cfg,
+                header_sources=tools_config.get("header_sources", {}),
+                attempt=self._attempt,
+                clock=clock,
+            )
+            if store
+            else None
+        )
 
     async def load(self) -> None:
         spec, self.spec_hash = await fetch_spec(self.client)
@@ -125,23 +149,22 @@ class Registry:
             base_doc=base,
         )
 
-    @staticmethod
-    def _api_error(outcome: Outcome) -> dict:
-        return {
-            "error": "API_ERROR",
-            "class": outcome.cls.value,
-            "status": outcome.raw_code,
-            "detail": outcome.data,
-        }
-
     async def call(self, name: str, args: dict) -> dict:
         tool = self.defs.get(name)
         if tool is None:
             return {"error": "UNKNOWN_TOOL", "tool": name, "retry": False}
         if not Draft202012Validator(tool.agent_schema).is_valid(args):
             return {"error": "AGENT_ARG_ERROR", "tool": name, "retry": False}
+        t0 = self._clock()
         base = self.base_doc(tool, args)
-        outcome = await self._attempt(tool, base, tool.active_fix)
-        return (
-            outcome.data if outcome.cls is ErrorClass.OK else self._api_error(outcome)
+        outcome = await retry.with_retries(
+            lambda: self._attempt(tool, base, tool.active_fix),
+            remaining=lambda: HEAL_DEADLINE_S - (self._clock() - t0),
+            sleep=self._sleep,
+            jitter=self._jitter,
         )
+        if outcome.cls is ErrorClass.OK:
+            return outcome.data
+        if outcome.cls in (ErrorClass.BUSINESS, ErrorClass.E1) or self.healer is None:
+            return api_error(outcome)
+        return await self.healer.heal(tool, base, outcome, t0)

@@ -43,6 +43,12 @@ def raw(content: bytes, ctype: str) -> httpx.Response:
     )
 
 
+def raw_status(status: int, content: bytes, ctype: str) -> httpx.Response:
+    return httpx.Response(
+        status, content=content, headers={"content-type": ctype}, request=REQ
+    )
+
+
 def case(name, resp, cls, code, viol=(), *, exc=None, schema=None, checks=()):
     return pytest.param(resp, exc, schema, list(checks), cls, code, list(viol), id=name)
 
@@ -151,10 +157,38 @@ def test_ac_03_detector_table(resp, exc, schema, checks, cls, code, viol):
 SOFT = {"success": False, "error": "x"}
 
 
+NOT_FOUND = {"detail": "User not found"}
+
+
 @pytest.mark.parametrize(
     "resp, cls, data",
-    [(r(200, USER), C.OK, USER), (r(204), C.OK, {}), (r(200, SOFT), C.E4, SOFT)],
+    [
+        (r(200, USER), C.OK, USER),
+        (r(204), C.OK, {}),
+        (r(200, SOFT), C.E4, SOFT),
+        (r(409, {"detail": "exists"}), C.BUSINESS, {"detail": "exists"}),
+        (r(404, NOT_FOUND), C.E2, NOT_FOUND),
+        (r(422, {"detail": DETAIL_422}), C.E2, {"detail": DETAIL_422}),
+        (r(400), C.E2, None),
+        (raw_status(400, b"<p>no</p>", "text/html"), C.E2, None),
+        (raw_status(409, b"", "application/json"), C.BUSINESS, None),
+    ],
 )
 def test_data_carries_decoded_body(resp, cls, data):
     out = detect.classify(resp)
     assert (out.cls, out.data) == (cls, data)
+
+
+@pytest.mark.parametrize(
+    "headers, data",
+    [
+        ({"Retry-After": "2"}, {"retry_after": 2.0}),
+        ({"Retry-After": "0.5"}, {"retry_after": 0.5}),
+        ({"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}, None),
+        ({"Retry-After": "-3"}, None),
+        ({}, None),
+    ],
+)
+def test_e1_carries_numeric_retry_after(headers, data):
+    out = detect.classify(r(503, headers=headers))
+    assert (out.cls, out.data) == (C.E1, data)
