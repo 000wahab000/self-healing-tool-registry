@@ -192,10 +192,46 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
     return app
 
 
+class MutationIn(BaseModel):
+    id: str | None
+
+
+def build_admin(api: "MockApi") -> FastAPI:
+    # Separate app: its routes never reach the inner app's /openapi.json.
+    admin = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+
+    def mutations() -> dict:
+        return {"active": api.mutation, "ids": list(MUTATIONS)}
+
+    @admin.post("/admin/mutation")
+    async def set_mutation(body: MutationIn):
+        try:
+            api.set_mutation(body.id)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
+        return mutations()
+
+    @admin.post("/admin/reset")
+    async def reset():
+        api.reset()
+        return mutations()
+
+    @admin.get("/admin/state")
+    async def state():
+        return api.state()
+
+    @admin.get("/admin/mutations")
+    async def list_mutations():
+        return mutations()
+
+    return admin
+
+
 class MockApi:
     def __init__(self, token: str) -> None:
         self.token = token
         self.requests: list[dict] = []
+        self.admin = build_admin(self)
         self.reset()
 
     def reset(self) -> None:
@@ -208,6 +244,7 @@ class MockApi:
         if mid is not None and mid not in MUTATIONS:
             raise ValueError(f"unknown mutation {mid!r}")
         self.get_user_calls = 0
+        self.mutation = mid
         self.inner = build(self, mid)
 
     def state(self) -> dict:
@@ -219,10 +256,17 @@ class MockApi:
         return self.data["users"][uid]
 
     async def __call__(self, scope, receive, send) -> None:
-        if (
-            scope["type"] != "http"
-        ):  # ponytail: lifespan reaches only the app current at the time
+        if scope["type"] == "lifespan":  # inner apps are rebuilt, so answer here
+            while True:
+                kind = (await receive())["type"]
+                if kind == "lifespan.startup":
+                    await send({"type": "lifespan.startup.complete"})
+                elif kind == "lifespan.shutdown":
+                    return await send({"type": "lifespan.shutdown.complete"})
+        if scope["type"] != "http":
             return await self.inner(scope, receive, send)
+        if scope["path"].startswith("/admin/"):
+            return await self.admin(scope, receive, send)
         body = b""
         while True:
             message = await receive()
