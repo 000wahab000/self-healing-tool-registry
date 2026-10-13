@@ -261,5 +261,19 @@ class Store:
                 (self._now_ms(), agent, run_id, tool, cls, latency_ms),
             )
 
+    def call_events(self, after_id: int = 0) -> list[dict]:
+        rows = self._db.execute(
+            "SELECT event_id, ts_ms, agent, run_id, tool, class, latency_ms"
+            " FROM call_events WHERE event_id > ? ORDER BY event_id",
+            (after_id,),
+        )
+        return [dict(r) for r in rows]
+
+    def get_fix(self, fix_id: int) -> Fix | None:
+        row = self._db.execute(
+            f"SELECT {FIX_COLS} FROM fixes WHERE fix_id = ?", (fix_id,)
+        ).fetchone()
+        return _fix(row) if row else None
+
     def close(self) -> None:
         self._db.close()

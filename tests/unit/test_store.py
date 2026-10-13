@@ -294,3 +294,45 @@ def test_log_call_row(open_store, db_path, clock):
     assert rows(
         db_path, "SELECT ts_ms, agent, run_id, tool, class, latency_ms FROM call_events"
     ) == [(1_000_000, "healing", "run-1", "get_user", "OK", 12)]
+
+
+def test_call_events_returns_rows_after_the_cursor(open_store, clock):
+    store = open_store()
+    assert store.call_events() == []
+    store.log_call("healing", "run-1", "get_user", ErrorClass.OK, 12)
+    clock.t += 1
+    store.log_call("baseline", "run-2", "update_email", ErrorClass.E2, 7)
+    first = {
+        "event_id": 1,
+        "ts_ms": 1_000_000,
+        "agent": "healing",
+        "run_id": "run-1",
+        "tool": "get_user",
+        "class": "OK",
+        "latency_ms": 12,
+    }
+    second = {
+        "event_id": 2,
+        "ts_ms": 1_001_000,
+        "agent": "baseline",
+        "run_id": "run-2",
+        "tool": "update_email",
+        "class": "E2",
+        "latency_ms": 7,
+    }
+    assert store.call_events() == [first, second]
+    assert store.call_events(after_id=1) == [second]
+    assert store.call_events(after_id=2) == []
+
+
+def test_get_fix_reads_any_status_from_the_database(open_store):
+    store = open_store()
+    first_id = store.save_fix(make_fix(schema_hash="v1"))
+    second_id = store.save_fix(make_fix(schema_hash="v2", request_ops=[]))
+
+    retired = store.get_fix(first_id)  # no longer in the active cache
+    assert retired == make_fix(
+        schema_hash="v1", fix_id=first_id, status=FixStatus.retired
+    )
+    assert store.get_fix(second_id).request_ops == []
+    assert store.get_fix(second_id + 1) is None

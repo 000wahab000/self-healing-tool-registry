@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Self-healing tool registry</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --ink: #1b2430; --muted: #5b6878; --line: #d9dee5;
+  --accent: #2457d6; --accent-ink: #ffffff; --active: #fff3c4;
+  --ok: #17703f; --ok-bg: #ddf3e6;
+  --biz: #35506e; --biz-bg: #e2ebf5;
+  --e1: #8a5a00; --e1-bg: #fdf0c8;
+  --e2: #b3261e; --e2-bg: #fde4e1;
+  --e3: #6b3fa0; --e3-bg: #eee5f8;
+  --e4: #a14400; --e4-bg: #ffe8d3;
+  --e5: #a3246b; --e5-bg: #fbe3f0;
+  --e6: #0b6a6a; --e6-bg: #d9f1f1;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161c; --panel: #1b212a; --ink: #e6eaf0; --muted: #98a4b3; --line: #2e3744;
+    --accent: #6c93f5; --accent-ink: #0d1117; --active: #4a3d10;
+    --ok: #6fd69a; --ok-bg: #163a28;
+    --biz: #9dbbdc; --biz-bg: #1f3347;
+    --e1: #f0c75e; --e1-bg: #40330a;
+    --e2: #ff8d85; --e2-bg: #4a1a17;
+    --e3: #c6a4ee; --e3-bg: #33224b;
+    --e4: #ffa866; --e4-bg: #47260a;
+    --e5: #f08cc0; --e5-bg: #47172f;
+    --e6: #6fd6d6; --e6-bg: #0f3a3a;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 15px; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+header { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row + .row { margin-top: 8px; }
+.label { color: var(--muted); font-size: 12px; margin-right: 4px; }
+button { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--panel); color: var(--ink); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button[aria-pressed="true"] { background: var(--active); border-color: var(--e1); }
+button small { color: var(--muted); }
+button:disabled { opacity: .5; cursor: default; }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--biz-bg); color: var(--biz); }
+.chip.bad { background: var(--e2-bg); color: var(--e2); }
+.chip.good { background: var(--ok-bg); color: var(--ok); }
+.chip.warn { background: var(--e1-bg); color: var(--e1); }
+#note { color: var(--e2); min-height: 1.4em; margin-top: 8px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.cols section { margin-bottom: 0; }
+.meta { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+ol.calls { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
+ol.calls li { display: grid; grid-template-columns: 92px 1fr auto 64px; gap: 8px; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+ol.calls li:last-child { border-bottom: 0; }
+.time { color: var(--muted); font-size: 12px; }
+.ms { color: var(--muted); font-size: 12px; text-align: right; }
+.badge { display: inline-block; min-width: 3.2em; text-align: center; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; background: var(--biz-bg); color: var(--biz); }
+[data-k="OK"], [data-k="RECOVERED"] { background: var(--ok-bg); color: var(--ok); }
+[data-k="BUSINESS"], [data-k="NOT_DRIFT"] { background: var(--biz-bg); color: var(--biz); }
+[data-k="E1"] { background: var(--e1-bg); color: var(--e1); }
+[data-k="E2"], [data-k="ABORTED"], [data-k="VERIFY_FAILED"] { background: var(--e2-bg); color: var(--e2); }
+[data-k="E3"] { background: var(--e3-bg); color: var(--e3); }
+[data-k="E4"] { background: var(--e4-bg); color: var(--e4); }
+[data-k="E5"] { background: var(--e5-bg); color: var(--e5); }
+[data-k="E6"] { background: var(--e6-bg); color: var(--e6); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+td.ops { white-space: normal; min-width: 280px; }
+code { font: 12px/1.5 ui-monospace, Consolas, monospace; background: var(--bg); padding: 1px 5px; border-radius: 4px; display: inline-block; margin: 1px 4px 1px 0; }
+code.resp { border-left: 3px solid var(--e5); }
+.empty { color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.card { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.card b { display: block; font-size: 12px; color: var(--muted); font-weight: 600; }
+.card span { font-size: 18px; font-variant-numeric: tabular-nums; }
+.card small { display: block; color: var(--muted); }
+pre { margin: 0; max-height: 320px; overflow: auto; font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Self-healing tool registry: live demo</h1>
+  <div class="row">
+    <span class="chip" id="mutation-chip">no mutation</span>
+    <span class="chip warn" id="conn-chip">connecting</span>
+  </div>
+</header>
+
+<section>
+  <div class="row">
+    <span class="label">Run</span>
+    <button class="primary" id="start-scripted">Start (scripted)</button>
+    <button id="start-llm">Start (LLM)</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div class="row" id="mutations"><span class="label">Break the API</span></div>
+  <div id="note" role="status"></div>
+</section>
+
+<div class="cols">
+  <section id="col-healing">
+    <h2>Healing agent <span class="chip" id="status-healing">idle</span> <span class="chip bad" id="cap-healing" hidden>iteration cap</span></h2>
+    <p class="meta" id="meta-healing"></p>
+    <ol class="calls" id="calls-healing"></ol>
+  </section>
+  <section id="col-baseline">
+    <h2>Baseline agent <span class="chip" id="status-baseline">idle</span> <span class="chip bad" id="cap-baseline" hidden>iteration cap</span></h2>
+    <p class="meta" id="meta-baseline"></p>
+    <ol class="calls" id="calls-baseline"></ol>
+  </section>
+</div>
+
+<section style="margin-top:12px">
+  <h2>Patch log</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Time</th><th>Tool</th><th>Class</th><th>Tier</th><th>Path</th><th>Outcome</th><th>Reason</th><th>MTTR</th><th>Fix operations</th></tr></thead>
+      <tbody id="heals"></tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Metrics</h2>
+  <div class="cards" id="metrics"></div>
+</section>
+
+<section id="report-panel" hidden>
+  <h2>Benchmark report</h2>
+  <pre id="report"></pre>
+</section>
+
+<script>
+"use strict";
+const MUTATIONS = [
+  ["M1", "Rename field", "get_user"],
+  ["M2", "String to int", "update_email"],
+  ["M3", "Nest response", "get_user"],
+  ["M4", "Require bearer", "create_ticket"],
+  ["M5", "Nest + tenant header", "get_user"],
+  ["M6", "Ambiguous rename", "set_manager"],
+  ["M7", "Silent ignore", "update_email"],
+  ["M8", "Unfillable field", "create_ticket"],
+  ["C1", "Transient 503", "get_user"],
+];
+const AGENTS = ["healing", "baseline"];
+const $ = (id) => document.getElementById(id);
+
+function el(tag, text, attrs) {
+  const node = document.createElement(tag);
+  if (text !== undefined && text !== null) node.textContent = text;
+  for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+  return node;
+}
+
+function note(text) { $("note").textContent = text || ""; }
+
+async function call(path, body) {
+  const init = body === undefined ? {} : {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+  };
+  const res = await fetch(path, init);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : path + " failed (" + res.status + ")");
+  return data;
+}
+
+async function act(path, body) {
+  note("");
+  try { await call(path, body); } catch (err) { note(err.message); }
+  poll();
+}
+
+// ---- controls -------------------------------------------------------------
+const mutationButtons = {};
+for (const [id, label, tool] of MUTATIONS) {
+  const b = el("button", id + " ", { title: tool + ": " + label, "aria-pressed": "false" });
+  b.appendChild(el("small", label));
+  b.onclick = () => act("/api/mutation", { id });
+  $("mutations").appendChild(b);
+  mutationButtons[id] = b;
+}
+const clear = el("button", "Clear");
+clear.onclick = () => act("/api/mutation", { id: null });
+$("mutations").appendChild(clear);
+$("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_delay: 1.0 });
+$("start-llm").onclick = () => act("/api/start", { agent: "llm" });
+$("reset").onclick = () => act("/api/reset", {});
+
+// ---- rendering ------------------------------------------------------------
+const path = (p) => p.join(".");
+function opText(o) {
+  switch (o.op) {
+    case "move": return "move " + path(o.from) + " → " + path(o.to);
+    case "cast": return "cast " + path(o.path) + " → " + o.to;
+    case "header": return "header " + o.name + " ← config " + o.src.key;
+    case "route": return "route " + o.method + " " + o.path;
+    default: return JSON.stringify(o);
+  }
+}
+
+function badge(key, text) { return el("span", text === undefined ? key : text, { class: "badge", "data-k": key }); }
+
+function clock(ms) {
+  const d = new Date(ms);
+  return d.toLocaleTimeString([], { hour12: false }) + "." + String(ms % 1000).padStart(3, "0");
+}
+
+let after = 0, epoch = null, healCount = -1, busy = false;
+const counts = { healing: 0, baseline: 0 };
+
+function clearView() {
+  after = 0; healCount = -1;
+  for (const a of AGENTS) { $("calls-" + a).replaceChildren(); counts[a] = 0; }
+}
+
+function addCall(e) {
+  const list = $("calls-" + e.agent);
+  if (!list) return;
+  const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 8;
+  const li = el("li");
+  li.append(el("span", clock(e.ts_ms), { class: "time" }), el("span", e.tool), badge(e.class), el("span", e.latency_ms + " ms", { class: "ms" }));
+  list.appendChild(li);
+  if (stick) list.scrollTop = list.scrollHeight;
+  counts[e.agent] += 1;
+}
+
+function renderRun(agent, s) {
+  const run = s.runs[agent];
+  const status = $("status-" + agent);
+  status.textContent = run.status;
+  status.className = "chip " + ({ running: "warn", done: "good", error: "bad" }[run.status] || "");
+  $("cap-" + agent).hidden = !run.hit_limit;
+  const data = s.mocks[agent].data;
+  const user = data.users["123"];
+  const parts = [counts[agent] + " tool calls", "email " + user.email, "manager " + (user.manager_id || "none"), data.tickets.length + " ticket(s)"];
+  if (run.llm_tokens) parts.push(run.llm_tokens + " tokens");
+  if (run.error) parts.push("error: " + run.error);
+  $("meta-" + agent).textContent = parts.join(" · ");
+}
+
+function renderHeals(heals) {
+  if (heals.length === healCount) return;
+  healCount = heals.length;
+  const body = $("heals");
+  body.replaceChildren();
+  if (!heals.length) {
+    const td = el("td", "No heals yet.", { colspan: "9", class: "empty" });
+    body.appendChild(el("tr")).appendChild(td);
+    return;
+  }
+  for (const h of heals) {
+    const tr = el("tr");
+    const ops = el("td", null, { class: "ops" });
+    if (!h.fix) ops.appendChild(el("span", "no fix (refused)", { class: "empty" }));
+    else {
+      for (const o of h.fix.request_ops) ops.appendChild(el("code", opText(o)));
+      for (const o of h.fix.response_ops) ops.appendChild(el("code", "response: " + opText(o), { class: "resp" }));
+      if (!h.fix.request_ops.length && !h.fix.response_ops.length) ops.appendChild(el("span", "no operations", { class: "empty" }));
+    }
+    const cell = (child) => { const td = el("td"); td.append(child); return td; };
+    tr.append(
+      el("td", clock(h.ts_ms)), el("td", h.tool), cell(badge(h.class)), el("td", String(h.tier)),
+      el("td", h.path || "-"), cell(badge(h.outcome)), el("td", h.reason || "-"), el("td", h.mttr_ms + " ms"), ops,
+    );
+    body.appendChild(tr);
+  }
+}
+
+function card(title, value, sub) {
+  const c = el("div", null, { class: "card" });
+  c.append(el("b", title), el("span", value));
+  if (sub) c.appendChild(el("small", sub));
+  return c;
+}
+
+function renderMetrics(m) {
+  const by = m.outcomes.by_outcome;
+  const recovered = by.RECOVERED || 0, refused = by.ABORTED || 0;
+  const other = Object.values(by).reduce((a, b) => a + b, 0) - recovered - refused;
+  const tier = (t, name) => {
+    const x = m.mttr[t];
+    if (!x) return card("Tier " + t + " MTTR (" + name + ")", "-", "no recovered heals");
+    return card("Tier " + t + " MTTR (" + name + ")", Math.round(x.p50_ms) + " ms p50", "p95 " + Math.round(x.p95_ms) + " ms · n=" + x.n);
+  };
+  const reasons = Object.entries(m.outcomes.by_reason).map(([k, v]) => k + " ×" + v).join(", ");
+  $("metrics").replaceChildren(
+    tier("1", "diff / Jev"), tier("0", "cache"),
+    card("Recovered", String(recovered)), card("Refused", String(refused), reasons || undefined),
+    card("Other", String(other), "verify failed / not drift"),
+  );
+}
+
+function render(s) {
+  $("mutation-chip").textContent = s.active_mutation ? "mutation " + s.active_mutation : "no mutation";
+  $("mutation-chip").className = "chip" + (s.active_mutation ? " bad" : "");
+  for (const [id, b] of Object.entries(mutationButtons)) b.setAttribute("aria-pressed", String(id === s.active_mutation));
+  for (const e of s.events) { addCall(e); after = e.event_id; }
+  for (const a of AGENTS) renderRun(a, s);
+  renderHeals(s.heals);
+  renderMetrics(s.metrics);
+}
+
+// ---- polling ---------------------------------------------------------------
+async function poll() {
+  if (busy) return;
+  busy = true;
+  try {
+    const s = await call("/api/state?after=" + after);
+    if (s.epoch !== epoch) { epoch = s.epoch; clearView(); }
+    render(s);
+    $("conn-chip").textContent = "live";
+    $("conn-chip").className = "chip good";
+  } catch (err) {
+    $("conn-chip").textContent = "disconnected";
+    $("conn-chip").className = "chip bad";
+  } finally {
+    busy = false;
+  }
+}
+
+call("/api/report").then((r) => {
+  if (r.report) { $("report").textContent = r.report; $("report-panel").hidden = false; }
+}).catch(() => {});
+setInterval(poll, 500);
+poll();
+</script>
+</body>
+</html>
