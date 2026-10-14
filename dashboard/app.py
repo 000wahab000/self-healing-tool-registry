@@ -266,7 +266,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
-        return FileResponse(HERE / "index.html")
+        return FileResponse(HERE / "index.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/api/state")
     async def get_state(after: int = 0) -> dict:
