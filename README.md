@@ -349,6 +349,19 @@ The dashboard's `POST /api/explore` endpoint also accepts a **custom drift** (re
 
 **Using real LLM agents:** set `OPENROUTER_API_KEY` in `.env` (default model `anthropic/claude-haiku-5.5`, change with `LLM_MODEL`), then choose the LLM agent in the dashboard or run `python -m bench.run --agent llm`. Live end-to-end tests run only with `RUN_E2E=1`.
 
+**Deploying the dashboard:** one long-running process, so use a host that runs a server (not serverless). The repo ships everything a host looks for:
+
+| File | Used by |
+|---|---|
+| `Dockerfile` | Railway (via `railway.json`), Fly.io, Koyeb, Cloud Run, Hugging Face Spaces, any Docker host |
+| `requirements.txt` + `Procfile` + `.python-version` | Buildpack hosts (Render, Heroku, Koyeb, Railway without Docker) |
+
+- Install: `pip install -r requirements.txt`
+- Start: `python -m dashboard` (binds `0.0.0.0:$PORT` when the host sets `PORT`, else `127.0.0.1:8080`)
+- Optional env: `OPENROUTER_API_KEY` for LLM agents, `DB_PATH` to keep the store on a volume.
+
+Keep it to one instance: run state lives in memory.
+
 ---
 
 ## 🗂️ Project layout

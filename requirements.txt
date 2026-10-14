@@ -1,0 +1,9 @@
+# Runtime deps for the dashboard (pyproject core + agents extra), pinned for deploys.
+fastapi==0.143.0
+uvicorn==0.54.0
+pydantic==2.14.1
+httpx==0.28.1
+jsonschema==4.26.0
+python-dotenv==1.2.4
+langgraph==1.2.15
+langchain-openai==1.7.1
