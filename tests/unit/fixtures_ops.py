@@ -74,8 +74,8 @@ SET_MANAGER = make_op(
     "/users/manager",
     obj(
         {
-            "user_id": {"type": "string", "description": "ID of the user"},
-            "manager_id": {"type": "string", "description": "ID of the manager"},
+            "user_id": {"type": "string", "description": "Employee to update"},
+            "manager_id": {"type": "string", "description": "Manager to assign"},
         }
     ),
     obj({"id": STR, "manager_id": STR}),
@@ -152,7 +152,7 @@ MUTATIONS: dict[str, tuple[dict, dict, dict]] = {
         ),
         GET_USER_DOC,
     ),
-    "M6": (
+    "M6-D": (
         SET_MANAGER,
         make_op(
             "set_manager",
@@ -160,16 +160,24 @@ MUTATIONS: dict[str, tuple[dict, dict, dict]] = {
             "/users/manager",
             obj(
                 {
-                    "subject": {
-                        "type": "string",
-                        "description": "ID of the user whose manager is being set",
-                    },
+                    "subject": {"type": "string", "description": "Employee to update"},
                     "supervisor": {
                         "type": "string",
-                        "description": "User ID of the new manager",
+                        "description": "Manager to assign",
                     },
                 }
             ),
+            SET_MANAGER["response_schema"],
+        ),
+        SET_MANAGER_DOC,
+    ),
+    "M6-N": (
+        SET_MANAGER,
+        make_op(
+            "set_manager",
+            "POST",
+            "/users/manager",
+            obj({"subject": STR, "supervisor": STR}),
             SET_MANAGER["response_schema"],
         ),
         SET_MANAGER_DOC,
@@ -187,6 +195,17 @@ MUTATIONS: dict[str, tuple[dict, dict, dict]] = {
                 },
                 required=["user_id"],
             ),
+            UPDATE_EMAIL["response_schema"],
+        ),
+        UPDATE_EMAIL_DOC,
+    ),
+    "M9": (
+        UPDATE_EMAIL,
+        make_op(
+            "update_email",
+            "PATCH",
+            "/users/email",
+            obj({"payload": obj({"user_id": STR, "email": STR})}),
             UPDATE_EMAIL["response_schema"],
         ),
         UPDATE_EMAIL_DOC,
@@ -210,3 +229,4 @@ MUTATIONS: dict[str, tuple[dict, dict, dict]] = {
         CREATE_TICKET_DOC,
     ),
 }
+MUTATIONS["M6"] = MUTATIONS["M6-D"]  # the catalog's M6 runs as M6-D or M6-N

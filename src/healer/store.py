@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from enum import Enum
 
 from healer import canonical
@@ -20,6 +21,26 @@ from healer.models import (
     Tier,
 )
 from healer.settings import NEG_CACHE_TTL_S, RETIRE_AT_LOSSES
+
+RAW_ERROR_MAX = 2048
+REDACTED = "[REDACTED]"
+# ponytail: header-shaped `name: value` / `"name": "value"` text, to the end of the line or JSON
+# string. A JSON-escaped multi-header string is redacted whole, never leaked.
+_HEADER_VALUE = re.compile(
+    r'\b(authorization|cookie|set-cookie|[\w-]*api[-_]?key|[\w-]*token)("?\s*[:=]\s*"?)[^"\r\n,}]+',
+    re.IGNORECASE,
+)
+_BEARER = re.compile(r"\bbearer\s+[\w.~+/=-]+", re.IGNORECASE)
+_JWT = re.compile(r"\beyJ[\w-]+\.[\w-]+\.[\w-]*")
+
+
+def sanitize(text: str, secrets: Iterable[str] = ()) -> str:
+    """FR-5.7: the audit blob keeps no secret. Redact, then truncate (so a cut cannot expose one)."""
+    for secret in sorted(filter(None, secrets), key=len, reverse=True):
+        text = text.replace(secret, REDACTED)
+    text = _HEADER_VALUE.sub(rf"\1\2{REDACTED}", text)
+    text = _BEARER.sub(f"Bearer {REDACTED}", text)
+    return _JWT.sub(REDACTED, text)[:RAW_ERROR_MAX]
 
 
 def _in(col: str, enum: type[Enum]) -> str:
@@ -64,6 +85,7 @@ CREATE TABLE IF NOT EXISTS heal_events (
     outcome TEXT NOT NULL {_in("outcome", HealOutcome)},
     reason TEXT {_in("reason", Reason)},
     mttr_ms INTEGER NOT NULL,
+    heal_ms INTEGER NOT NULL,
     jev_tokens INTEGER NOT NULL,
     llm_tokens INTEGER NOT NULL,
     raw_error TEXT NOT NULL
@@ -86,7 +108,7 @@ FIX_COLS = (
 )
 AUDIT_COLS = (
     "ts_ms, tool, fingerprint, class AS cls, raw_code, tier, path, fix_id, outcome,"
-    " reason, mttr_ms, jev_tokens, llm_tokens, raw_error"
+    " reason, mttr_ms, heal_ms, jev_tokens, llm_tokens, raw_error"
 )
 
 
@@ -205,8 +227,8 @@ class Store:
         with self._db:
             self._db.execute(
                 "INSERT INTO heal_events (ts_ms, tool, fingerprint, class, raw_code, tier,"
-                " path, fix_id, outcome, reason, mttr_ms, jev_tokens, llm_tokens,"
-                " raw_error) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " path, fix_id, outcome, reason, mttr_ms, heal_ms, jev_tokens,"
+                " llm_tokens, raw_error) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     event.ts_ms,
                     event.tool,
@@ -219,6 +241,7 @@ class Store:
                     event.outcome,
                     event.reason,
                     event.mttr_ms,
+                    event.heal_ms,
                     event.jev_tokens,
                     event.llm_tokens,
                     event.raw_error,

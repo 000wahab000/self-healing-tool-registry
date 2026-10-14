@@ -49,13 +49,19 @@ def check(
         apply_ops(req, base_doc, cfg)
     except OpError as e:
         return e.reason
-    if req and not (
-        cls in (ErrorClass.E2, ErrorClass.E4)
-        or tool_cfg.get("idempotent")
-        or tool_cfg.get("idempotency_key")
+    # FR-9.4: only an E2 (the server rejected the request) is safe to re-send unconditionally.
+    if (
+        replays(cls, req, resp)
+        and cls is not ErrorClass.E2
+        and not (tool_cfg.get("idempotent") or tool_cfg.get("idempotency_key"))
     ):
         return Reason.UNSAFE_REPLAY
     return None
+
+
+def replays(cls: ErrorClass, request_ops: list[dict], response_ops: list[dict]) -> bool:
+    """Everything is re-sent except the E5 remap of a body that was already received."""
+    return not (cls is ErrorClass.E5 and response_ops and not request_ops)
 
 
 def jev_ok(confidence: float, is_write: bool) -> bool:

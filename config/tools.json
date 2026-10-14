@@ -22,6 +22,7 @@
     "set_manager": {
       "idempotent": true,
       "write": true,
+      "preverify": {"method": "POST", "path": "/users/manager/validate"},
       "postchecks": [
         {"type": "echo", "response": ["id"], "request": ["body", "user_id"]},
         {"type": "echo", "response": ["manager_id"], "request": ["body", "manager_id"]}

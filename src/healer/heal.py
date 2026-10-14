@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from healer import candidates, canonical, contract, diagnose, fingerprint, safety
+from healer.detect import VALUE_KINDS
 from healer.jev import JevClient, JevUnavailable, render_option, render_state
 from healer.models import (
     AuditEvent,
@@ -22,12 +23,13 @@ from healer.models import (
     HealOutcome,
     Outcome,
     Reason,
+    Side,
     Tier,
 )
 from healer.openapi_loader import fetch_spec, operations
 from healer.ops import OpError, apply_ops
 from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S
-from healer.store import Store
+from healer.store import Store, sanitize
 
 if TYPE_CHECKING:
     from healer.registry import ToolDefinition
@@ -45,6 +47,7 @@ NEGATIVE = frozenset(
         Reason.LOW_CONFIDENCE,
         Reason.UNSAFE_PATCH,
         Reason.UNSAFE_REPLAY,
+        Reason.UNSUPPORTED_CLASS,
     }
 )
 AUDIT_OUTCOME = {
@@ -72,7 +75,8 @@ class _Heal:
     tool: ToolDefinition
     base: dict
     outcome: Outcome
-    t0: float
+    t0: float  # the call started: the deadline counts from here
+    detected: float  # the failing response arrived: heal_ms and mttr_ms count from here
     fp: str = ""
     signature: dict = field(default_factory=dict)
     tier: Tier = Tier.T1
@@ -85,6 +89,7 @@ class _Heal:
     entries: list[dict] = field(default_factory=list)
     schema_hash: str = ""
     transient: bool = False  # the replay hit E1
+    needs_preverify: bool = False  # a Jev pick on a write tool (FR-8.6)
 
 
 class Healer:
@@ -98,18 +103,23 @@ class Healer:
         header_sources: Mapping[str, str],
         attempt: Callable[..., Awaitable[Outcome]],
         clock: Callable[[], float],
+        spec_mode: str = "on",
     ) -> None:
         self._store, self._jev, self._client = store, jev, client
+        self._spec_mode = spec_mode
         self._cfg, self._header_sources = cfg, header_sources
         self._attempt, self._clock = attempt, clock
         self._flights: dict[str, asyncio.Future[Reason | None]] = {}
         self._saved_specs: set[str] = set()
+        # fingerprint -> when its first failing response arrived, until a heal recovers it.
+        # ponytail: never-recovered fingerprints stay (bounded by the distinct breaks seen).
+        self._first_seen: dict[str, float] = {}
 
     async def heal(
         self, tool: ToolDefinition, base: dict, outcome: Outcome, t0: float
     ) -> Any:
         """The agent's result: data when recovered, an error dict otherwise."""
-        h = _Heal(tool, base, outcome, t0)
+        h = _Heal(tool, base, outcome, t0, self._clock())
         h.fp, h.signature = fingerprint.fingerprint(tool.name, outcome)
         try:
             async with asyncio.timeout(HEAL_DEADLINE_S - (self._clock() - t0)):
@@ -158,6 +168,8 @@ class Healer:
         return result.data if result.cls is ErrorClass.OK else api_error(result)
 
     async def _lead(self, h: _Heal) -> Any:
+        if h.outcome.cls is ErrorClass.E3:  # healing an undecodable body is FUTURE
+            raise _Abort(Reason.UNSUPPORTED_CLASS)
         fix = self._store.get_active(h.fp)
         if fix:
             h.tier, h.path, h.fix_id = Tier.T0, DecisionPath.cache, fix.fix_id
@@ -166,6 +178,8 @@ class Healer:
                 await self._diagnose(h)
             fix = await self._candidate(h)
         self._gate(h, fix)
+        if h.needs_preverify:
+            await self._preverify(h, fix)
         result = await self._verify(h, fix)
         if result.cls is not ErrorClass.OK:
             # A transient replay failure says nothing about the fix: no loss, no negative cache.
@@ -176,7 +190,9 @@ class Healer:
         return self._commit(h, fix, result)
 
     async def _diagnose(self, h: _Heal) -> None:
-        """Fetch and diff the current spec. Leaves `h.ops` None when it is unavailable (clue mode)."""
+        """Fetch and diff the current spec. Leaves `h.ops` None when it is unavailable or off (clue mode)."""
+        if self._spec_mode == "off":
+            return
         try:
             spec, spec_hash = await fetch_spec(self._client)
         except (httpx.HTTPError, ValueError):
@@ -194,6 +210,12 @@ class Healer:
         if h.new_op is None:
             raise _Abort(Reason.NO_CANDIDATE)
         h.entries = diagnose.diff(h.tool.base_op, h.new_op)
+        if (
+            not h.entries
+            and h.outcome.cls is ErrorClass.E2
+            and all(v.kind in VALUE_KINDS for v in h.outcome.violations)
+        ):  # FR-3.4: the API rejected a value, not the shape
+            raise _Abort(Reason.NOT_DRIFT)
 
     async def _candidate(self, h: _Heal) -> Fix:
         outcome, cfg_keys = h.outcome, set(self._cfg)
@@ -209,15 +231,22 @@ class Healer:
             )
         else:
             h.path = DecisionPath.diff
-            # No diff against the base: the API rolled back, so the candidate is "no operations".
-            found, reason = (
-                candidates.build(h.entries, h.base, self._header_sources, cfg_keys)
-                if h.entries
-                else ([{"request_ops": [], "response_ops": []}], None)
+            failing = frozenset(
+                tuple(v.path) for v in outcome.violations if v.side is Side.REQ
             )
+            if h.entries:
+                found, reason = candidates.build(
+                    h.entries, h.base, self._header_sources, cfg_keys, failing
+                )
+            elif h.tool.active_fix is not None:
+                # No diff against the base, yet the active fix fails: the API rolled back, so
+                # the candidate is "no operations" (FR-3.4). Without a fix nothing explains it.
+                found, reason = [{"request_ops": [], "response_ops": []}], None
+            else:
+                found, reason = [], Reason.NO_CANDIDATE
         if reason is not None:
             raise _Abort(reason)
-        index = await self._ask_jev(h, found) if len(found) > 1 else 0
+        index = await self._choose(h, found) if len(found) > 1 else 0
         pick = found[index]
         return Fix(
             h.fp,
@@ -231,22 +260,54 @@ class Healer:
             h.schema_hash,
         )
 
-    async def _ask_jev(self, h: _Heal, found: list[dict]) -> int:
+    async def _choose(self, h: _Heal, found: list[dict]) -> int:
+        """FR-7.6, then FR-8: the tie-breaker's unique winner, else Jev's pick, else an abort."""
+        write = bool(h.tool.config.get("write"))
+        winner = candidates.tiebreak(found, self._schema_order(h), write=write)
+        if winner is not None:
+            h.path = DecisionPath.tiebreak
+            return winner
         h.path = DecisionPath.jev
-        if self._jev is None:
-            raise _Abort(Reason.JEV_UNAVAILABLE)
         try:
+            if self._jev is None:
+                raise JevUnavailable
             choice = await self._jev.choose(
                 render_state(h.entries, h.base),
                 QUESTION,
                 [render_option(f) for f in found],
             )
         except JevUnavailable:
-            raise _Abort(Reason.JEV_UNAVAILABLE) from None
+            h.path = DecisionPath.jev_unavailable
+            raise _Abort(Reason.LOW_CONFIDENCE) from None
         h.jev_tokens = choice.tokens
-        if not safety.jev_ok(choice.confidence, bool(h.tool.config.get("write"))):
+        if not safety.jev_ok(choice.confidence, write):
             raise _Abort(Reason.LOW_CONFIDENCE)
+        h.needs_preverify = write  # FR-8.6: a write waits for the dry run to confirm
         return choice.index
+
+    @staticmethod
+    def _schema_order(h: _Heal) -> list[dict]:
+        """diagnose.diff sorts by path; the tie-breaker's order evidence needs declaration order."""
+        if h.new_op is None:
+            return h.entries
+        rank = {
+            ("removed", p): i
+            for i, p in enumerate(diagnose.flatten_request(h.tool.base_op))
+        } | {("added", p): i for i, p in enumerate(diagnose.flatten_request(h.new_op))}
+        return sorted(
+            h.entries, key=lambda e: rank.get((e["change"], tuple(e["path"])), -1)
+        )
+
+    async def _preverify(self, h: _Heal, fix: Fix) -> None:
+        """FR-8.6: send the chosen request once to the tool's side-effect-free route. Only a
+        clean result (detection, output schema, postchecks) confirms the Jev pick."""
+        route = h.tool.config.get("preverify")
+        if route is None:
+            raise _Abort(Reason.LOW_CONFIDENCE)
+        result = await self._send(h, fix, route)
+        h.transient = result.cls is ErrorClass.E1
+        if result.cls is not ErrorClass.OK:
+            raise _Abort(Reason.LOW_CONFIDENCE)
 
     def _gate(self, h: _Heal, fix: Fix) -> None:
         spec_paths = spec_routes = None
@@ -274,11 +335,7 @@ class Healer:
 
     def _local(self, h: _Heal, fix: Fix) -> bool:
         """A response-only fix on E5 reshapes the body already received; nothing is re-sent."""
-        return (
-            h.outcome.cls is ErrorClass.E5
-            and bool(fix.response_ops)
-            and not fix.request_ops
-        )
+        return not safety.replays(h.outcome.cls, fix.request_ops, fix.response_ops)
 
     async def _verify(self, h: _Heal, fix: Fix) -> Outcome:
         if not self._local(h, fix):
@@ -291,10 +348,12 @@ class Healer:
             base_doc=h.base,
         )
 
-    async def _send(self, h: _Heal, fix: Fix | None) -> Outcome:
+    async def _send(
+        self, h: _Heal, fix: Fix | None, route: dict | None = None
+    ) -> Outcome:
         remaining = HEAL_DEADLINE_S - (self._clock() - h.t0)
         return await self._attempt(
-            h.tool, h.base, fix, min(REPLAY_TIMEOUT_MAX_S, remaining)
+            h.tool, h.base, fix, min(REPLAY_TIMEOUT_MAX_S, remaining), route
         )
 
     def _failure_reason(self, h: _Heal, fix: Fix, result: Outcome) -> Reason:
@@ -312,6 +371,7 @@ class Healer:
             self._store.audit(self._event(h, HealOutcome.RECOVERED, None))
         except sqlite3.Error:  # a fix that cannot be logged is not applied
             raise _Abort(Reason.VERIFY_FAILED) from None
+        self._first_seen.pop(h.fp, None)
         h.tool.active_fix = fix
         h.tool.version += 1
         if (
@@ -322,7 +382,9 @@ class Healer:
 
     def _abort(self, h: _Heal, reason: Reason) -> Any:
         if not h.waiter:
-            if reason in NEGATIVE and not h.transient:
+            # A missing, slow or broken Jev says nothing about the break (FR-11.3).
+            transient = h.transient or h.path is DecisionPath.jev_unavailable
+            if reason in NEGATIVE and not transient:
                 self._store.add_negative(h.fp)
             outcome = AUDIT_OUTCOME.get(reason, HealOutcome.ABORTED)
             self._store.audit(self._event(h, outcome, reason))
@@ -333,8 +395,16 @@ class Healer:
     def _event(
         self, h: _Heal, outcome: HealOutcome, reason: Reason | None
     ) -> AuditEvent:
-        # The error body can echo request values, so the audit keeps only the violations.
+        now = self._clock()
+        first = self._first_seen.setdefault(h.fp, h.detected)
         violations = [[v.side, v.path, v.kind] for v in h.outcome.violations]
+        # Only an error response carries an error body; an E5/E6 body is an ordinary reply.
+        err = h.outcome.cls in (ErrorClass.E2, ErrorClass.E4)
+        blob = {
+            "code": h.outcome.raw_code,
+            "body": h.outcome.data if err else None,
+            "violations": violations,
+        }
         return AuditEvent(
             ts_ms=time.time_ns() // 1_000_000,
             tool=h.tool.name,
@@ -346,7 +416,8 @@ class Healer:
             fix_id=h.fix_id,
             outcome=outcome,
             reason=reason,
-            mttr_ms=int((self._clock() - h.t0) * 1000),
+            mttr_ms=int((now - first) * 1000),
+            heal_ms=int((now - h.detected) * 1000),
             jev_tokens=h.jev_tokens,
-            raw_error=canonical.dumps(violations),
+            raw_error=sanitize(canonical.dumps(blob), self._cfg.values()),
         )

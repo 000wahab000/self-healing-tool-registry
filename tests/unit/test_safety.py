@@ -118,23 +118,36 @@ def test_operation_cap_counts_response_ops() -> None:
     assert run([], [move] * 4, cls=ErrorClass.E5, n_evidence=1) == Reason.UNSAFE_PATCH
 
 
-@pytest.mark.parametrize("cls", [ErrorClass.E2, ErrorClass.E4])
-def test_replay_allowed_when_server_rejected(cls: ErrorClass) -> None:
-    assert run([MOVE], cls=cls) is None
+def test_replay_allowed_when_server_rejected() -> None:
+    assert run([MOVE], cls=ErrorClass.E2) is None
+    assert run([], cls=ErrorClass.E2) is None  # the "no operations" replay too
 
 
-def test_replay_of_silent_ignore_on_non_idempotent_tool_is_unsafe_replay() -> None:
-    assert run([MOVE], cls=ErrorClass.E6) == Reason.UNSAFE_REPLAY
+@pytest.mark.parametrize("cls", [ErrorClass.E4, ErrorClass.E6])
+@pytest.mark.parametrize("request_ops", [[MOVE], []])
+def test_fr_9_4_accepted_write_on_non_idempotent_tool_is_unsafe_replay(
+    cls: ErrorClass, request_ops: list[dict]
+) -> None:
+    # E4/E6: the server accepted the request, so even replaying it unchanged may write twice
+    assert run(request_ops, cls=cls) == Reason.UNSAFE_REPLAY
 
 
+@pytest.mark.parametrize("cls", [ErrorClass.E4, ErrorClass.E6])
 @pytest.mark.parametrize("tool_cfg", [{"idempotent": True}, {"idempotency_key": True}])
-def test_replay_allowed_for_idempotent_or_keyed_tool(tool_cfg: dict) -> None:
-    assert run([MOVE], cls=ErrorClass.E6, tool_cfg=tool_cfg) is None
+def test_replay_allowed_for_idempotent_or_keyed_tool(
+    cls: ErrorClass, tool_cfg: dict
+) -> None:
+    assert run([MOVE], cls=cls, tool_cfg=tool_cfg) is None
 
 
 def test_response_only_fix_needs_no_replay_permission() -> None:
     move = {"op": "move", "from": ["data", "id"], "to": ["id"]}
-    assert run([], [move], cls=ErrorClass.E5) is None
+    assert run([], [move], cls=ErrorClass.E5) is None  # E5 is a local remap
+
+
+def test_e5_fix_that_would_re_send_follows_the_replay_rule() -> None:
+    assert run([MOVE], cls=ErrorClass.E5) == Reason.UNSAFE_REPLAY
+    assert run([MOVE], cls=ErrorClass.E5, tool_cfg={"idempotent": True}) is None
 
 
 @pytest.mark.parametrize(

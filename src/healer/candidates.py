@@ -167,7 +167,9 @@ def build(
     base_doc: dict,
     header_sources: Mapping[str, str],
     cfg_keys: set[str],
+    failing_paths: frozenset[tuple] = frozenset(),
 ) -> tuple[list[dict], Reason | None]:
+    """`failing_paths`: request paths the failure points at (FR-7.2 optional-field rule)."""
     req = [e for e in entries if e["side"] == Side.REQ]
     gone = [e for e in req if e["change"] == "removed"]
     new = [e for e in req if e["change"] == "added"]
@@ -200,8 +202,9 @@ def build(
             if not usable:
                 return [], Reason.NO_SAFE_VALUE
             targets.append((t, named or usable, True))
-        elif named:
-            targets.append((t, named, False))
+        elif live := [s for s in named if tuple(s["path"]) in failing_paths]:
+            # an added optional field is often a harmless addition, so it needs a failure
+            targets.append((t, live, False))
     targets.sort(key=lambda x: not x[2])  # required leaves claim sources first
 
     response_ops = _response_ops([e for e in entries if e["side"] == Side.RESP])
@@ -215,6 +218,77 @@ def build(
         for pairs in _assign(targets)
     )
     return _finish(options, base_doc, cfg_keys)
+
+
+_STOPWORDS = frozenset(
+    {
+        "id",
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "is",
+        "be",
+        "for",
+        "and",
+        "or",
+        "in",
+        "on",
+        "new",
+        "old",
+    }
+)
+_WORDS = re.compile(r"[a-z0-9]+")
+
+
+def _described(entry: dict) -> set[str]:
+    return set(_WORDS.findall(entry["description"].lower())) - _STOPWORDS
+
+
+def tiebreak(cands: list[dict], entries: list[dict], *, write: bool) -> int | None:
+    """FR-7.6: the index of the one candidate that strictly beats the rest, else None.
+
+    Evidence per removed->added move: a shared description token, the removed fields keeping their
+    order among the added ones, identical types. `entries` must be in schema-declaration order for
+    that order evidence to mean anything. Descriptions are only compared as tokens (FR-8.8).
+    """
+    req = [e for e in entries if e["side"] == Side.REQ]
+    gone = {
+        tuple(x["path"]): (i, x)
+        for i, x in enumerate(e for e in req if e["change"] == "removed")
+    }
+    new = {
+        tuple(x["path"]): (i, x)
+        for i, x in enumerate(e for e in req if e["change"] == "added")
+    }
+    scores = []
+    for c in cands:
+        pairs = sorted(
+            (
+                (gone[tuple(op["from"])], new[tuple(op["to"])])
+                for op in c["request_ops"]
+                if op["op"] == "move"
+                and tuple(op["from"]) in gone
+                and tuple(op["to"]) in new
+            ),
+            key=lambda p: p[0][0],
+        )
+        added_ranks = [n[0] for _, n in pairs]
+        scores.append(
+            (
+                sum(bool(_described(g[1]) & _described(n[1])) for g, n in pairs),
+                int(added_ranks == sorted(added_ranks)),
+                sum(g[1]["type"] == n[1]["type"] for g, n in pairs),
+            )
+        )
+    # A write tool needs description evidence: order and type alone do not separate
+    # type-compatible assignments.
+    keys = [s[0] for s in scores] if write else scores
+    best = max(keys, default=None)
+    if keys.count(best) != 1 or (write and best == 0):
+        return None
+    return keys.index(best)
 
 
 def _paths(doc: dict, prefix: list[str]) -> Iterator[list[str]]:

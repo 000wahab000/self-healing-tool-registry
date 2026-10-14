@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from healer.models import (
     Tier,
 )
 from healer.settings import NEG_CACHE_TTL_S
-from healer.store import Store
+from healer.store import RAW_ERROR_MAX, Store, sanitize
 
 FP = "9f2c41d0a7b3e815"
 SIGNATURE = {
@@ -75,6 +76,7 @@ def make_event(**kw) -> AuditEvent:
         "outcome": HealOutcome.RECOVERED,
         "reason": None,
         "mttr_ms": 812,
+        "heal_ms": 140,
         "jev_tokens": 0,
         "llm_tokens": 0,
         "raw_error": '{"detail":[{"loc":["body","target"],"msg":"Field required é"}]}',
@@ -208,6 +210,7 @@ def test_audit_round_trip(open_store):
             fix_id=None,
             outcome=HealOutcome.ABORTED,
             reason=Reason.NO_CANDIDATE,
+            heal_ms=0,
             jev_tokens=312,
             llm_tokens=7,
             raw_error="",
@@ -218,6 +221,30 @@ def test_audit_round_trip(open_store):
     assert store.audit_events() == events
     store.close()
     assert open_store().audit_events() == events
+
+
+def test_heal_ms_is_its_own_column(open_store, db_path):
+    store = open_store()
+    store.audit(make_event(mttr_ms=900, heal_ms=140))
+    assert rows(db_path, "SELECT mttr_ms, heal_ms FROM heal_events") == [(900, 140)]
+    assert store.audit_events()[0].heal_ms == 140
+
+
+def test_c11_enum_values_are_stored_and_the_old_reason_is_gone(open_store):
+    store = open_store()
+    for path in (DecisionPath.tiebreak, DecisionPath.jev_unavailable):
+        store.audit(make_event(path=path))
+    store.audit(
+        make_event(outcome=HealOutcome.ABORTED, reason=Reason.UNSUPPORTED_CLASS)
+    )
+    assert [e.path for e in store.audit_events()[:2]] == [
+        DecisionPath.tiebreak,
+        DecisionPath.jev_unavailable,
+    ]
+    assert store.audit_events()[2].reason is Reason.UNSUPPORTED_CLASS
+    assert "JEV_UNAVAILABLE" not in {r.value for r in Reason}
+    with pytest.raises(sqlite3.IntegrityError):
+        store.audit(make_event(reason="JEV_UNAVAILABLE"))
 
 
 def test_negative_cache_expires_with_injected_clock(open_store, clock):
@@ -336,3 +363,57 @@ def test_get_fix_reads_any_status_from_the_database(open_store):
     )
     assert store.get_fix(second_id).request_ops == []
     assert store.get_fix(second_id + 1) is None
+
+
+JWT = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+)
+SECRETS = ["Bearer test-token", "tenant-77", "sk-live-0123456789"]
+RAW_ERROR = canonical.dumps(
+    {
+        "code": "401",
+        "body": {
+            "detail": "Not authenticated",
+            "input": "Bearer test-token",
+            "echo": {"tenant": "tenant-77", "key": "sk-live-0123456789"},
+            "headers": "Authorization: Bearer abc.def-123\nCookie: sid=s3cr3t; theme=dark\n"
+            "Set-Cookie: sid=n3w; HttpOnly\nX-Api-Key: k-998877\nx-auth-token: t0k3n",
+            "access_token": "opaque-access-value",
+            "jwt": f"see {JWT} for details",
+            "authorization": "Basic dXNlcjpwYXNz",
+        },
+    }
+)
+LEAKS = [
+    "test-token",
+    "tenant-77",
+    "sk-live-0123456789",
+    "abc.def-123",
+    "s3cr3t",
+    "n3w",
+    "k-998877",
+    "t0k3n",
+    "opaque-access-value",
+    "dXNlcjpwYXNz",
+    JWT,
+    "dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+]
+
+
+def test_ac_24_raw_error_redacted():
+    clean = sanitize(RAW_ERROR, SECRETS)
+
+    assert [leak for leak in LEAKS if leak in clean] == []
+    assert json.loads(clean)["body"]["detail"] == "Not authenticated"  # still useful
+
+
+def test_sanitize_truncates_after_redacting():
+    long = "x" * 5000 + "Bearer test-token"
+    assert len(sanitize(long, ["Bearer test-token"])) == RAW_ERROR_MAX
+    tail = "y" * (RAW_ERROR_MAX - 5) + "Bearer test-token"  # secret straddles the limit
+    assert "test-token" not in sanitize(tail, ["Bearer test-token"])
+
+
+def test_sanitize_ignores_empty_secret_values():
+    assert sanitize("plain text", ["", "plain"]) == "[REDACTED] text"
