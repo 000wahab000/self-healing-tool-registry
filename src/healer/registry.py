@@ -19,7 +19,7 @@ from healer.jev import JevClient
 from healer.models import ErrorClass, Fix, Outcome
 from healer.openapi_loader import fetch_spec, operations
 from healer.ops import apply_ops
-from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S
+from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S, SPEC_MODE
 from healer.store import Store
 
 # FR-3.4: value rules are the API's to enforce, so a rejected value reaches it and comes back
@@ -81,7 +81,7 @@ class Registry:
         clock: Callable[[], float] = time.perf_counter,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         jitter: Callable[[], float] = retry.random_jitter,
-        spec_mode: str = "on",
+        spec_mode: str = SPEC_MODE,
     ) -> None:
         if spec_mode not in (
             "on",

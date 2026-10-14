@@ -37,7 +37,7 @@ The core idea in one line: **deterministic code heals (including a deterministic
 | **Audit Logger** | Writes one machine-readable event per heal attempt (recovered, refused or failed), synchronously, before the agent gets a result. The raw error is redacted before it is stored. Persisting fixes for reuse across restarts is STRETCH (S6) and already built. | MVP (fix persistence: STRETCH) |
 | **Mock Drift API** | A FastAPI service with four operations, a live OpenAPI spec, a runtime mutation switch and a state endpoint for correctness checks. | MVP |
 | **Baseline Agent** | The same framework, LLM, prompt and task, with no registry. | MVP |
-| **Benchmark + Dashboard** | Measures ZTAR, Safe-Refusal Rate, False-Patch Rate, MTTR and Token Overhead, plus an error-only ablation. The dashboard is a FastAPI service with one static HTML page; it shows both agents live with a patch log. | MVP |
+| **Benchmark + Dashboard** | Measures ZTAR, Safe-Refusal Rate, False-Patch Rate, MTTR and Token Overhead, plus an error-only ablation. The dashboard is a FastAPI service with one static HTML page; it runs a prompt against both agents on any scenario or a custom drift, shows every tool call's input, wire requests and output, the live tool registry, and a patch log. | MVP |
 
 ## 3. How the Solution Works
 
@@ -59,7 +59,7 @@ The full step-by-step flow, with timings, is in `technical-approach.md` §4. In 
 7. **Re-send once and verify.** All checks run again, including postchecks such as "the response must echo the user id we sent".
 8. **Commit or roll back.**
    - **Pass:** record the fix (persisted under S6), bump the tool version, log the event, and return the result. The agent's workflow simply continues.
-   - **Fail:** discard the fix, block this fingerprint for 60 s (STRETCH, S7, already built), log the event, and return `retry: false`. The agent stops instead of looping.
+   - **Fail:** discard the fix, block this fingerprint for 60 s (STRETCH, S7, already built), log the event, and return `retry: false`. The agent treats that tool as unavailable, skips it and finishes the rest of the task instead of looping.
 
 ## 4. Handling Schema Mutations
 
@@ -91,7 +91,7 @@ The full step-by-step flow, with timings, is in `technical-approach.md` §4. In 
 | **Guessing between equally valid fixes** | On a write tool with two or more valid fixes, the system refuses unless the deterministic tie-breaker wins on description evidence, or Jev is confident at the write threshold and a read-only check (`preverify`) confirms the choice before anything is written. Otherwise `LOW_CONFIDENCE`, and nothing is sent. Residual risk: a wrong choice that the check cannot distinguish is caught only by postchecks after the write, and flagged. |
 | **Mistaking a legitimate error for drift** | A `409`, a missing record, and a value error on an unchanged spec are returned unchanged and never healed or replayed (`NOT_DRIFT`). |
 | **Prompt injection through error text or descriptions** | Error bodies and OpenAPI descriptions are data. They are matched against the spec structure and compared as tokens only; no value, field, header or operation is derived from their wording. Jev's output is limited to an index from a list that code built. The M10 scenario demonstrates this (STRETCH). |
-| **Infinite retries** | One heal attempt per call. One replay per heal. A 3.5 s deadline. Transient errors get at most 3 retries. The agent is told `retry: false` and stops. Failed fingerprints are also blocked for 60 s (STRETCH, S7, already built). |
+| **Infinite retries** | One heal attempt per call. One replay per heal. A 3.5 s deadline. Transient errors get at most 3 retries. The agent is told `retry: false`, skips that tool and carries on. Failed fingerprints are also blocked for 60 s (STRETCH, S7, already built). |
 | **Silent data corruption** | Every fix is verified against the output schema and declarative postchecks before it is kept. The benchmark checks the API's final data state, not just the agent's claim of success, and reports the False-Patch Rate (target 0). |
 | **Untraceable changes** | Every heal attempt is logged before the agent sees a result, in machine-readable form: fingerprint, class, tier, decision path, operations, reason, timing and tokens. |
 | **Secrets leaking into logs** | The raw error is redacted before it is stored: auth and cookie headers, configured secret values, and bearer-token and JWT-shaped strings. Header operations store config keys, never values. |
@@ -104,7 +104,7 @@ The full step-by-step flow, with timings, is in `technical-approach.md` §4. In 
 | Treats the tool schema as fixed truth | Treats the live API spec as truth and translates at runtime |
 | Detects failure only from `4xx` errors | Also catches drift that returns `200`: changed shapes, ignored inputs, errors hidden in success bodies |
 | Sends errors back to the LLM, which guesses and retries | Code diagnoses with a structural spec diff; the LLM never sees the break |
-| Retries until it runs out of iterations | One verified attempt, then a clean stop with a reason code |
+| Retries until it runs out of iterations | One verified attempt, then a clean refusal with a reason code; the agent skips that tool and finishes the rest |
 | Uses expensive LLM reasoning per failure | A deterministic fix for clear breaks and a deterministic tie-breaker for ambiguous ones; one optional Jev classification only if that still ties |
 | Forgets every incident | The tool's definition carries the fix after a heal, so the same break does not recur in this process. A persistent fix store gives repeats millisecond fixes that survive restarts (STRETCH, S6, already built) |
 | Fix logic would be free-form generated code | Fixes are a small verifiable data language, easy to audit and impossible to use for inventing values |
@@ -133,11 +133,12 @@ Why this works:
 
 Also reported: an **error-only ablation** (M1 to M9 re-run with the spec endpoint disabled, healed or aborted per mutation with the reason code; no pass threshold, and the False-Patch Rate must stay 0), and the baseline's outcome in every scenario (error loop, calls made, tokens, final data correctness), measured but not asserted.
 
-**Measured so far (scripted mode only).** The only benchmark run recorded in `bench/report.md` used fixed tool calls with no LLM (N = 3 per scenario and agent, 2026-10-13). It predates the current metric definitions, the request-nesting scenario (M9) and the M6-D / M6-N split, and it is local and tiny, so treat it as indicative:
-- The healing agent completed the task with the correct final mock state in 3 of 3 runs for M1, M2, M3, M4, M5 and M7. The baseline did so in 0 of 3 runs for M1, M2, M4, M5 and M7 (it hit its 10-call cap on M1, M2, M4 and M5, and ended incomplete on M7). The baseline also completed M3 in 3 of 3 runs.
-- Registry-internal heal time for tier-1 heals, median / p95 in ms: M1 16 / 17, M2 17 / 18, M3 17 / 18, M4 17 / 24, M5 19 / 44, M7 17 / 17. Repeat heals took 3 to 7 ms.
-- M8 was refused with `NO_SAFE_VALUE` in 3 of 3 runs, and no request carrying `priority` was sent.
-- The ambiguous rename (M6) aborted in that run because Jev gave no usable answer; the deterministic tie-breaker was not yet built. M6-D and M6-N are not yet measured.
+**Measured so far (scripted mode only).** The run recorded in `bench/report.md` uses fixed tool calls with no LLM (N = 3 per scenario and agent, 2026-10-14) under the current metric definitions, including M9 and the M6-D / M6-N split; it is local and tiny, so treat it as indicative:
+- ZTAR over the healable mutations (M1 to M5, M7, M9): the healing agent completed the task with the correct final mock state in 21 of 21 runs, the baseline in 3 of 21. The baseline completed M3 in 3 of 3 runs, hit its 10-call cap on M1, M2, M4, M5, M6-D, M6-N, M8, M9, C2 and C3, and ended incomplete on M7.
+- M6 reported separately: M6-D healed through the deterministic tie-breaker in 3 of 3 runs with no Jev call; M6-N aborted `LOW_CONFIDENCE` without writing in 3 of 3 runs (Jev disabled), which counts as a safe refusal.
+- Registry-internal heal time for tier-1 heals, median / p95 in ms: M1 47 / 48, M2 45 / 66, M3 47 / 49, M4 52 / 53, M5 57 / 69, M6-D 47 / 51, M7 52 / 53, M9 50 / 58. Repeat (tier-0) heals took 3 to 8 ms. Timings are wall-clock on a shared laptop and move with machine load: across benchmark runs on 2026-10-14 the tier-1 p50 ranged from 12 to 49 ms. Every run stayed far under the 4 s MTTR budget.
+- Safe-Refusal Rate: 6 of 6 (M8 refused `NO_SAFE_VALUE` in 3 of 3 runs with no request carrying `priority`; M6-N as above). False-Patch Rate: 0 of the 24 healed runs ended with a wrong final state.
+- Error-only ablation (reported without a pass threshold): M1 to M4 healed on the error clue alone; M5 and M7 aborted `NO_CANDIDATE`; M6-D, M6-N, M8 and M9 aborted `NO_SAFE_VALUE`; no false patches.
 - Scripted mode records 0 LLM tokens, so Token Overhead is not yet measured. It needs a run with a real LLM.
 
 **Live demo (about 30 s).**

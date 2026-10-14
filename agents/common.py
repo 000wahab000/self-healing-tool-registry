@@ -17,8 +17,9 @@ from healer.models import ErrorClass
 SYSTEM_PROMPT = (
     "You are an operations assistant. Complete the user's task by calling the provided tools, "
     "then reply with a one-line summary of what was done. "
-    'If a tool result has "retry": false, do not call that tool again with the same arguments: '
-    "report the failure and continue with the rest of the task."
+    'If a tool result has "retry": false, do not call that tool again with the same arguments. '
+    'If its error is "SCHEMA_DRIFT_UNRECOVERABLE", the tool is unavailable for the rest of this '
+    "task: do not call it again, report it as skipped and continue with the rest of the task."
 )
 TASK = (
     "Look up user 123, change their email to ada.new@example.com, set their manager to 456, "

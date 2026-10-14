@@ -256,7 +256,7 @@ Design principles:
 - **FR-11.2** One heal attempt per call.
 - **FR-11.3** (STRETCH, S7) Negative cache: if a heal ends with `VERIFY_FAILED`, `POSTCHECK_FAILED_AFTER_WRITE`, `NO_CANDIDATE`, `NO_SAFE_VALUE`, `LOW_CONFIDENCE`, `UNSAFE_PATCH`, `UNSAFE_REPLAY` or `UNSUPPORTED_CLASS`, its fingerprint aborts immediately with `KNOWN_UNFIXABLE` for the next 60 s. Transient reasons (`DEADLINE`, and a `LOW_CONFIDENCE` that followed a Jev timeout or error) are not cached. Without S7, loop prevention rests on the one-attempt-per-call rule (FR-11.2), the `retry: false` instruction to the agent (FR-11.5) and the agent's iteration cap.
 - **FR-11.4** If a heal exceeds its 3.5 s deadline, abort with `DEADLINE`.
-- **FR-11.5** The structured error returned to the agent is `{error: "SCHEMA_DRIFT_UNRECOVERABLE", tool, class, fingerprint, reason, retry: false}`. The agent's instructions forbid re-calling with the same arguments when `retry` is `false`.
+- **FR-11.5** The structured error returned to the agent is `{error: "SCHEMA_DRIFT_UNRECOVERABLE", tool, class, fingerprint, reason, retry: false}`. The agent's instructions forbid re-calling with the same arguments when `retry` is `false`, and, for `SCHEMA_DRIFT_UNRECOVERABLE`, treat the tool as unavailable for the rest of the task, report it as skipped and continue with the remaining steps. A refusal skips one tool; it never ends the task.
 
 ### F12 Mock drift API
 
@@ -278,7 +278,7 @@ Design principles:
 
 - **FR-13.1** A standard framework with a tool-calling LLM [A]. Every tool executes through the registry.
 - **FR-13.2** Record LLM tokens per run.
-- **FR-13.3** The system prompt tells the agent to stop calling a tool with the same arguments after `retry: false`.
+- **FR-13.3** The system prompt tells the agent not to call a tool again with the same arguments after `retry: false` and, for `SCHEMA_DRIFT_UNRECOVERABLE`, treat the tool as unavailable for the rest of the task, report it as skipped and continue with the remaining steps.
 
 ### F14 Baseline agent
 
@@ -305,6 +305,7 @@ Design principles:
 - **FR-16.1** A side-by-side live view of both agents showing tool calls, errors and heal events.
 - **FR-16.2** One-click mutation triggers.
 - **FR-16.3** A patch log read from the audit log, and a metrics panel.
+- **FR-16.4** A landing page at `/` explains the problem, where the registry sits, and how drift is detected, classified and patched. The Live view (`/live`) has four presets (CLEAN, M5, M8, M3) that run both agents side by side with a 4-step tracker per agent. Each tool call is a dropdown, closed by default, showing the agent input, the error, the new input the registry sent (header names only, never values) and the final output.
 
 ### STRETCH
 
@@ -359,6 +360,8 @@ Design principles:
 | C1 | Control | `get_user` | `503` twice, then OK | E1 | retry, no heal | n/a |
 | C2 | Control | `get_user` | Unknown user `999` returns `404` | BUSINESS | pass-through | n/a |
 | C3 | Control | `update_email` | Invalid email value (for example `not-an-email`), spec unchanged | E2 (422), reclassified BUSINESS | pass-through, audit `NOT_DRIFT`, no replay | n/a |
+
+**Custom drift (API only):** `POST /api/explore` accepts a `CUSTOM` drift on one tool from a rename, a string-to-int change, body wrapping, a required header and a required field. It exercises the same registry on breaks nobody scripted; it is not part of the catalog above, the benchmark or any metric.
 
 **Demo task [A]:** "Look up user 123, change their email, set their manager to 456, and open a support ticket confirming the change."
 
@@ -572,7 +575,7 @@ Note: "Store (T0)" and the negative cache in the diagram are STRETCH (S6, S7). J
 | F13 | FR-13.1 to 13.3 | AC-9, AC-16 |
 | F14 | FR-14.1 | AC-17 |
 | F15 | FR-15.1 to 15.8 | AC-14 to AC-17, AC-23 |
-| F16 | FR-16.1 to 16.3 | AC-18 |
+| F16 | FR-16.1 to 16.4 | AC-18 |
 | S6 | FR-5.1, FR-5.2, FR-5.6, FR-10.3, FR-10.4 | AC-11 |
 | S7 | FR-10.5, FR-11.3 | AC-12, AC-19 |
 | S8 | FR-12.8 | AC-26 |

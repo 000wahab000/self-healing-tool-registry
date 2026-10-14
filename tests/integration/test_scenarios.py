@@ -49,6 +49,10 @@ def call_for(mid: str, n: int = 0) -> tuple[str, dict]:
         "M3": ("get_user", GET_USER),
         "M4": ("create_ticket", {"user_id": "123", "title": f"Confirm {n}"}),
         "M5": ("get_user", GET_USER),
+        "M6-D": ("set_manager", {"user_id": "123", "manager_id": "456"}),
+        "M6-N": ("set_manager", {"user_id": "123", "manager_id": "456"}),
+        "M7": ("update_email", {"user_id": "123", "email": "new@example.com"}),
+        "M8": ("create_ticket", {"user_id": "123", "title": "t"}),
         "M9": ("update_email", {"user_id": "123", "email": f"new{n}@example.com"}),
     }[mid]
 
@@ -326,3 +330,73 @@ async def test_ac_01_agent_schema_frozen_after_all_heals(api, store, make_regist
         2,
     ]
     assert frozen() == loaded
+
+
+async def test_ac_23_error_only_ablation(api, store, make_registry):
+    """FR-15.7: Error-only ablation with spec_mode='off'.
+
+    Run each mutation M1–M9 with the spec endpoint disabled (error-clue mode).
+    Single-clue mutations (M1, M2, M4) recover; M3 needs the spec for E5 remap
+    and aborts cleanly.  Combined/nested/ambiguous/silent/unfillable mutations abort
+    with NO_CANDIDATE/LOW_CONFIDENCE/NO_SAFE_VALUE and never false-patch.
+    False-Patch Rate must stay 0.
+    """
+    CFG = {"OAUTH_BEARER": "Bearer test-token", "TENANT_ID": "t-1"}
+    reg = await make_registry(spec_mode="off")
+
+    false_patch_count = 0
+
+    for mid in ("M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9"):
+        api.set_mutation(mid)
+        tool, args = call_for(mid)
+        result = await reg.call(tool, args)
+
+        # Detect false‑patch: a success result with wrong final mock state
+        has_error = "error" in result
+        if not has_error:
+            # recovered – verify state correctness per mutation; count as false
+            # patch only if state ends up wrong
+            if mid == "M1":
+                if result != USER or calls_to(api, "/users/lookup")[-1]["body"] != {"customer_id": "123"}:
+                    false_patch_count += 1
+            elif mid == "M2":
+                if result != {"id": "123", "email": args["email"]} or api.state()["users"]["123"]["email"] != args["email"] or calls_to(api, "/users/email")[-1]["body"] != {"user_id": 123, "email": args["email"]}:
+                    false_patch_count += 1
+            elif mid == "M4":
+                tickets = api.state()["tickets"]
+                if len(tickets) != 1 or result.get("ticket_id") != tickets[-1]["ticket_id"] or calls_to(api, "/tickets")[-1].get("headers", {}).get("authorization") != CFG["OAUTH_BEARER"]:
+                    false_patch_count += 1
+            # M3, M5–M9 should not recover in error-clue mode; if they do, it's a false patch
+            if mid != "M1" and mid != "M2" and mid != "M4":
+                false_patch_count += 1
+
+        # Enforce expected outcomes per mutation
+        if mid in ("M1", "M2", "M4"):
+            assert "error" not in result, (
+                f"{mid} should RECOVERED in error-clue mode, got {result}"
+            )
+        elif mid == "M3":
+            # E5 needs the spec for response remap; abort cleanly in error-clue mode
+            assert "error" in result, (
+                f"{mid} should abort (E5 needs spec) in error-clue mode, got {result}"
+            )
+        else:
+            # Combined/nested/ambiguous/silent/unfillable mutations must abort cleanly
+            if has_error:
+                reason = result.get("reason", "")
+                cls = result.get("class", "")
+                acceptable = reason in ("NO_CANDIDATE", "LOW_CONFIDENCE", "NO_SAFE_VALUE", "KNOWN_UNFIXABLE", "POSTCHECK_FAILED_AFTER_WRITE")
+                if not acceptable and cls != "E6":
+                    raise AssertionError(
+                        f"{mid} should abort with NO_CANDIDATE/LOW_CONFIDENCE/NO_SAFE_VALUE "
+                        f"or leave E6 unhealed, got error={result}"
+                    )
+            else:
+                # Unexpected recovery without error – count as false patch and fail
+                raise AssertionError(
+                    f"{mid} should not recover in error-clue mode, got {result}"
+                )
+
+    assert false_patch_count == 0, (
+        f"False-Patch Rate must be 0, got {false_patch_count} false patches"
+    )

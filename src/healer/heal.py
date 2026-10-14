@@ -28,7 +28,7 @@ from healer.models import (
 )
 from healer.openapi_loader import fetch_spec, operations
 from healer.ops import OpError, apply_ops
-from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S
+from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S, SPEC_MODE
 from healer.store import Store, sanitize
 
 if TYPE_CHECKING:
@@ -103,7 +103,7 @@ class Healer:
         header_sources: Mapping[str, str],
         attempt: Callable[..., Awaitable[Outcome]],
         clock: Callable[[], float],
-        spec_mode: str = "on",
+        spec_mode: str = SPEC_MODE,
     ) -> None:
         self._store, self._jev, self._client = store, jev, client
         self._spec_mode = spec_mode

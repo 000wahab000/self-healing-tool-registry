@@ -4,156 +4,309 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Self-healing tool registry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Chivo+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif&display=swap">
+<link rel="stylesheet" href="/theme.css">
 <style>
-[hidden] { display: none !important; }
-:root {
-  --bg: #f4f5f7; --panel: #ffffff; --ink: #1b2430; --muted: #5b6878; --line: #d9dee5;
-  --accent: #2457d6; --accent-ink: #ffffff; --active: #fff3c4;
-  --ok: #17703f; --ok-bg: #ddf3e6;
-  --biz: #35506e; --biz-bg: #e2ebf5;
-  --e1: #8a5a00; --e1-bg: #fdf0c8;
-  --e2: #b3261e; --e2-bg: #fde4e1;
-  --e3: #6b3fa0; --e3-bg: #eee5f8;
-  --e4: #a14400; --e4-bg: #ffe8d3;
-  --e5: #a3246b; --e5-bg: #fbe3f0;
-  --e6: #0b6a6a; --e6-bg: #d9f1f1;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12161c; --panel: #1b212a; --ink: #e6eaf0; --muted: #98a4b3; --line: #2e3744;
-    --accent: #6c93f5; --accent-ink: #0d1117; --active: #4a3d10;
-    --ok: #6fd69a; --ok-bg: #163a28;
-    --biz: #9dbbdc; --biz-bg: #1f3347;
-    --e1: #f0c75e; --e1-bg: #40330a;
-    --e2: #ff8d85; --e2-bg: #4a1a17;
-    --e3: #c6a4ee; --e3-bg: #33224b;
-    --e4: #ffa866; --e4-bg: #47260a;
-    --e5: #f08cc0; --e5-bg: #47172f;
-    --e6: #6fd6d6; --e6-bg: #0f3a3a;
-  }
-}
-* { box-sizing: border-box; }
-body { margin: 0; padding: 16px; background: var(--bg); color: var(--ink);
-  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
-h1 { font-size: 20px; margin: 0; }
-h2 { font-size: 15px; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-header { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; }
-section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.row + .row { margin-top: 8px; }
-.label { color: var(--muted); font-size: 12px; margin-right: 4px; }
-button { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px;
-  background: var(--panel); color: var(--ink); cursor: pointer; }
-button:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-button[aria-pressed="true"] { background: var(--active); border-color: var(--e1); }
-button small { color: var(--muted); }
-button:disabled { opacity: .5; cursor: default; }
-.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--biz-bg); color: var(--biz); }
-.chip.bad { background: var(--e2-bg); color: var(--e2); }
-.chip.good { background: var(--ok-bg); color: var(--ok); }
-.chip.warn { background: var(--e1-bg); color: var(--e1); }
-#note { color: var(--e2); min-height: 1.4em; margin-top: 8px; }
-.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
-.cols section { margin-bottom: 0; }
-.meta { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
-ol.calls { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
-ol.calls li { display: grid; grid-template-columns: 92px 1fr auto 64px; gap: 8px; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-ol.calls li:last-child { border-bottom: 0; }
-.time { color: var(--muted); font-size: 12px; }
-.ms { color: var(--muted); font-size: 12px; text-align: right; }
-.badge { display: inline-block; min-width: 3.2em; text-align: center; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; background: var(--biz-bg); color: var(--biz); }
+
+/* tags, badges, ops */
+.tag { display: inline-block; padding: 1px 7px; border-radius: var(--r-sm); font: 11.5px/1.6 var(--mono); background: var(--soft); color: var(--ink-2); white-space: nowrap; }
+.tag.good { background: var(--ok-bg); color: var(--ok); }
+.tag.bad { background: var(--bad-bg); color: var(--bad); }
+.tag.warn { background: var(--warn-bg); color: var(--warn); }
+.tag.biz { background: var(--biz-bg); color: var(--biz); }
+.badge { display: inline-block; min-width: 3.2em; text-align: center; padding: 1px 7px; border-radius: var(--r-sm); font: 500 11.5px/1.6 var(--mono); background: var(--soft); color: var(--ink-2); }
 [data-k="OK"], [data-k="RECOVERED"] { background: var(--ok-bg); color: var(--ok); }
 [data-k="BUSINESS"], [data-k="NOT_DRIFT"] { background: var(--biz-bg); color: var(--biz); }
 [data-k="E1"] { background: var(--e1-bg); color: var(--e1); }
-[data-k="E2"], [data-k="ABORTED"], [data-k="VERIFY_FAILED"] { background: var(--e2-bg); color: var(--e2); }
+[data-k="E2"], [data-k="VERIFY_FAILED"] { background: var(--e2-bg); color: var(--e2); }
+[data-k="ABORTED"] { background: var(--warn-bg); color: var(--warn); }
 [data-k="E3"] { background: var(--e3-bg); color: var(--e3); }
 [data-k="E4"] { background: var(--e4-bg); color: var(--e4); }
 [data-k="E5"] { background: var(--e5-bg); color: var(--e5); }
 [data-k="E6"] { background: var(--e6-bg); color: var(--e6); }
+.ops { display: flex; flex-wrap: wrap; gap: 6px; }
+.op { font: 12px/1.6 var(--mono); background: var(--panel); border: 1px solid var(--line-2); padding: 1px 8px; border-radius: var(--r-sm); color: var(--ink); }
+.op b { font-weight: 600; }
+.op.resp { border-left: 3px solid var(--e5); }
+pre { margin: 0; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); }
+
+
+/* composer: storyboard acts, scenario chips, custom drift, prompt */
+.acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.act { text-align: left; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r); background: color-mix(in srgb, var(--panel) 60%, transparent); display: grid; gap: 2px; }
+.act:hover { background: var(--panel); border-color: var(--ink-2); }
+.act small { font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.act b { font-weight: 500; font-size: 15px; }
+.act span { font-size: 13px; color: var(--ink-2); }
+.act[aria-pressed="true"] { border-color: var(--ink); background: var(--panel); box-shadow: inset 0 0 0 1px var(--ink); }
+.composer-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: var(--r); background: var(--soft); }
+.seg label { padding: 4px 10px; border-radius: var(--r-sm); font-size: 13px; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--panel); box-shadow: 0 0 0 1px var(--line-2); }
+.seg label:has(input:disabled) { opacity: .45; cursor: default; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--ink); }
+
+/* drift banner */
+.banner { margin-top: 16px; padding: 16px 18px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--panel); display: grid; gap: 10px; }
+.banner.drift { border-color: color-mix(in srgb, var(--bad) 45%, transparent); background: linear-gradient(0deg, var(--panel), color-mix(in srgb, var(--bad-bg) 55%, var(--panel))); }
+.banner .top-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.banner .top-row .eyebrow { margin: 0; }
+.diff { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: stretch; }
+.diff > div { border-radius: var(--r); padding: 8px 12px; min-width: 0; border: 1px solid var(--line); background: var(--soft); }
+.diff .after { background: var(--bad-bg); border-color: transparent; }
+.diff small { display: block; font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.diff code { font-size: 13px; overflow-wrap: anywhere; }
+.diff .after code { color: var(--bad); }
+.diff .arrow { align-self: center; color: var(--muted); font-size: 18px; border: 0; background: none; padding: 0; }
+.expect { font-size: 14px; }
+.expect b { font-weight: 550; }
+
+/* agent panes */
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.cols > * { min-width: 0; }
+.pane-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pane-head h2 { margin-right: auto; }
+.pane.healing { border-top: 3px solid var(--ok); }
+.pane.baseline { border-top: 3px solid var(--bad); }
+.steps { list-style: none; margin: 14px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; grid-auto-flow: column; }
+.step { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; background: var(--soft); min-width: 0; display: grid; gap: 1px; transition: background .25s, border-color .25s; }
+.step .step-n { font: 500 10.5px var(--mono); letter-spacing: .08em; color: var(--muted); }
+.step b { font: 500 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step small { font-size: 12px; color: var(--ink-2); line-height: 1.3; }
+.step[data-k="done"], .step[data-k="healed"] { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.step[data-k="healed"] small, .step[data-k="done"] small { color: var(--ok); }
+.step[data-k="fail"] { background: var(--bad-bg); border-color: var(--bad); animation: pulse 1.1s ease-in-out infinite; }
+.step[data-k="fail"] small, .step[data-k="silent"] small { color: var(--bad); font-weight: 500; }
+.step[data-k="silent"] { background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.step[data-k="refused"] { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.step[data-k="refused"] small { color: var(--warn); font-weight: 500; }
+.step[data-k="biz"] { background: var(--biz-bg); border-color: color-mix(in srgb, var(--biz) 40%, transparent); }
+.step[data-k="biz"] small { color: var(--biz); font-weight: 500; }
+.step.capped { animation: none; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 22%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .step[data-k="fail"] { animation: none; } }
+.calls { position: relative; display: grid; gap: 6px; max-height: 620px; overflow-y: auto; padding-right: 2px; }
+.calls .empty { color: var(--muted); text-align: center; padding: 26px 12px; border: 1px dashed var(--line-2); border-radius: var(--r); font-size: 14px; }
+
+/* one tool call = one accordion row, numbered like cofounder's "1.1 … +" */
+details.call { border: 1px solid var(--line-2); border-radius: var(--r); background: color-mix(in srgb, var(--panel) 70%, transparent); animation: rise .25s ease-out; }
+details.call[open] { background: var(--panel); }
+details.call > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex-wrap: wrap; }
+details.call > summary::-webkit-details-marker { display: none; }
+details.call .num { font: 500 12px var(--mono); color: var(--muted); }
+details.call .tool { font-size: 13.5px; font-weight: 500; }
+details.call .ms { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
+.plus { width: 16px; height: 16px; position: relative; flex: none; color: var(--muted); }
+.plus::before, .plus::after { content: ""; position: absolute; left: 3px; right: 3px; top: 7.5px; height: 1.5px; background: currentColor; transition: transform .2s; }
+.plus::after { transform: rotate(90deg); }
+details[open] > summary .plus::after { transform: rotate(0deg); }
+.call-body { padding: 2px 12px 12px; display: grid; gap: 8px; }
+.blk { display: grid; gap: 4px; }
+.blk > small { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.blk > pre { background: var(--soft); border: 1px solid var(--line); border-radius: var(--r); padding: 6px 10px; max-height: 260px; }
+.wire-head { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; font-size: 12.5px; }
+.heal { border-radius: var(--r); padding: 10px 12px; display: grid; gap: 6px; border: 1px solid transparent; }
+.heal.good { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.heal.warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+.heal.biz { background: var(--biz-bg); border-color: color-mix(in srgb, var(--biz) 30%, transparent); }
+.heal.bad { background: var(--bad-bg); }
+.heal-title { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.heal-title b { font-weight: 550; }
+.heal-facts { font: 11.5px var(--mono); color: var(--ink-2); }
+.hint { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.hint.bad { color: var(--bad); }
+@keyframes rise { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { details.call { animation: none; } }
+
+
+/* live tab */
+.controls { display: grid; gap: 18px; }
+.run { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.run .hint { margin-left: 4px; }
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.group-label { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+.group-label span { text-transform: none; letter-spacing: 0; margin-left: 6px; font-family: var(--sans); }
+.muts { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.mut { text-align: left; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: none; display: grid; gap: 1px; }
+.mut:hover { border-color: var(--ink-2); }
+.mut b { font: 500 12px var(--mono); color: var(--muted); }
+.mut span { font-size: 13px; line-height: 1.25; }
+.mut i { font: normal 11px var(--mono); color: var(--muted); }
+.mut[aria-pressed="true"] { border-color: var(--bad); background: var(--bad-bg); }
+.mut[aria-pressed="true"] b { color: var(--bad); }
+#note { color: var(--bad); font-size: 13px; }
+#note:empty { display: none; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 0 0 12px; }
+.stat { background: var(--soft); border-radius: var(--r); padding: 6px 10px; min-width: 0; }
+.stat small { display: block; color: var(--muted); font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.stat b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.err { color: var(--bad); font-size: 12.5px; margin: 0 0 8px; overflow-wrap: anywhere; }
+ol.calls-live { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r); }
+ol.calls-live li { display: grid; grid-template-columns: 84px 1fr auto 58px; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+ol.calls-live li:last-child { border-bottom: 0; }
+ol.calls-live li.emptyrow { display: block; }
+ol.calls-live .empty { display: block; color: var(--muted); text-align: center; padding: 28px 12px; }
+.time, .lat { color: var(--muted); font: 12px var(--mono); }
+.lat { text-align: right; }
+.calls-live .tool { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
+
+/* patch log + metrics */
 .scroll { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
-th { color: var(--muted); font-weight: 600; font-size: 12px; }
-td.ops { white-space: normal; min-width: 280px; }
-code { font: 12px/1.5 ui-monospace, Consolas, monospace; background: var(--bg); padding: 1px 5px; border-radius: 4px; display: inline-block; margin: 1px 4px 1px 0; }
-code.resp { border-left: 3px solid var(--e5); }
-.empty { color: var(--muted); }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
-.card { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
-.card b { display: block; font-size: 12px; color: var(--muted); font-weight: 600; }
-.card span { font-size: 18px; font-variant-numeric: tabular-nums; }
-.card small { display: block; color: var(--muted); }
-pre { margin: 0; max-height: 320px; overflow: auto; font: 12px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+table.log { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.log th, table.log td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+table.log th { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--soft); position: sticky; top: 0; }
+tr.row { cursor: pointer; }
+tr.row:hover td { background: var(--soft); }
+tr.detail td { background: var(--soft); white-space: normal; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.detail-grid small { color: var(--muted); display: block; font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.chev { color: var(--muted); display: inline-block; transition: transform .12s; margin-right: 6px; }
+tr.open .chev { transform: rotate(90deg); }
+td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-space: normal; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.metric { padding: 16px; }
+.metric small { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); display: block; }
+.metric .v { font-size: 30px; font-weight: 400; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+.metric .v em { font-size: 13px; font-style: normal; color: var(--muted); margin-left: 4px; }
+.metric .s { color: var(--ink-2); font-size: 12.5px; }
+.reasons { margin-top: 16px; padding: 16px; }
+.reasons .ops { margin-top: 8px; }
+#report { max-height: 72vh; }
+.spinner { display: inline-block; width: 11px; height: 11px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  main { padding: 18px 14px 40px; }
+  .diff { grid-template-columns: 1fr; }
+  .diff .arrow { transform: rotate(90deg); justify-self: center; }
+  .steps { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+  ol.calls-live li { grid-template-columns: 70px 1fr auto; }
+  ol.calls-live .lat { display: none; }
+}
 </style>
 </head>
 <body>
-<header>
-  <h1>Self-healing tool registry: live demo</h1>
-  <div class="row">
-    <span class="chip" id="mutation-chip">no mutation</span>
-    <span class="chip warn" id="conn-chip">connecting</span>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">Self-healing registry</div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <a href="/">Home</a>
+      <button role="tab" aria-selected="true" data-tab="live">Live stream</button>
+      <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
+      <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
+      <button role="tab" aria-selected="false" data-tab="report" id="tab-report" hidden>Report</button>
+    </nav>
+    <span class="spacer"></span>
+    <span class="pill plain" id="mutation-chip">No mutation</span>
+    <span class="pill warn" id="conn-chip">Connecting</span>
   </div>
 </header>
 
-<section>
-  <div class="row">
-    <span class="label">Run</span>
-    <button class="primary" id="start-scripted">Start (scripted)</button>
-    <button id="start-llm">Start (LLM)</button>
-    <button id="reset">Reset</button>
+<main>
+  <!-- LIVE -->
+  <div id="view-live" role="tabpanel">
+    <div class="head"><div><p class="eyebrow">Real-time</p><h2>Break the API while both agents are running</h2></div></div>
+    <section class="card pad controls">
+      <div>
+        <p class="eyebrow">Run a scenario on both agents</p>
+        <div class="acts" id="acts"></div>
+        <div class="composer-foot">
+          <div class="seg" role="radiogroup" aria-label="Agent mode">
+            <label><input type="radio" name="mode" value="scripted" checked>Scripted</label>
+            <label id="llm-label"><input type="radio" name="mode" value="llm">Live LLM</label>
+          </div>
+          <span class="pill plain" id="preset-status">Ready</span>
+          <span class="muted" id="llm-status" style="font-size:12.5px"></span>
+        </div>
+      </div>
+      <div class="run">
+        <button class="btn primary" id="start-scripted">Start scripted run</button>
+        <button class="btn" id="start-llm">Start LLM run</button>
+        <button class="btn ghost" id="reset">Reset</button>
+        <span class="hint muted">Start a run, then pick a break below while it works.</span>
+      </div>
+      <div>
+        <div class="head" style="margin-bottom:8px"><span class="spacer"></span><button class="btn ghost small" id="clear-mut">Clear mutation</button></div>
+        <div class="groups" id="mutations"></div>
+      </div>
+      <div id="note" role="status"></div>
+    </section>
+    <div id="live-banner"></div>
+    <div class="cols section">
+      <section class="card pad pane baseline" id="col-baseline">
+        <div class="pane-head"><h2>Baseline agent</h2><span class="pill bad plain" id="cap-baseline" hidden>Iteration cap</span><span class="pill" id="status-baseline">idle</span></div>
+        <ol class="steps" id="steps-baseline"></ol>
+        <div class="stats" id="stats-baseline"></div>
+        <p class="err" id="err-baseline" hidden></p>
+        <div class="calls" id="p-calls-baseline"></div>
+        <ol class="calls-live" id="calls-baseline"></ol>
+      </section>
+      <section class="card pad pane healing" id="col-healing">
+        <div class="pane-head"><h2>Self-healing agent</h2><span class="pill bad plain" id="cap-healing" hidden>Iteration cap</span><span class="pill" id="status-healing">idle</span></div>
+        <ol class="steps" id="steps-healing"></ol>
+        <div class="stats" id="stats-healing"></div>
+        <p class="err" id="err-healing" hidden></p>
+        <div class="calls" id="p-calls-healing"></div>
+        <ol class="calls-live" id="calls-healing"></ol>
+      </section>
+    </div>
   </div>
-  <div class="row" id="mutations"><span class="label">Break the API</span></div>
-  <div id="note" role="status"></div>
-</section>
 
-<div class="cols">
-  <section id="col-healing">
-    <h2>Healing agent <span class="chip" id="status-healing">idle</span> <span class="chip bad" id="cap-healing" hidden>iteration cap</span></h2>
-    <p class="meta" id="meta-healing"></p>
-    <ol class="calls" id="calls-healing"></ol>
-  </section>
-  <section id="col-baseline">
-    <h2>Baseline agent <span class="chip" id="status-baseline">idle</span> <span class="chip bad" id="cap-baseline" hidden>iteration cap</span></h2>
-    <p class="meta" id="meta-baseline"></p>
-    <ol class="calls" id="calls-baseline"></ol>
-  </section>
-</div>
-
-<section style="margin-top:12px">
-  <h2>Patch log</h2>
-  <div class="scroll">
-    <table>
-      <thead><tr><th>Time</th><th>Tool</th><th>Class</th><th>Tier</th><th>Path</th><th>Outcome</th><th>Reason</th><th>MTTR</th><th>Fix operations</th></tr></thead>
-      <tbody id="heals"></tbody>
-    </table>
+  <!-- PATCH LOG -->
+  <div id="view-heals" role="tabpanel" hidden>
+    <div class="head"><div><p class="eyebrow">Audit</p><h2>Patch log <span class="dim">· one row per heal attempt, written before the agent sees the result</span></h2></div></div>
+    <section class="card scroll">
+      <table class="log">
+        <thead><tr><th>Time</th><th>Tool</th><th>Class</th><th>Tier</th><th>Path</th><th>Outcome</th><th>MTTR</th><th>Heal</th><th>Fix operations</th></tr></thead>
+        <tbody id="heals"></tbody>
+      </table>
+    </section>
   </div>
-</section>
 
-<section>
-  <h2>Metrics</h2>
-  <div class="cards" id="metrics"></div>
-</section>
+  <!-- METRICS -->
+  <div id="view-metrics" role="tabpanel" hidden>
+    <div class="head"><div><p class="eyebrow">Since the last reset</p><h2>Metrics</h2></div></div>
+    <div class="cards" id="metrics"></div>
+    <section class="card reasons" id="reasons" hidden>
+      <h3>Refusal reasons</h3>
+      <div class="ops" id="reasons-list"></div>
+    </section>
 
-<section id="report-panel" hidden>
-  <h2>Benchmark report</h2>
-  <pre id="report"></pre>
-</section>
+  <!-- REPORT -->
+  <div id="view-report" role="tabpanel" hidden>
+    <div class="head"><div><p class="eyebrow">bench/report.md</p><h2>Benchmark report</h2></div></div>
+    <section class="card pad"><pre id="report"></pre></section>
+  </div>
+</main>
 
 <script>
 "use strict";
-const MUTATIONS = [
-  ["M1", "Rename field", "get_user"],
-  ["M2", "String to int", "update_email"],
-  ["M3", "Nest response", "get_user"],
-  ["M4", "Require bearer", "create_ticket"],
-  ["M5", "Nest + tenant header", "get_user"],
-  ["M6", "Ambiguous rename", "set_manager"],
-  ["M7", "Silent ignore", "update_email"],
-  ["M8", "Unfillable field", "create_ticket"],
-  ["C1", "Transient 503", "get_user"],
+const GROUPS = [
+  ["Drift", "healable", [["M1", "Rename field", "get_user"], ["M2", "String to int", "update_email"], ["M3", "Nest response", "get_user"],
+    ["M4", "Require bearer", "create_ticket"], ["M5", "Nest + tenant header", "get_user"], ["M7", "Silent ignore", "update_email"],
+    ["M9", "Request wrapping", "update_email"]]],
+  ["Judgement", "ambiguous or unsafe", [["M6-D", "Ambiguous rename, described", "set_manager"], ["M6-N", "Ambiguous rename, bare", "set_manager"],
+    ["M8", "Unfillable field", "create_ticket"]]],
+  ["Control", "not drift", [["C1", "Transient 503", "get_user"], ["C2", "Unknown user 404", "get_user"],
+    ["C3", "Invalid email 422", "update_email"]]],
 ];
 const AGENTS = ["healing", "baseline"];
+const CLASS_NAMES = { OK: "OK", BUSINESS: "Business error", E1: "Transient", E2: "Rejected", E3: "Undecodable", E4: "Soft error", E5: "Shape drift", E6: "Silent ignore" };
+// The demo task, as the scripted agents send it (agents/scripted.py STEPS).
+const TASK_ARGS = { get_user: { user_id: "123" }, update_email: { user_id: "123", email: "ada.new@example.com" }, set_manager: { user_id: "123", manager_id: "456" }, create_ticket: { user_id: "123", title: "Email changed" } };
+const TOOLS = Object.keys(TASK_ARGS);
+const STEP_LABEL = { get_user: "Look up user 123", update_email: "Set the new email", set_manager: "Set manager 456", create_ticket: "Open a ticket" };
+const CONTROL_TOOLS = { C2: ["get_user"], C3: ["get_user", "update_email"] };  // bench CONTROL_STEPS
+const MAX_CALLS = 10;  // agents/common.py MAX_ITERATIONS
+const ACTS = [
+  ["CLEAN", "Act 1", "Healthy v1", "Both agents finish 4/4 steps"],
+  ["M5", "Act 2", "The headline break", "user_id → target.id (int) + X-Tenant-Id"],
+  ["M8", "Act 3", "The safety gate", "Unfillable priority: skip the tool, invent nothing"],
+  ["M3", "Act 4", "200 OK drift", "Nested response. Then try M7, silent ignore"],
+];
 const $ = (id) => document.getElementById(id);
 
 function el(tag, text, attrs) {
@@ -162,156 +315,654 @@ function el(tag, text, attrs) {
   for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
   return node;
 }
-
 function note(text) { $("note").textContent = text || ""; }
+function formatJson(v) { try { return JSON.stringify(v, null, 2); } catch (e) { return String(v); } }
 
-async function call(path, body) {
-  const init = body === undefined ? {} : {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+/* ---------- demo simulator (used only when the API is unreachable) ---------- */
+const Demo = (() => {
+  const MUT = {
+    M1: ["get_user", "E2", 422, [{ op: "move", from: ["body", "user_id"], to: ["body", "customer_id"] }], []],
+    M2: ["update_email", "E2", 422, [{ op: "cast", path: ["body", "user_id"], to: "int" }], []],
+    M3: ["get_user", "E5", 200, [], [{ op: "move", from: ["data", "id"], to: ["id"] }, { op: "move", from: ["data", "name"], to: ["name"] }, { op: "move", from: ["data", "email"], to: ["email"] }]],
+    M4: ["create_ticket", "E2", 401, [{ op: "header", name: "Authorization", src: { key: "OAUTH_BEARER" } }], []],
+    M5: ["get_user", "E2", 422, [{ op: "move", from: ["body", "user_id"], to: ["body", "target", "id"] }, { op: "cast", path: ["body", "target", "id"], to: "int" }, { op: "header", name: "X-Tenant-Id", src: { key: "TENANT_ID" } }], []],
+    M6: ["set_manager", "E2", 422, null, [], "LOW_CONFIDENCE"],
+    "M6-D": ["set_manager", "E2", 422, [{ op: "move", from: ["body", "user_id"], to: ["body", "subject"] },
+      { op: "move", from: ["body", "manager_id"], to: ["body", "supervisor"] }], [], null],
+    "M6-N": ["set_manager", "E2", 422, null, [], "LOW_CONFIDENCE"],
+    M9: ["update_email", "E2", 422, [{ op: "move", from: ["body", "user_id"], to: ["body", "payload", "user_id"] },
+      { op: "move", from: ["body", "email"], to: ["body", "payload", "email"] }], [], null],
+    M7: ["update_email", "E6", 200, [{ op: "move", from: ["body", "email"], to: ["body", "email_address"] }], []],
+    M8: ["create_ticket", "E2", 422, null, [], "NO_SAFE_VALUE"],
+    C1: ["get_user", "E1", 503, null, [], null],
+    C2: ["get_user", "BUSINESS", 404, null, [], "NOT_DRIFT"],
+    C3: ["update_email", "BUSINESS", 422, null, [], "NOT_DRIFT"],
   };
-  const res = await fetch(path, init);
+  const SEQ = ["get_user", "update_email", "set_manager", "create_ticket"];
+  const SAMPLE_REPORT = "Demo mode: simulated data, no backend connected.\n\nRun `python -m bench` to generate bench/report.md and it will appear here.";
+  const d = { on: false, epoch: 1, eid: 0, mut: null, events: [], heals: [], runs: null, data: null, timer: null, idx: {}, errs: {}, fp: 0 };
+  const fresh = () => ({ users: { "123": { email: "old@example.com", manager_id: null } }, tickets: [] });
+  const idle = () => ({ status: "idle", final_text: "", tool_calls: 0, llm_tokens: 0, hit_limit: false, error: null });
+  function reset() {
+    clearInterval(d.timer); d.timer = null; d.epoch++; d.events = []; d.heals = []; d.mut = null;
+    d.data = { healing: fresh(), baseline: fresh() };
+    d.runs = { healing: idle(), baseline: idle() }; d.idx = { healing: 0, baseline: 0 }; d.errs = { healing: 0, baseline: 0 };
+  }
+  function ev(agent, tool, cls, lat) {
+    d.events.push({ event_id: ++d.eid, agent, tool, class: cls, ts_ms: Date.now(), latency_ms: lat });
+    d.runs[agent].tool_calls++;
+    if (agent === "healing") d.runs[agent].llm_tokens += 180; else d.runs[agent].llm_tokens += 260;
+  }
+  function apply(agent, tool) {
+    const u = d.data[agent].users["123"];
+    if (tool === "update_email") u.email = "new@example.com";
+    if (tool === "set_manager") u.manager_id = 456;
+    if (tool === "create_ticket") d.data[agent].tickets.push({ id: d.data[agent].tickets.length + 1 });
+  }
+  function heal(tool, m, key) {
+    const [, cls, code, ops, resp, refuse] = m;
+    const ok = !!ops || resp.length > 0;
+    const t = Date.now();
+    const h = { ts_ms: t, tool, class: cls, raw_code: code, tier: 1, path: refuse === "LOW_CONFIDENCE" ? "jev" : "diff",
+      outcome: ok ? "RECOVERED" : "ABORTED", reason: ok ? null : refuse, mttr_ms: 180 + Math.floor(Math.random() * 520),
+      jev_tokens: 0, fingerprint: (0xabc000 + (d.fp++) * 7919).toString(16).padStart(16, "0"), fix_id: ok ? d.fp : null,
+      fix: ok ? { request_ops: ops || [], response_ops: resp } : null };
+    d.heals.push(h); return ok;
+  }
+  function stepAgent(agent) {
+    const r = d.runs[agent]; if (r.status !== "running") return;
+    if (d.idx[agent] >= SEQ.length) { r.status = "done"; r.final_text = "Task complete."; return; }
+    const tool = SEQ[d.idx[agent]], m = d.mut && MUT[d.mut], hit = m && m[0] === tool;
+    if (!hit) { ev(agent, tool, "OK", 40 + Math.floor(Math.random() * 40)); apply(agent, tool); d.idx[agent]++; return; }
+    if (m[1] === "E1") {
+      if (d.errs[agent] < 2) { d.errs[agent]++; ev(agent, tool, "E1", 120); return; }
+      ev(agent, tool, "OK", 60); apply(agent, tool); d.idx[agent]++; d.errs[agent] = 0; return;
+    }
+    if (agent === "healing") {
+      ev(agent, tool, m[1], 55);
+      if (heal(tool, m)) { ev(agent, tool, "OK", 70); apply(agent, tool); }
+      d.idx[agent]++;
+    } else {
+      ev(agent, tool, m[1], 55); d.errs[agent]++;
+      if (d.errs[agent] >= 10) { r.status = "done"; r.hit_limit = true; }
+    }
+  }
+  function start() {
+    reset(); d.runs = { healing: { ...idle(), status: "running" }, baseline: { ...idle(), status: "running" } };
+    let lead = 2;
+    d.timer = setInterval(() => { if (lead-- > 0) return; AGENTS.forEach(stepAgent); if (AGENTS.every((a) => d.runs[a].status !== "running")) { clearInterval(d.timer); d.timer = null; } }, 900);
+  }
+  function quant(a, q) { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; }
+  function state(after) {
+    const by_outcome = {}, by_reason = {};
+    d.heals.forEach((h) => { by_outcome[h.outcome] = (by_outcome[h.outcome] || 0) + 1; if (h.reason) by_reason[h.reason] = (by_reason[h.reason] || 0) + 1; });
+    const ok = d.heals.filter((h) => h.outcome === "RECOVERED").map((h) => h.mttr_ms);
+    return {
+      epoch: d.epoch, active_mutation: d.mut, runs: d.runs, events: d.events.filter((e) => e.event_id > after), heals: d.heals,
+      metrics: { mttr: ok.length ? { "1": { p50_ms: quant(ok, .5), p95_ms: quant(ok, .95), n: ok.length } } : {}, outcomes: { by_outcome, by_reason } },
+      mocks: { healing: { mutation: d.mut, data: d.data.healing }, baseline: { mutation: d.mut, data: d.data.baseline } },
+    };
+  }
+  function demoExplore(query, mut) {
+    const isClean = !mut;
+    const isM1 = mut === 'M1';
+    const isM7 = mut === 'M7';
+    const isM8 = mut === 'M8';
+
+    const get_user_actual_in = isM1 ? { type: "object", properties: { customer_id: { type: "string", title: "Customer Id" } }, required: ["customer_id"] }
+      : { type: "object", properties: { user_id: { type: "string", title: "User Id" } }, required: ["user_id"] };
+    const email_actual_in = isM7 ? { type: "object", properties: { user_id: { type: "string" }, email_address: { type: "string" } }, required: ["user_id"] }
+      : { type: "object", properties: { user_id: { type: "string" }, email: { type: "string", format: "email" } }, required: ["user_id", "email"] };
+
+    const schemas = {
+      get_user: {
+        method: "POST", path: "/users/lookup", description: "Look up user details by user ID.",
+        agent_input: { type: "object", properties: { user_id: { type: "string" } }, required: ["user_id"] },
+        actual_input: get_user_actual_in,
+        expected_output: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, email: { type: "string" } }, required: ["id", "name", "email"] },
+        actual_output: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, email: { type: "string" } }, required: ["id", "name", "email"] },
+        input_drift: isM1, output_drift: false, security: []
+      },
+      update_email: {
+        method: "PATCH", path: "/users/email", description: "Update user email address.",
+        agent_input: { type: "object", properties: { user_id: { type: "string" }, email: { type: "string", format: "email" } }, required: ["user_id", "email"] },
+        actual_input: email_actual_in,
+        expected_output: { type: "object", properties: { id: { type: "string" }, email: { type: "string" } }, required: ["id", "email"] },
+        actual_output: { type: "object", properties: { id: { type: "string" }, email: { type: "string" } }, required: ["id", "email"] },
+        input_drift: isM7, output_drift: false, security: []
+      },
+      set_manager: {
+        method: "POST", path: "/users/manager", description: "Assign manager to a user.",
+        agent_input: { type: "object", properties: { user_id: { type: "string" }, manager_id: { type: "string" } }, required: ["user_id", "manager_id"] },
+        actual_input: { type: "object", properties: { user_id: { type: "string" }, manager_id: { type: "string" } }, required: ["user_id", "manager_id"] },
+        expected_output: { type: "object", properties: { id: { type: "string" }, manager_id: { type: "string" } }, required: ["id", "manager_id"] },
+        actual_output: { type: "object", properties: { id: { type: "string" }, manager_id: { type: "string" } }, required: ["id", "manager_id"] },
+        input_drift: false, output_drift: false, security: []
+      },
+      create_ticket: {
+        method: "POST", path: "/tickets", description: "Open a support ticket on behalf of a user.",
+        agent_input: { type: "object", properties: { user_id: { type: "string" }, title: { type: "string" } }, required: ["user_id", "title"] },
+        actual_input: isM8 ? { type: "object", properties: { user_id: { type: "string" }, title: { type: "string" }, priority: { type: "string" } }, required: ["user_id", "title", "priority"] } : { type: "object", properties: { user_id: { type: "string" }, title: { type: "string" } }, required: ["user_id", "title"] },
+        expected_output: { type: "object", properties: { ticket_id: { type: "string" }, user_id: { type: "string" }, title: { type: "string" } }, required: ["ticket_id", "user_id", "title"] },
+        actual_output: { type: "object", properties: { ticket_id: { type: "string" }, user_id: { type: "string" }, title: { type: "string" } }, required: ["ticket_id", "user_id", "title"] },
+        input_drift: isM8, output_drift: false, security: []
+      }
+    };
+
+    const healEvent = isM1 ? { tool: "get_user", class: "E2", raw_code: "422", tier: 1, path: "diff", outcome: "RECOVERED", reason: null, mttr_ms: 180, heal_ms: 45, fix: { request_ops: [{ op: "move", from: ["body", "user_id"], to: ["body", "customer_id"] }], response_ops: [] } }
+      : (isM7 ? { tool: "update_email", class: "E6", raw_code: "200", tier: 1, path: "diff", outcome: "RECOVERED", reason: null, mttr_ms: 210, heal_ms: 55, fix: { request_ops: [{ op: "move", from: ["body", "email"], to: ["body", "email_address"] }], response_ops: [] } }
+      : (isM8 ? { tool: "create_ticket", class: "E2", raw_code: "422", tier: 1, path: "diff", outcome: "ABORTED", reason: "NO_SAFE_VALUE", mttr_ms: 40, heal_ms: 38, fix: null } : null));
+
+    const hTraces = [
+      { step: 1, tool: "get_user", args: { user_id: "123" }, input_schema: schemas.get_user.agent_input, actual_input_schema: schemas.get_user.actual_input, output_schema: schemas.get_user.expected_output, actual_output_schema: schemas.get_user.actual_output, input_drift: schemas.get_user.input_drift, output_drift: false, error_class: isM1 ? "E2" : "OK", heal_event: isM1 ? healEvent : null, result: { id: "123", name: "Ada", email: "ada@example.com" }, latency_ms: isM1 ? 240 : 45 },
+      { step: 2, tool: "update_email", args: { user_id: "123", email: "ada.new@example.com" }, input_schema: schemas.update_email.agent_input, actual_input_schema: schemas.update_email.actual_input, output_schema: schemas.update_email.expected_output, actual_output_schema: schemas.update_email.actual_output, input_drift: schemas.update_email.input_drift, output_drift: false, error_class: isM7 ? "E6" : "OK", heal_event: isM7 ? healEvent : null, result: { id: "123", email: "ada.new@example.com" }, latency_ms: isM7 ? 260 : 40 },
+      { step: 3, tool: "set_manager", args: { user_id: "123", manager_id: "456" }, input_schema: schemas.set_manager.agent_input, actual_input_schema: schemas.set_manager.actual_input, output_schema: schemas.set_manager.expected_output, actual_output_schema: schemas.set_manager.actual_output, input_drift: false, output_drift: false, error_class: "OK", heal_event: null, result: { id: "123", manager_id: "456" }, latency_ms: 42 },
+      { step: 4, tool: "create_ticket", args: { user_id: "123", title: "Email changed" }, input_schema: schemas.create_ticket.agent_input, actual_input_schema: schemas.create_ticket.actual_input, output_schema: schemas.create_ticket.expected_output, actual_output_schema: schemas.create_ticket.actual_output, input_drift: schemas.create_ticket.input_drift, output_drift: false, error_class: isM8 ? "E2" : "OK", heal_event: isM8 ? healEvent : null, result: isM8 ? { error: "SCHEMA_DRIFT_UNRECOVERABLE", tool: "create_ticket", reason: "NO_SAFE_VALUE", retry: false } : { ticket_id: "T-1", user_id: "123", title: "Email changed" }, latency_ms: isM8 ? 50 : 38 }
+    ];
+
+    const bTraces = [];
+    if (isM1) {
+      for (let i = 1; i <= 10; i++) {
+        bTraces.push({ step: i, tool: "get_user", args: { user_id: "123" }, is_retry: i > 1, retry_count: i - 1, input_schema: schemas.get_user.agent_input, actual_input_schema: schemas.get_user.actual_input, output_schema: schemas.get_user.expected_output, actual_output_schema: schemas.get_user.actual_output, input_drift: true, output_drift: false, error_class: "E2", heal_event: null, result: { status_code: 422, body: { detail: [{ loc: ["body", "customer_id"], msg: "field required", type: "missing" }] } }, latency_ms: 35 });
+      }
+    } else if (isM7) {
+      bTraces.push({ step: 1, tool: "get_user", args: { user_id: "123" }, is_retry: false, retry_count: 0, input_schema: schemas.get_user.agent_input, actual_input_schema: schemas.get_user.actual_input, output_schema: schemas.get_user.expected_output, actual_output_schema: schemas.get_user.actual_output, input_drift: false, output_drift: false, error_class: "OK", heal_event: null, result: { id: "123", name: "Ada", email: "ada@example.com" }, latency_ms: 40 });
+      bTraces.push({ step: 2, tool: "update_email", args: { user_id: "123", email: "ada.new@example.com" }, is_retry: false, retry_count: 0, input_schema: schemas.update_email.agent_input, actual_input_schema: schemas.update_email.actual_input, output_schema: schemas.update_email.expected_output, actual_output_schema: schemas.update_email.actual_output, input_drift: true, output_drift: false, error_class: "OK", heal_event: null, result: { status_code: 200, body: { id: "123", email: "ada@example.com" } }, latency_ms: 35 });
+      bTraces.push({ step: 3, tool: "set_manager", args: { user_id: "123", manager_id: "456" }, is_retry: false, retry_count: 0, input_schema: schemas.set_manager.agent_input, actual_input_schema: schemas.set_manager.actual_input, output_schema: schemas.set_manager.expected_output, actual_output_schema: schemas.set_manager.actual_output, input_drift: false, output_drift: false, error_class: "OK", heal_event: null, result: { id: "123", manager_id: "456" }, latency_ms: 38 });
+      bTraces.push({ step: 4, tool: "create_ticket", args: { user_id: "123", title: "Email changed" }, is_retry: false, retry_count: 0, input_schema: schemas.create_ticket.agent_input, actual_input_schema: schemas.create_ticket.actual_input, output_schema: schemas.create_ticket.expected_output, actual_output_schema: schemas.create_ticket.actual_output, input_drift: false, output_drift: false, error_class: "OK", heal_event: null, result: { ticket_id: "T-1", user_id: "123", title: "Email changed" }, latency_ms: 42 });
+    } else {
+      for (let i = 1; i <= 4; i++) {
+        const tName = ["get_user", "update_email", "set_manager", "create_ticket"][i-1];
+        bTraces.push({ step: i, tool: tName, args: hTraces[i-1].args, is_retry: false, retry_count: 0, input_schema: schemas[tName].agent_input, actual_input_schema: schemas[tName].actual_input, output_schema: schemas[tName].expected_output, actual_output_schema: schemas[tName].actual_output, input_drift: schemas[tName].input_drift, output_drift: false, error_class: isM8 && i === 4 ? "E2" : "OK", heal_event: null, result: hTraces[i-1].result, latency_ms: 36 });
+      }
+    }
+
+    const hEmail = "ada.new@example.com";
+    const bEmail = isM7 ? "ada@example.com" : (isM1 ? "ada@example.com" : "ada.new@example.com");
+
+    return {
+      query: query,
+      mutation: mut,
+      tool_schemas: schemas,
+      healing: {
+        traces: hTraces,
+        heals: healEvent ? [healEvent] : [],
+        status: "done",
+        tool_calls: hTraces.length,
+        data_state: { users: { "123": { email: hEmail, manager_id: "456" } }, tickets: isM8 ? [] : [{ ticket_id: "T-1" }] },
+        data_correct: true,
+        correctness_details: {
+          email: { value: hEmail, ok: true },
+          manager: { value: "456", ok: true },
+          tickets: { count: isM8 ? 0 : 1, ok: true }
+        }
+      },
+      baseline: {
+        traces: bTraces,
+        heals: [],
+        status: isM1 ? "iteration_cap" : (isM7 ? "done" : (isM8 ? "iteration_cap" : "done")),
+        hit_limit: isM1 || isM8,
+        tool_calls: bTraces.length,
+        data_state: { users: { "123": { email: bEmail, manager_id: isM1 ? null : "456" } }, tickets: (isM1 || isM8) ? [] : [{ ticket_id: "T-1" }] },
+        data_correct: isClean,
+        correctness_details: {
+          email: { value: bEmail, ok: isClean },
+          manager: { value: isM1 ? null : "456", ok: !isM1 },
+          tickets: { count: (isM1 || isM8) ? 0 : 1, ok: isClean }
+        }
+      }
+    };
+  }
+  function handle(path, body) {
+    if (path.startsWith("/api/state")) return Promise.resolve(state(Number(new URL(path, "http://x").searchParams.get("after")) || 0));
+    if (path === "/api/mutation") { d.mut = body.id; return Promise.resolve(state(0)); }
+    if (path === "/api/start") { start(); return Promise.resolve(state(0)); }
+    if (path === "/api/reset") { reset(); return Promise.resolve(state(0)); }
+    if (path === "/api/report") return Promise.resolve({ report: SAMPLE_REPORT });
+    if (path === "/api/explorer/info") return fetch("/api/explorer/info").then(r => r.json()).catch(() => ({ predefined_queries: [], error_classes: [], mock_info: { tools: {} } }));
+    if (path === "/api/explore") {
+      // The simulator cannot call an LLM; saying so beats inventing a result.
+      if (body.agent === "llm") return Promise.reject(new Error("Live LLM mode needs the dashboard backend (python3 -m dashboard) and an OPENROUTER_API_KEY"));
+      return Promise.resolve(demoExplore(body.query, body.mutation));
+    }
+    return Promise.reject(new Error("unknown " + path));
+  }
+  reset();
+  return { get on() { return d.on; }, enable() { d.on = true; }, handle };
+})();
+
+/* ---------- api ---------- */
+async function call(path, body) {
+  // Always try the live backend first. Demo data is only a stand-in when the
+  // request never reached it, never a way to hide a backend error.
+  const init = body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) };
+  let res;
+  try {
+    res = await fetch(path, init);
+  } catch (err) {
+    if (Demo.on) return Demo.handle(path, body);
+    throw new Error("dashboard API unreachable — start it with `python3 -m dashboard`");
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : path + " failed (" + res.status + ")");
   return data;
 }
-
 async function act(path, body) {
   note("");
+  clearPreset();
   try { await call(path, body); } catch (err) { note(err.message); }
   poll();
 }
 
-// ---- controls -------------------------------------------------------------
-const mutationButtons = {};
-for (const [id, label, tool] of MUTATIONS) {
-  const b = el("button", id + " ", { title: tool + ": " + label, "aria-pressed": "false" });
-  b.appendChild(el("small", label));
-  b.onclick = () => act("/api/mutation", { id });
-  $("mutations").appendChild(b);
-  mutationButtons[id] = b;
+/* ---------- tabs ---------- */
+function showTab(name) {
+  for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  for (const v of ["live", "heals", "metrics", "report"]) $("view-" + v).hidden = v !== name;
 }
-const clear = el("button", "Clear");
-clear.onclick = () => act("/api/mutation", { id: null });
-$("mutations").appendChild(clear);
-$("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_delay: 1.0 });
-$("start-llm").onclick = () => act("/api/start", { agent: "llm" });
-$("reset").onclick = () => act("/api/reset", {});
+for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => showTab(b.dataset.tab);
+// The landing page links to /live#heals etc.
+if (["heals", "metrics", "report"].includes(location.hash.slice(1))) showTab(location.hash.slice(1));
 
-// ---- rendering ------------------------------------------------------------
+/* ---------- shared rendering ---------- */
 const path = (p) => p.join(".");
 function opText(o) {
   switch (o.op) {
-    case "move": return "move " + path(o.from) + " → " + path(o.to);
-    case "cast": return "cast " + path(o.path) + " → " + o.to;
-    case "header": return "header " + o.name + " ← config " + o.src.key;
-    case "route": return "route " + o.method + " " + o.path;
-    default: return JSON.stringify(o);
+    case "move": return ["MOVE", path(o.from) + " → " + path(o.to)];
+    case "cast": return ["CAST", path(o.path) + " → " + o.to];
+    case "header": return ["HEADER", o.name + " ← config:" + o.src.key];
+    case "route": return ["ROUTE", o.method + " " + o.path];
+    default: return ["", JSON.stringify(o)];
   }
 }
-
-function badge(key, text) { return el("span", text === undefined ? key : text, { class: "badge", "data-k": key }); }
-
+function opChip(o, resp) {
+  const [verb, rest] = opText(o);
+  const s = el("span", null, { class: "op" + (resp ? " resp" : "") });
+  s.append(el("b", (resp ? "response " : "") + verb), " " + rest);
+  return s;
+}
+function opChips(fix) {
+  const wrap = el("div", null, { class: "ops" });
+  if (!fix) { wrap.appendChild(el("span", "No fix: refused", { class: "muted" })); return wrap; }
+  for (const o of fix.request_ops) wrap.appendChild(opChip(o, false));
+  for (const o of fix.response_ops) wrap.appendChild(opChip(o, true));
+  if (!fix.request_ops.length && !fix.response_ops.length) wrap.appendChild(el("span", "No operations", { class: "muted" }));
+  return wrap;
+}
+function badge(key, text) {
+  const b = el("span", text === undefined ? key : text, { class: "badge", "data-k": key });
+  if (CLASS_NAMES[key]) b.title = CLASS_NAMES[key];
+  return b;
+}
+// [tone, label] for one heal attempt: the enum codes, said plainly.
+function outcomeInfo(h) {
+  const ms = h.heal_ms ?? h.mttr_ms;
+  if (h.outcome === "RECOVERED") return ["good", "Healed in " + ms + " ms · Tier " + h.tier];
+  if (h.outcome === "NOT_DRIFT") return ["biz", "Business error · passed through"];
+  if (h.outcome === "ABORTED") return ["warn", "Safe refusal · " + h.reason];
+  return ["bad", h.outcome + (h.reason ? " · " + h.reason : "")];
+}
+function outcomePill(h) { const [k, t] = outcomeInfo(h); return el("span", t, { class: "tag " + k }); }
 function clock(ms) {
   const d = new Date(ms);
   return d.toLocaleTimeString([], { hour12: false }) + "." + String(ms % 1000).padStart(3, "0");
 }
 
-let after = 0, epoch = null, healCount = -1, busy = false;
-const counts = { healing: 0, baseline: 0 };
-
-function clearView() {
-  after = 0; healCount = -1;
-  for (const a of AGENTS) { $("calls-" + a).replaceChildren(); counts[a] = 0; }
+/* One stepper cell. `ts` are this agent's calls of `tool` so far; `heal` the heal on that tool, if any. */
+function stepState(ts, tool, o) {
+  if (!ts.length) return { k: "pending", note: o.done ? "Never reached" : STEP_LABEL[tool] };
+  const heal = o.heal || ts.map((t) => t.heal_event).filter(Boolean).pop();
+  if (heal) {
+    const [k, text] = outcomeInfo(heal);
+    return { k: { good: "healed", warn: "refused", biz: "biz" }[k] || "fail", note: k === "warn" ? text + " · tool skipped" : text };
+  }
+  const last = ts[ts.length - 1];
+  if (last.error_class === "OK") {
+    const d = o.details && o.details[{ update_email: "email", set_manager: "manager", create_ticket: "tickets" }[tool]];
+    if (d && d.checked !== false && !d.ok && o.done) return { k: "silent", note: "200 OK, but nothing was saved" };
+    return { k: "done", note: ts.length > 1 ? "OK after " + ts.length + " calls" : "OK" };
+  }
+  const code = (last.result && last.result.status_code) || last.error_class;
+  if (o.healing) return { k: "fail", note: code + " · error returned to agent" };
+  if (o.capped) return { k: "fail", note: code + " · iteration cap hit (" + o.total + "/" + MAX_CALLS + ")", capped: true };
+  return { k: "fail", note: code + " · same payload again (call " + o.total + "/" + MAX_CALLS + ")" };
+}
+function renderSteps(box, tools, traces, o) {
+  box.replaceChildren(...tools.map((tool, i) => {
+    const st = stepState(traces.filter((t) => t.tool === tool), tool, { ...o, heal: o.heals && o.heals[tool] });
+    const li = el("li", null, { class: "step" + (st.capped ? " capped" : ""), "data-k": st.k });
+    li.append(el("span", "Step " + (i + 1), { class: "step-n" }), el("b", tool), el("small", st.note));
+    return li;
+  }));
 }
 
+/* Drift banner: title, before → after, what the healer should do. */
+function bannerData(id) {
+  const p = presets[id];
+  return p && { id, title: p.title, tool: p.tool_affected, before: p.before, after: p.after, expect: p.expect };
+}
+function renderBanner(box, id) {
+  const b = bannerData(id);
+  if (!b) { box.replaceChildren(); return; }
+  const clean = id === "CLEAN";
+  const wrap = el("div", null, { class: "banner" + (clean ? "" : " drift") });
+  const top = el("div", null, { class: "top-row" });
+  top.append(el("p", clean ? "No drift · API serves v1" : "Active API drift · " + id, { class: "eyebrow" }));
+  if (b.tool) top.append(el("span", b.tool, { class: "tag" }));
+  const diff = el("div", null, { class: "diff" });
+  const side = (label, text, cls) => { const d = el("div", null, { class: cls }); d.append(el("small", label), el("code", text)); return d; };
+  diff.append(side("Before · v1 agent schema", b.before, "before"), el("span", "→", { class: "arrow", "aria-hidden": "true" }), side(clean ? "After · unchanged" : "After · drifted wire schema", b.after, clean ? "before" : "after"));
+  const exp = el("div", null, { class: "expect" });
+  exp.append(el("span", "Expected: ", { class: "muted" }), el("b", b.expect));
+  wrap.append(top, el("h3", b.title), diff, exp);
+  box.replaceChildren(wrap);
+}
+
+/* ---------- preset runs (Live tab) ---------- */
+let presets = {}, expInfo = null, presetRun = 0, presetBusy = false, exploreRes = null;
+const presetCards = {};
+
+function selectPreset(id) {
+  for (const [k, b] of Object.entries(presetCards)) b.setAttribute("aria-pressed", String(k === id));
+  renderBanner($("live-banner"), id);
+}
+for (const [id, label, title, sub] of ACTS) {
+  const b = el("button", null, { class: "act", "aria-pressed": "false" });
+  b.append(el("small", label + " · " + (id === "CLEAN" ? "no drift" : id)), el("b", title), el("span", sub));
+  b.onclick = () => runPreset(id);
+  presetCards[id] = b;
+  $("acts").appendChild(b);
+}
+// Drop any preset result (Reset, a live run or a live mutation takes over the columns).
+function clearPreset() {
+  presetRun++; exploreRes = null;
+  for (const a of AGENTS) $("p-calls-" + a).replaceChildren();
+  for (const b of Object.values(presetCards)) b.setAttribute("aria-pressed", "false");
+  $("preset-status").className = "pill plain";
+  $("preset-status").textContent = "Ready";
+}
+
+async function initPresets() {
+  try {
+    expInfo = await call("/api/explorer/info");
+  } catch (err) {
+    $("preset-status").textContent = "Explorer info unavailable: " + err.message;
+    return;
+  }
+  for (const p of expInfo.predefined_queries) presets[p.mutation || "CLEAN"] = p;
+  if (expInfo.llm_available) $("llm-status").textContent = "LLM: " + expInfo.llm_model;
+  else {
+    document.querySelector("input[name=mode][value=llm]").disabled = true;
+    $("llm-label").title = "Set OPENROUTER_API_KEY to enable the live LLM";
+    $("llm-status").textContent = "No OPENROUTER_API_KEY: scripted agents only";
+  }
+  if (lastLiveMut !== undefined) renderBanner($("live-banner"), lastLiveMut || "CLEAN");
+}
+
+async function runPreset(id) {
+  if (presetBusy || !presets[id]) return;
+  presetBusy = true;
+  note("");
+  selectPreset(id);
+  const status = $("preset-status");
+  status.className = "pill warn";
+  status.replaceChildren(el("span", null, { class: "spinner" }), " Running both agents");
+  try {
+    const res = await call("/api/explore", {
+      query: presets[id].query,
+      mutation: id === "CLEAN" ? null : id,
+      agent: document.querySelector("input[name=mode]:checked").value,
+    });
+    status.className = "pill plain";
+    status.textContent = "Replaying " + ((res.healing.traces || []).length + (res.baseline.traces || []).length) + " tool calls";
+    replay(res);
+  } catch (err) {
+    status.className = "pill bad";
+    status.textContent = "Failed: " + err.message;
+  } finally {
+    presetBusy = false;
+  }
+}
+
+/* One tool call as a closed accordion row; opening it shows input, error, registry rewrite, output. */
+function block(label, ...kids) {
+  const d = el("div", null, { class: "blk" });
+  d.append(el("small", label), ...kids);
+  return d;
+}
+const pre = (v) => el("pre", formatJson(v));
+function healBox(h) {
+  const [k, text] = outcomeInfo(h);
+  const box = el("div", null, { class: "heal " + k });
+  const title = el("div", null, { class: "heal-title" });
+  title.append(el("b", { good: "Hot-patched in memory", warn: "Refused by construction", biz: "Not schema drift" }[k] || "Patch failed verification"), el("span", text, { class: "muted" }));
+  box.append(title, el("div", "class " + h.class + " · HTTP " + h.raw_code + (h.reason ? " · " + h.reason : ""), { class: "heal-facts" }));
+  if (k === "warn") box.append(el("p", "0 invented values. The agent gets retry: false, treats this tool as unavailable for the rest of the task, and carries on with the other steps.", { class: "hint" }));
+  if (k === "biz") box.append(el("p", "The spec is unchanged, so the error is the agent's to handle. No patch, no replay.", { class: "hint" }));
+  return box;
+}
+function callCard(t, healing, i) {
+  const h = t.heal_event;
+  const d = el("details", null, { class: "call" });
+  const sum = el("summary");
+  const code = t.result && t.result.status_code;
+  sum.append(el("span", String(i + 1).padStart(2, "0"), { class: "num" }), el("code", t.tool, { class: "tool" }), badge(t.error_class));
+  if (code && code >= 400) sum.append(el("span", "HTTP " + code, { class: "tag bad" }));
+  if (h) sum.append(outcomePill(h));
+  sum.append(el("span", t.latency_ms + " ms", { class: "ms" }), el("span", null, { class: "plus", "aria-hidden": "true" }));
+  const body = el("div", null, { class: "call-body" });
+  body.append(block("Agent input", pre(t.args)));
+  if (h) body.append(block("Error", healBox(h)));
+  else if (t.error_class !== "OK") body.append(block("Error", pre(t.result)));
+  const sent = (t.wire || []).filter((w) => w.path !== "/openapi.json" && !w.path.endsWith("/validate"));
+  if (healing && sent.length > 1) {
+    const w = sent[sent.length - 1];
+    const head = el("div", null, { class: "wire-head" });
+    head.append(el("span", w.method + " " + w.path, { class: "mono" }));
+    for (const name of w.headers || []) head.append(el("span", "+ " + name, { class: "tag" }));
+    body.append(block("New input from tool registry", head, ...(w.body !== null && w.body !== undefined ? [pre(w.body)] : []), ...(h && h.fix ? [opChips(h.fix)] : [])));
+  }
+  body.append(block("Final output", pre(t.result)));
+  d.append(sum, body);
+  return d;
+}
+
+const STEP_MS = 420;
+function replay(res) {
+  const run = ++presetRun;
+  exploreRes = res;
+  const tools = CONTROL_TOOLS[res.mutation] || TOOLS;
+  const shown = { healing: [], baseline: [] };
+  const steps = (a, done) => renderSteps($("steps-" + a), tools, shown[a], {
+    healing: a === "healing", details: res[a].correctness_details, done, total: shown[a].length,
+    capped: done && res[a].hit_limit,
+  });
+  for (const a of AGENTS) {
+    $("p-calls-" + a).replaceChildren();
+    steps(a, false);
+    $("status-" + a).className = "pill warn";
+    $("status-" + a).textContent = "running";
+  }
+  const tick = () => {
+    if (run !== presetRun) return;
+    let more = false;
+    for (const a of AGENTS) {
+      const traces = res[a].traces || [];
+      const i = shown[a].length;
+      if (i >= traces.length) continue;
+      shown[a].push(traces[i]);
+      const list = $("p-calls-" + a);
+      const card = list.appendChild(callCard(traces[i], a === "healing", i));
+      list.scrollTop = card.offsetTop - 4;
+      steps(a, false);
+      more = more || i + 1 < traces.length;
+    }
+    if (more) setTimeout(tick, STEP_MS);
+    else finish(res, steps);
+  };
+  setTimeout(tick, 250);
+}
+function finish(res, steps) {
+  for (const a of AGENTS) {
+    steps(a, true);
+    $("cap-" + a).hidden = !res[a].hit_limit;
+    if (!(res[a].traces || []).length) $("p-calls-" + a).replaceChildren(el("div", res[a].error || "No tool calls recorded.", { class: "empty" }));
+  }
+  const h = res.healing, b = res.baseline;
+  // A refused tool is skipped, not fatal: the run finishes, minus what had no safe value.
+  const skipped = new Set((h.traces || []).map((t) => t.heal_event).filter((e) => e && e.outcome === "ABORTED").map((e) => e.tool));
+  const hStatus = h.status !== "error" && skipped.size ? "refused" : h.status;
+  const hs = { done: ["good", "Task complete"], refused: ["warn", "Finished · " + skipped.size + " tool skipped safely"], error: ["bad", "LLM error"] }[hStatus] || ["bad", "Incomplete"];
+  $("status-healing").className = "pill " + hs[0];
+  $("status-healing").textContent = hs[1];
+  const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "False success · data not saved"];
+  $("status-baseline").className = "pill " + bs[0];
+  $("status-baseline").textContent = bs[1];
+  $("preset-status").className = "pill good";
+  $("preset-status").textContent = "Done";
+}
+
+/* ---------- live tab ---------- */
+const mutationButtons = {};
+for (const [title, hint, items] of GROUPS) {
+  const g = el("div");
+  const label = el("div", title, { class: "group-label" });
+  label.appendChild(el("span", hint));
+  const grid = el("div", null, { class: "muts" });
+  for (const [id, text, tool] of items) {
+    const b = el("button", null, { class: "mut", "aria-pressed": "false", title: tool + ": " + text });
+    b.append(el("b", id), el("span", text), el("i", tool));
+    b.onclick = () => act("/api/mutation", { id });
+    grid.appendChild(b);
+    mutationButtons[id] = b;
+  }
+  g.append(label, grid);
+  $("mutations").appendChild(g);
+}
+$("clear-mut").onclick = () => act("/api/mutation", { id: null });
+$("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_delay: 1.0 });
+$("start-llm").onclick = () => act("/api/start", { agent: "llm" });
+$("reset").onclick = () => act("/api/reset", {});
+
+let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut;
+const counts = { healing: 0, baseline: 0 };
+const liveCalls = { healing: [], baseline: [] };
+
+function emptyCalls(agent) {
+  const li = el("li", null, { class: "emptyrow" });
+  li.appendChild(el("span", "No tool calls yet. Start a run.", { class: "empty" }));
+  $("calls-" + agent).replaceChildren(li);
+}
+function clearView() {
+  after = 0; healSig = "";
+  for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; emptyCalls(a); }
+}
 function addCall(e) {
   const list = $("calls-" + e.agent);
   if (!list) return;
+  if (list.querySelector(".emptyrow")) list.replaceChildren();
   const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 8;
   const li = el("li");
-  li.append(el("span", clock(e.ts_ms), { class: "time" }), el("span", e.tool), badge(e.class), el("span", e.latency_ms + " ms", { class: "ms" }));
+  li.append(el("span", clock(e.ts_ms), { class: "time" }), el("span", e.tool, { class: "tool" }), badge(e.class), el("span", e.latency_ms + " ms", { class: "lat" }));
   list.appendChild(li);
   if (stick) list.scrollTop = list.scrollHeight;
   counts[e.agent] += 1;
+  liveCalls[e.agent].push({ tool: e.tool, error_class: e.class });
 }
-
+function stat(label, value) {
+  const s = el("div", null, { class: "stat" });
+  s.append(el("small", label), el("b", String(value)));
+  return s;
+}
 function renderRun(agent, s) {
   const run = s.runs[agent];
-  const status = $("status-" + agent);
-  status.textContent = run.status;
-  status.className = "chip " + ({ running: "warn", done: "good", error: "bad" }[run.status] || "");
-  $("cap-" + agent).hidden = !run.hit_limit;
-  const data = s.mocks[agent].data;
-  const user = data.users["123"];
-  const parts = [counts[agent] + " tool calls", "email " + user.email, "manager " + (user.manager_id || "none"), data.tickets.length + " ticket(s)"];
-  if (run.llm_tokens) parts.push(run.llm_tokens + " tokens");
-  if (run.error) parts.push("error: " + run.error);
-  $("meta-" + agent).textContent = parts.join(" · ");
+  if (!exploreRes) {
+    const status = $("status-" + agent);
+    status.textContent = run.status;
+    status.className = "pill " + ({ running: "warn", done: "good", error: "bad" }[run.status] || "");
+    $("cap-" + agent).hidden = !run.hit_limit;
+    const heals = agent === "healing" ? Object.fromEntries(s.heals.map((h) => [h.tool, h])) : {};
+    renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, total: counts[agent], capped: run.hit_limit });
+  }
+  const data = s.mocks[agent].data, user = data.users["123"];
+  const stats = [stat("Tool calls", counts[agent]), stat("Email", user.email), stat("Manager", user.manager_id || "none"), stat("Tickets", data.tickets.length)];
+  if (run.llm_tokens) stats.push(stat("Tokens", run.llm_tokens));
+  $("stats-" + agent).replaceChildren(...stats);
+  const err = $("err-" + agent);
+  err.hidden = !run.error;
+  err.textContent = run.error ? "Error: " + run.error : "";
 }
-
 function renderHeals(heals) {
-  if (heals.length === healCount) return;
-  healCount = heals.length;
+  $("heal-count").textContent = String(heals.length);
+  const sig = heals.length + ":" + (heals.length ? heals[heals.length - 1].ts_ms : 0);
+  if (sig === healSig) return;
+  healSig = sig;
   const body = $("heals");
   body.replaceChildren();
   if (!heals.length) {
-    const td = el("td", "No heals yet.", { colspan: "9", class: "empty" });
-    body.appendChild(el("tr")).appendChild(td);
+    body.appendChild(el("tr")).appendChild(el("td", "No heals yet. Run a scenario on the Live tab, or break the API during a live run.", { colspan: "9", class: "empty" }));
     return;
   }
-  for (const h of heals) {
-    const tr = el("tr");
-    const ops = el("td", null, { class: "ops" });
-    if (!h.fix) ops.appendChild(el("span", "no fix (refused)", { class: "empty" }));
-    else {
-      for (const o of h.fix.request_ops) ops.appendChild(el("code", opText(o)));
-      for (const o of h.fix.response_ops) ops.appendChild(el("code", "response: " + opText(o), { class: "resp" }));
-      if (!h.fix.request_ops.length && !h.fix.response_ops.length) ops.appendChild(el("span", "no operations", { class: "empty" }));
-    }
-    const cell = (child) => { const td = el("td"); td.append(child); return td; };
-    tr.append(
-      el("td", clock(h.ts_ms)), el("td", h.tool), cell(badge(h.class)), el("td", String(h.tier)),
-      el("td", h.path || "-"), cell(badge(h.outcome)), el("td", h.reason || "-"), el("td", h.mttr_ms + " ms"), ops,
-    );
-    body.appendChild(tr);
-  }
+  const cell = (child) => { const td = el("td"); td.append(child); return td; };
+  heals.forEach((h) => {
+    const tr = el("tr", null, { class: "row", tabindex: "0", "aria-expanded": "false" });
+    const first = el("td"); first.append(el("span", "▸", { class: "chev" }), clock(h.ts_ms));
+    const fixCell = el("td"); fixCell.append(opChips(h.fix));
+    fixCell.style.whiteSpace = "normal"; fixCell.style.minWidth = "260px";
+    const [k, text] = outcomeInfo(h);
+    const outcome = el("td"); outcome.append(el("span", k === "warn" ? "Safe refusal · 0 invented values" : k === "biz" ? "Business error pass-through" : text.split(" · ")[0], { class: "tag " + k }));
+    if (h.reason && h.reason !== "NOT_DRIFT") outcome.append(" ", el("span", h.reason, { class: "tag" }));
+    tr.append(first, el("td", h.tool, { class: "mono" }), cell(badge(h.class)), el("td", String(h.tier)), el("td", h.path || "-"), outcome,
+      el("td", h.mttr_ms + " ms"), el("td", h.heal_ms === undefined || h.heal_ms === null ? "-" : h.heal_ms + " ms"), fixCell);
+    const dt = el("tr", null, { class: "detail", hidden: "" });
+    const dd = el("td", null, { colspan: "9" });
+    const grid = el("div", null, { class: "detail-grid" });
+    const item = (key, v) => { const d = el("div"); d.append(el("small", key), el("code", v)); return d; };
+    grid.append(item("Fingerprint", h.fingerprint || "-"), item("Raw code", String(h.raw_code ?? "-")), item("Fix id", String(h.fix_id ?? "-")), item("Jev tokens", String(h.jev_tokens ?? 0)));
+    dd.appendChild(grid); dt.appendChild(dd);
+    const toggle = () => { const open = dt.hidden; dt.hidden = !open; tr.classList.toggle("open", open); tr.setAttribute("aria-expanded", String(open)); };
+    tr.onclick = toggle;
+    tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
+    body.append(tr, dt);
+  });
 }
-
-function card(title, value, sub) {
-  const c = el("div", null, { class: "card" });
-  c.append(el("b", title), el("span", value));
-  if (sub) c.appendChild(el("small", sub));
+function metric(title, value, unit, sub) {
+  const c = el("div", null, { class: "card metric" });
+  const v = el("div", value, { class: "v" });
+  if (unit) v.appendChild(el("em", unit));
+  c.append(el("small", title), v);
+  if (sub) c.appendChild(el("div", sub, { class: "s" }));
   return c;
 }
-
 function renderMetrics(m) {
   const by = m.outcomes.by_outcome;
-  const recovered = by.RECOVERED || 0, refused = by.ABORTED || 0;
-  const other = Object.values(by).reduce((a, b) => a + b, 0) - recovered - refused;
   const tier = (t, name) => {
     const x = m.mttr[t];
-    if (!x) return card("Tier " + t + " MTTR (" + name + ")", "-", "no recovered heals");
-    return card("Tier " + t + " MTTR (" + name + ")", Math.round(x.p50_ms) + " ms p50", "p95 " + Math.round(x.p95_ms) + " ms · n=" + x.n);
+    if (!x) return metric("Tier " + t + " MTTR · " + name, "–", "", "No recovered heals yet");
+    return metric("Tier " + t + " MTTR · " + name, String(Math.round(x.p50_ms)), "ms p50", "p95 " + Math.round(x.p95_ms) + " ms · n=" + x.n);
   };
-  const reasons = Object.entries(m.outcomes.by_reason).map(([k, v]) => k + " ×" + v).join(", ");
   $("metrics").replaceChildren(
-    tier("1", "diff / Jev"), tier("0", "cache"),
-    card("Recovered", String(recovered)), card("Refused", String(refused), reasons || undefined),
-    card("Other", String(other), "verify failed / not drift"),
+    metric("Recovered", String(by.RECOVERED || 0), "", "Patched, replayed once, verified"),
+    metric("Safe refusals", String(by.ABORTED || 0), "", "Aborted with 0 invented values"),
+    metric("Passed through", String(by.NOT_DRIFT || 0), "", "Business errors, not drift"),
+    tier("1", "diff / tie-breaker"), tier("0", "fix cache"),
   );
+  const reasons = Object.entries(m.outcomes.by_reason);
+  $("reasons").hidden = !reasons.length;
+  $("reasons-list").replaceChildren(...reasons.map(([k, v]) => el("span", k + " ×" + v, { class: "op" })));
 }
-
 function render(s) {
-  $("mutation-chip").textContent = s.active_mutation ? "mutation " + s.active_mutation : "no mutation";
-  $("mutation-chip").className = "chip" + (s.active_mutation ? " bad" : "");
+  const chip = $("mutation-chip");
+  chip.textContent = s.active_mutation ? "Live mutation " + s.active_mutation : "No mutation";
+  chip.className = "pill " + (s.active_mutation ? "bad" : "plain");
   for (const [id, b] of Object.entries(mutationButtons)) b.setAttribute("aria-pressed", String(id === s.active_mutation));
+  if (s.active_mutation !== lastLiveMut) { lastLiveMut = s.active_mutation; renderBanner($("live-banner"), lastLiveMut || "CLEAN"); }
   for (const e of s.events) { addCall(e); after = e.event_id; }
   for (const a of AGENTS) renderRun(a, s);
   renderHeals(s.heals);
   renderMetrics(s.metrics);
 }
 
-// ---- polling ---------------------------------------------------------------
+/* ---------- polling ---------- */
 async function poll() {
   if (busy) return;
   busy = true;
@@ -319,21 +970,25 @@ async function poll() {
     const s = await call("/api/state?after=" + after);
     if (s.epoch !== epoch) { epoch = s.epoch; clearView(); }
     render(s);
-    $("conn-chip").textContent = "live";
-    $("conn-chip").className = "chip good";
+    connected = true;
+    $("conn-chip").textContent = Demo.on ? "Demo data" : "Live";
+    $("conn-chip").className = "pill " + (Demo.on ? "warn" : "good");
   } catch (err) {
-    $("conn-chip").textContent = "disconnected";
-    $("conn-chip").className = "chip bad";
+    if (!connected && !Demo.on) { Demo.enable(); busy = false; epoch = null; return poll(); }
+    $("conn-chip").textContent = "Disconnected";
+    $("conn-chip").className = "pill bad";
   } finally {
     busy = false;
   }
 }
-
-call("/api/report").then((r) => {
-  if (r.report) { $("report").textContent = r.report; $("report-panel").hidden = false; }
-}).catch(() => {});
+function loadReport() {
+  call("/api/report").then((r) => {
+    if (r.report) { $("report").textContent = r.report; $("tab-report").hidden = false; }
+  }).catch(() => {});
+}
+clearView();
+poll().then(() => { loadReport(); initPresets(); });
 setInterval(poll, 500);
-poll();
 </script>
 </body>
 </html>

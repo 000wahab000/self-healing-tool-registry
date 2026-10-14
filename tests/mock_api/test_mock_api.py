@@ -520,3 +520,48 @@ async def test_reset_restores_seed_and_v1(client, api):
     )
     assert r.json()["title"] == "second"
     assert len(api.state()["tickets"]) == 1
+
+
+CUSTOM_SPEC = {
+    "tool": "update_email",
+    "rename": {"email": "contact"},
+    "to_int": "user_id",
+    "wrap": "data",
+    "header": "X-Tenant-Id",
+}
+
+
+async def test_custom_drift_serves_the_composed_schema_and_keeps_v1_logic(api, client):
+    api.set_mutation("CUSTOM", CUSTOM_SPEC)
+    v1 = {"user_id": "123", "email": "new@example.com"}
+    assert (await client.patch(EMAIL, json=v1)).status_code == 422
+    drifted = {"data": {"user_id": 123, "contact": "new@example.com"}}
+    r = await client.patch(EMAIL, json=drifted)
+    assert r.status_code == 422  # tenant header still missing
+    r = await client.patch(EMAIL, json=drifted, headers={"X-Tenant-Id": "t-1"})
+    assert r.json() == {"id": "123", "email": "new@example.com"}
+    assert api.state()["users"]["123"]["email"] == "new@example.com"
+    schema = request_schema(await get_spec(client), "update_email")
+    assert set(schema["properties"]) == {"data"}
+    # Other tools stay on v1.
+    assert (await client.post(LOOKUP, json={"user_id": "123"})).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        None,
+        {"tool": "delete_everything"},
+        {"tool": "get_user"},  # changes nothing
+        {"tool": "get_user", "rename": {"nope": "x"}},
+        {"tool": "get_user", "rename": {"user_id": "1bad"}},
+        {"tool": "update_email", "rename": {"email": "user_id"}},  # collides
+        {"tool": "get_user", "to_int": "email"},  # not a get_user field
+        {"tool": "get_user", "header": "bad header"},
+        {"tool": "create_ticket", "require": "title"},  # already exists
+    ],
+)
+def test_custom_drift_rejects_bad_specs_and_changes_nothing(api, spec):
+    with pytest.raises(ValueError):
+        api.set_mutation("CUSTOM", spec)
+    assert (api.mutation, api.custom) == (None, None)

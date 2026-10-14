@@ -22,12 +22,13 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from agents import baseline_agent, common, healing_agent, scripted
+from dashboard.explorer import get_explorer_info, run_explore
 from healer import metrics
 from healer.jev import from_env
 from healer.models import AuditEvent
 from healer.registry import Registry
 from healer.store import Store
-from mock_api.app import MUTATIONS
+from mock_api.app import ALIASES, CUSTOM, MUTATIONS
 from mock_api.app import create_app as create_mock
 
 LEAD_IN_STEPS = 3  # scripted agents wait this many steps before their first call
@@ -50,6 +51,13 @@ class StartIn(BaseModel):
 
 class MutationIn(BaseModel):
     id: str | None
+
+
+class ExploreIn(BaseModel):
+    query: str = ""
+    mutation: str | None = None
+    agent: Literal["scripted", "llm"] = "scripted"
+    custom: dict | None = None  # the drift spec when mutation is CUSTOM
 
 
 class Dashboard:
@@ -164,7 +172,7 @@ class Dashboard:
             }
 
     async def mutate(self, mid: str | None) -> None:
-        if mid is not None and mid not in MUTATIONS:
+        if mid is not None and mid not in MUTATIONS and mid not in ALIASES:
             raise ValueError(f"unknown mutation {mid!r}")
         async with self.lock:
             for mock in self.mocks.values():
@@ -175,6 +183,32 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             self._clear()
+
+    async def explore(
+        self,
+        query: str,
+        mutation: str | None,
+        agent: str = "scripted",
+        custom: dict | None = None,
+    ) -> dict:
+        known = (*MUTATIONS, *ALIASES, CUSTOM)
+        if mutation is not None and mutation not in known:
+            raise ValueError(f"unknown mutation {mutation!r}")
+        async with self.lock:
+            await self._stop()
+            self._clear()
+            return await run_explore(
+                self.mocks["healing"],
+                self.mocks["baseline"],
+                self.store,
+                self.tools,
+                self.cfg,
+                self.jev,
+                mutation,
+                query,
+                agent,
+                custom,
+            )
 
     async def wait(self) -> None:
         await asyncio.gather(*self.tasks.values())
@@ -237,6 +271,7 @@ class Dashboard:
             "outcome": e.outcome,
             "reason": e.reason,
             "mttr_ms": e.mttr_ms,
+            "heal_ms": e.heal_ms,
             "jev_tokens": e.jev_tokens,
             "fingerprint": e.fingerprint,
             "fix_id": e.fix_id,
@@ -265,12 +300,33 @@ def create_app(db_path: str | None = None) -> FastAPI:
     app.state.dash = dash
 
     @app.get("/", include_in_schema=False)
+    async def landing() -> FileResponse:
+        return FileResponse(HERE / "landing.html", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/theme.css", include_in_schema=False)
+    async def theme() -> FileResponse:
+        return FileResponse(HERE / "theme.css", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/live", include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(HERE / "index.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/api/state")
     async def get_state(after: int = 0) -> dict:
         return dash.state(after)
+
+    @app.get("/api/explorer/info")
+    async def explorer_info() -> dict:
+        return get_explorer_info()
+
+    @app.post("/api/explore")
+    async def explore(body: ExploreIn) -> dict:
+        try:
+            return await dash.explore(
+                body.query, body.mutation, body.agent, body.custom
+            )
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     @app.get("/api/report")
     async def report() -> dict:

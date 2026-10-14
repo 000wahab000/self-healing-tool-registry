@@ -1,7 +1,11 @@
-"""Benchmark runner and report (plan.md phase 10).
+"""Benchmark runner and report (plan.md phase 10, metrics per phase 12D / FR-15).
 
 Every run is in-process and isolated: a fresh mock API, store and registry. Specs are
-loaded from the clean API, then the mutation is switched on and the agent runs the demo task.
+loaded from the clean API, then the mutation is switched on and the agent runs the task.
+
+`bench()` makes three passes: the main pass over every scenario for both agents (plus the
+tier-0 rerun of M1 to M5, FR-15.1) and the error-only ablation of M1 to M9 with
+`spec_mode` off (FR-15.7). One `results.jsonl` row per run, `report.md` summarizes them.
 """
 
 from __future__ import annotations
@@ -14,23 +18,49 @@ import tempfile
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
-from statistics import median
-from types import SimpleNamespace
+from statistics import mean
 
 import httpx
 
 from agents import baseline_agent, common, healing_agent, scripted
 from healer.jev import JevClient, from_env
-from healer.metrics import mttr_summary
-from healer.models import DecisionPath, HealOutcome, Tier
+from healer.metrics import (
+    false_patch_rate,
+    safe_refusal,
+    timing_summary,
+    token_overhead,
+    token_summary,
+    ztar,
+)
+from healer.models import DecisionPath, HealOutcome, Reason, Tier
 from healer.registry import Registry
 from healer.store import Store
-from mock_api.app import create_app
+from mock_api.app import SEED, create_app
 
 TOOLS_JSON = Path(__file__).parents[1] / "config" / "tools.json"
-DEFAULT_SCENARIOS = "CLEAN,M1,M2,M3,M4,M5,M6,M7,M8,C1"
+DEFAULT_SCENARIOS = "CLEAN,M1,M2,M3,M4,M5,M6-D,M6-N,M7,M8,M9,C1,C2,C3"
+ABLATION_SCENARIOS = ("M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9")
 TIER0_SCENARIOS = ("M1", "M2", "M3", "M4", "M5")
+HEALABLE_MUTATIONS = ("M1", "M2", "M3", "M4", "M5", "M7", "M9")
+M6_SCENARIOS = ("M6-D", "M6-N")  # reported separately from the healable ZTAR (FR-15.4)
+ZTAR_SCENARIOS = (*HEALABLE_MUTATIONS, *M6_SCENARIOS)  # M8 and the controls stay out (AC-15)
+REFUSAL_REASON = {"M8": "NO_SAFE_VALUE", "M6-N": "LOW_CONFIDENCE"}
+# Where a must-refuse run could still send an invented value: a body the agent never asked for.
+INVENTED_CHECK = {"M8": ("create_ticket", "/tickets"), "M6-N": ("set_manager", "/users/manager")}
 AGENTS = ("healing", "baseline")
+NEW_EMAIL = "ada.new@example.com"
+# Controls drive their own tool calls; every other scenario runs the demo task.
+CONTROL_STEPS = {
+    "C2": [("get_user", {"user_id": "999"})],
+    "C3": [
+        ("get_user", {"user_id": "123"}),
+        ("update_email", {"user_id": "123", "email": "not-an-email"}),
+    ],
+}
+CONTROL_TASK = {  # the same controls, as instructions for the LLM agents
+    "C2": "Look up user 999 and report exactly what the API answers.",
+    "C3": "Set user 123's email to 'not-an-email' and report exactly what the API answers.",
+}
 
 
 def task_done(state: dict) -> bool:
@@ -40,36 +70,81 @@ def task_done(state: dict) -> bool:
         if t["user_id"] == "123" and t["title"] == "Email changed"
     ]
     user = state["users"]["123"]
-    return (
-        user["email"] == "ada.new@example.com"
-        and user["manager_id"] == "456"
-        and len(tickets) == 1
-    )
+    return user["email"] == NEW_EMAIL and user["manager_id"] == "456" and len(tickets) == 1
 
 
-async def bench(
+def state_ok(state: dict) -> bool:
+    """FR-15.2: the final mock data state holds only expected writes.
+
+    Every scenario shares this check, so a healed run whose state is wrong (a false patch)
+    can never read as correct: only user 123's email and manager, and at most one known
+    ticket, may differ from the seed state.
+    """
+    if set(state) != set(SEED):
+        return False
+    users = state.get("users", {})
+    if set(users) != set(SEED["users"]) or users["456"] != SEED["users"]["456"]:
+        return False
+    ada = users["123"]
+    if set(ada) != set(SEED["users"]["123"]) or ada["name"] != "Ada":
+        return False
+    if ada["email"] not in (SEED["users"]["123"]["email"], NEW_EMAIL):
+        return False
+    if ada["manager_id"] not in (None, "456"):
+        return False
+    tickets = state.get("tickets", [])
+    expected = [{"ticket_id": "T-1", "user_id": "123", "title": "Email changed"}]
+    return not tickets or tickets == expected
+
+
+def steps_for(scenario: str) -> list[tuple[str, dict]]:
+    return CONTROL_STEPS.get(scenario, scripted.STEPS)
+
+
+def expectation(scenario: str, *, jev: bool) -> tuple[str, str | None]:
+    """What one run of `scenario` owes: a completed task, a safe refusal or a pass-through,
+    plus the refusal reason it must abort with (FR-15.4)."""
+    if scenario == "M8":
+        return "refuse", REFUSAL_REASON["M8"]
+    if scenario == "M6-N" and not jev:  # FR-8.3: without Jev the pick is not ours to make
+        return "refuse", REFUSAL_REASON["M6-N"]
+    if scenario in CONTROL_STEPS:
+        return "pass-through", Reason.NOT_DRIFT.value
+    return "task", None
+
+
+async def _pass(
     mode: str,
     n: int,
     scenarios: list[str],
-    jev: JevClient | None = None,
-    llm=None,
+    jev: JevClient | None,
+    llm,
+    *,
+    spec_mode: str,
+    phase: str,
+    agents: tuple[str, ...],
+    tier0: bool,
 ) -> list[dict]:
+    """One pass of the benchmark: scenarios x agents x n runs, optionally with a tier-0
+    rerun (same store and mock, so the stored fix serves the second run)."""
     tools = json.loads(TOOLS_JSON.read_text(encoding="utf-8"))
     cfg = {
         "OAUTH_BEARER": os.environ.get("OAUTH_BEARER", "Bearer test-token"),
         "TENANT_ID": os.environ.get("TENANT_ID", "t-1"),
     }
 
-    async def once(api, client, db, agent, scenario, i, phase) -> dict:
+    async def once(api, client, db, agent, scenario, i, run_phase) -> dict:
         """One run on a new store and registry; calling it again on the same `db` is a restart."""
         api.reset()
         store = Store(db)
         try:
-            registry = Registry(client, tools, cfg, store=store, jev=jev)
+            registry = Registry(
+                client, tools, cfg, store=store, jev=jev, spec_mode=spec_mode
+            )
             await registry.load()
             api.set_mutation(None if scenario == "CLEAN" else scenario)
             seen = len(store.audit_events())
-            run_id = f"{scenario}-{agent}-{i}-{phase}"
+            run_id = f"{scenario}-{agent}-{i}-{run_phase}"
             if mode == "scripted":
                 execute = (
                     healing_agent.executor(registry)
@@ -82,6 +157,7 @@ async def bench(
                     retry_same_args=agent == "baseline",
                     store=store,
                     run_id=run_id,
+                    steps=steps_for(scenario),
                 )
             else:
                 llm_agent = (
@@ -89,25 +165,61 @@ async def bench(
                     if agent == "healing"
                     else baseline_agent.build(client, registry, llm, store, run_id)
                 )
-                result = await common.run(llm_agent, common.TASK)
+                result = await common.run(llm_agent, CONTROL_TASK.get(scenario, common.TASK))
             heals = store.audit_events()[seen:]
         finally:
             store.close()
+        state = api.state()
+        reasons = [e.reason.value for e in heals if e.reason]
+        paths = [e.path.value for e in heals if e.path]
+        priority = any(
+            isinstance(r["body"], dict) and "priority" in r["body"] for r in api.requests
+        )
+        invented = False
+        if (check := INVENTED_CHECK.get(scenario)) is not None:
+            # A request carrying an invented value is one whose body is not an argument the
+            # agent itself passed (agent.md invariant 1); the first, failing request is.
+            tool, path = check
+            asked = [args for name, args in steps_for(scenario) if name == tool]
+            invented = any(
+                r["path"] == path and r["body"] not in asked
+                for r in api.requests
+                if r["body"] is not None
+            )
+        kind, expected = expectation(scenario, jev=jev is not None)
+        must_refuse = agent == "healing" and (
+            kind == "refuse"
+            or (scenario == "M6-N" and DecisionPath.jev_unavailable.value in paths)
+        )
+        done, correct = task_done(state), state_ok(state)
+        met = False
+        if kind == "task":
+            met = done and correct
+        elif not result.hit_limit and result.error is None:
+            met = (
+                expected in reasons and not invented and correct
+                if kind == "refuse"
+                else correct and (agent == "baseline" or expected in reasons)
+            )
         return {
             "scenario": scenario,
             "agent": agent,
             "mode": mode,
             "run": i,
-            "phase": phase,
-            "task_done": task_done(api.state()),
+            "phase": run_phase,
+            "spec_mode": spec_mode,
+            "task_done": done,
+            "state_ok": correct,
+            "expectation_met": met,
+            "must_refuse": must_refuse,
+            "expected_reason": expected,
+            "invented_sent": invented,
             "tool_calls": result.tool_calls,
             "llm_tokens": result.llm_tokens,
+            "jev_tokens": sum(e.jev_tokens for e in heals),
             "hit_limit": result.hit_limit,
             "error": result.error,
-            "priority_sent": any(
-                isinstance(r["body"], dict) and "priority" in r["body"]
-                for r in api.requests
-            ),
+            "priority_sent": priority,
             "heals": [
                 {
                     "tool": e.tool,
@@ -116,6 +228,7 @@ async def bench(
                     "outcome": e.outcome.value,
                     "reason": e.reason.value if e.reason else None,
                     "mttr_ms": e.mttr_ms,
+                    "heal_ms": e.heal_ms,
                     "jev_tokens": e.jev_tokens,
                 }
                 for e in heals
@@ -126,26 +239,58 @@ async def bench(
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         for scenario in scenarios:
             for i in range(n):
-                for agent in AGENTS:
+                for agent in agents:
                     api = create_app()
                     db = str(Path(tmp) / f"{scenario}-{agent}-{i}.db")
                     transport = httpx.ASGITransport(app=api)
                     async with httpx.AsyncClient(
                         transport=transport, base_url="http://mock"
                     ) as client:
-                        rows.append(
-                            await once(api, client, db, agent, scenario, i, "main")
-                        )
-                        if agent == "healing" and scenario in TIER0_SCENARIOS:
+                        rows.append(await once(api, client, db, agent, scenario, i, phase))
+                        if tier0 and agent == "healing" and scenario in TIER0_SCENARIOS:
                             rows.append(
                                 await once(api, client, db, agent, scenario, i, "tier0")
                             )
     return rows
 
 
-def _pick(
-    rows: list[dict], scenario: str, agent: str, phase: str = "main"
+async def bench(
+    mode: str,
+    n: int,
+    scenarios: list[str],
+    jev: JevClient | None = None,
+    llm=None,
 ) -> list[dict]:
+    """The main pass (FR-15.1, FR-15.6) and the error-only ablation (FR-15.7)."""
+    rows = await _pass(
+        mode,
+        n,
+        scenarios,
+        jev,
+        llm,
+        spec_mode="on",
+        phase="main",
+        agents=AGENTS,
+        tier0=True,
+    )
+    # FR-15.7: each mutation once more, spec endpoint disabled (error-clue mode).
+    ablation = [s for s in dict.fromkeys(scenarios) if s in ABLATION_SCENARIOS]
+    if ablation:
+        rows += await _pass(
+            mode,
+            1,
+            ablation,
+            jev,
+            llm,
+            spec_mode="off",
+            phase="ablation",
+            agents=("healing",),
+            tier0=False,
+        )
+    return rows
+
+
+def _pick(rows: list[dict], scenario: str, agent: str, phase: str = "main") -> list[dict]:
     return [
         r
         for r in rows
@@ -153,33 +298,26 @@ def _pick(
     ]
 
 
-def token_overhead(rows: list[dict]) -> dict[str, dict[str, float]]:
-    """Per mutated scenario, from main-phase rows. Empty when there are no CLEAN runs.
-
-    healing  = median tokens - median CLEAN tokens + median Jev tokens per run
-    baseline = median tokens - median CLEAN tokens (the tokens wasted on the break)
-    """
-
-    def med(scenario: str, agent: str) -> float:
-        return median(r["llm_tokens"] for r in _pick(rows, scenario, agent))
-
-    if not any(r["scenario"] == "CLEAN" for r in rows):
-        return {}
-    out = {}
-    for s in dict.fromkeys(r["scenario"] for r in rows if r["scenario"] != "CLEAN"):
-        jev = median(
-            sum(h["jev_tokens"] for h in r["heals"]) for r in _pick(rows, s, "healing")
-        )
-        out[s] = {
-            "healing": med(s, "healing") - med("CLEAN", "healing") + jev,
-            "baseline": med(s, "baseline") - med("CLEAN", "baseline"),
-        }
-    return out
+def _rate(count: int, runs: int) -> str:
+    return f"{100 * count / runs:.0f}% ({count}/{runs})" if runs else "n/a"
 
 
-def _ztar(rows: list[dict]) -> str:
-    done = sum(r["task_done"] for r in rows)
-    return f"{100 * done / len(rows):.0f}% ({done}/{len(rows)})" if rows else "n/a"
+def _ztar(rows: list[dict], scenarios=HEALABLE_MUTATIONS) -> str:
+    d = ztar(rows, scenarios)
+    return _rate(d["adapted"], d["runs"])
+
+
+def _stats_cell(stats: dict | None) -> str:
+    """mean/p50/p95 with the sample size, the shape FR-15.5 asks for."""
+    if stats is None:
+        return "-"
+    return f"{stats['mean']:g}/{stats['p50']:g}/{stats['p95']:g} (n={stats['n']})"
+
+
+def _timing(rows: list[dict], tier: Tier, key: str) -> str:
+    """mean/p50/p95 of `mttr_ms` or `heal_ms` over recovered heals of one tier."""
+    summary = timing_summary(h for r in rows for h in r["heals"]).get(tier)
+    return "-" if summary is None else _stats_cell(summary[key])
 
 
 def _tally(items) -> str:
@@ -198,24 +336,39 @@ def _failure_mode(rows: list[dict]) -> str:
     return ", ".join(f"{k} {v}/{len(rows)}" for k, v in counts.items() if v) or "-"
 
 
-def _mttr(rows: list[dict], tier: Tier) -> str:
-    events = [
-        SimpleNamespace(
-            tier=Tier(h["tier"]),
-            outcome=HealOutcome(h["outcome"]),
-            mttr_ms=h["mttr_ms"],
-        )
-        for r in rows
-        for h in r["heals"]
-    ]
-    s = mttr_summary(events).get(tier)
-    return f"{s['p50_ms']:g} / {s['p95_ms']:g} (n={s['n']})" if s else "-"
+def _outcome(rows: list[dict]) -> str:
+    """Share of runs that met the scenario's own expectation."""
+    return _rate(sum(r["expectation_met"] for r in rows), len(rows))
+
+
+def _ablation_cell(row: dict) -> tuple[str, str, str, str]:
+    """One ablation row -> (outcome, reason, final state, false patch)."""
+    outcomes = {h["outcome"] for h in row["heals"]}
+    if HealOutcome.RECOVERED.value in outcomes:
+        outcome = "healed"
+    elif outcomes:
+        outcome = "aborted"
+    else:
+        outcome = "no heal attempt"
+    reason = next((h["reason"] for h in row["heals"] if h["reason"]), "-")
+    false_patch = HealOutcome.RECOVERED.value in outcomes and not row["state_ok"]
+    return (
+        outcome,
+        reason,
+        "correct" if row["state_ok"] else "wrong",
+        "yes" if false_patch else "no",
+    )
 
 
 def report(
     rows: list[dict], *, mode: str, model: str | None, n: int, jev_configured: bool
 ) -> str:
-    scenarios = list(dict.fromkeys(r["scenario"] for r in rows))
+    main = [r for r in rows if r["phase"] == "main"]
+    tier0 = [r for r in rows if r["phase"] == "tier0"]
+    ablation = [r for r in rows if r["phase"] == "ablation"]
+    scenarios = list(dict.fromkeys(r["scenario"] for r in main))
+    healing_rows = [r for r in main if r["agent"] == "healing"]
+    baseline_rows = [r for r in main if r["agent"] == "baseline"]
     mode_text = (
         f"llm ({model})"
         if mode == "llm"
@@ -223,12 +376,15 @@ def report(
         "with the same arguments until the cap of 10)"
     )
     no_answer = sum(
-        h["path"] == DecisionPath.jev_unavailable for r in rows for h in r["heals"]
+        h["path"] == DecisionPath.jev_unavailable
+        for r in rows
+        for h in r["heals"]
     )
+    spec_text = "`on` for the main and tier-0 passes"
+    if any(r["spec_mode"] == "off" for r in rows):
+        spec_text += ", `off` for the error-only ablation"
     if not jev_configured:
-        jev_text = (
-            "no (M6 cannot heal without Jev: its two candidates need Jev to choose)"
-        )
+        jev_text = "no (M6-N then aborts LOW_CONFIDENCE, which counts as a safe refusal)"
     elif no_answer:
         jev_text = f"configured, but gave no usable answer in {no_answer} heals (jev_unavailable)"
     else:
@@ -240,79 +396,220 @@ def report(
         f"- Runs per scenario and agent (N): {n}",
         f"- Date (UTC): {datetime.now(UTC):%Y-%m-%d %H:%M}",
         f"- Jev available: {jev_text}",
+        f"- Spec mode: {spec_text}",
         f"- Scenarios: {', '.join(scenarios)}",
         "",
         "## Per scenario",
         "",
         (
-            "ZTAR is the share of runs whose final mock state matches the task (email, "
-            "manager and one ticket; a failed read-only lookup alone does not fail a run). "
-            "MTTR is p50 / p95 in ms over recovered heals."
+            "ZTAR is the share of runs whose task completed and whose final mock state is "
+            "correct (FR-15.4); it is only defined for the healable mutations and for M6-D / "
+            "M6-N, so the other rows read `n/a`. Expected outcome is the scenario's own "
+            "expectation: the completed task for CLEAN, C1 and the mutations, a safe refusal "
+            "for M8 (and for M6-N while Jev is disabled), a pass-through for C2 and C3. "
+            "MTTR and heal_ms are mean / p50 / p95 in ms over recovered heals; tier 0 is the "
+            "M1-M5 rerun served from the stored fix."
         ),
         "",
         (
-            "| Scenario | Healing ZTAR | Baseline ZTAR | Baseline failure mode "
-            "| Heal path | Refusal reasons | MTTR tier 1 | MTTR tier 0 |"
+            "| Scenario | Healing ZTAR | Healing expected outcome | Baseline ZTAR "
+            "| Baseline expected outcome | Baseline failure mode | Heal path "
+            "| Refusal reasons | MTTR tier 1 | MTTR tier 0 | heal_ms tier 1 "
+            "| heal_ms tier 0 |"
         ),
-        "|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for s in scenarios:
-        healing, baseline = _pick(rows, s, "healing"), _pick(rows, s, "baseline")
+        healing = _pick(main, s, "healing")
+        baseline = _pick(main, s, "baseline")
         events = [h for r in healing for h in r["heals"]]
-        recovered = HealOutcome.RECOVERED
+        recovered = HealOutcome.RECOVERED.value
         cells = [
             s,
-            _ztar(healing),
-            _ztar(baseline),
+            _ztar(healing, ZTAR_SCENARIOS),
+            _outcome(healing),
+            _ztar(baseline, ZTAR_SCENARIOS),
+            _outcome(baseline),
             _failure_mode(baseline),
             _tally(h["path"] for h in events if h["outcome"] == recovered),
             _tally(h["reason"] for h in events if h["reason"]),
-            _mttr(healing, Tier.T1),
-            _mttr(_pick(rows, s, "healing", "tier0"), Tier.T0),
+            _timing(healing, Tier.T1, "mttr_ms"),
+            _timing(_pick(tier0, s, "healing", "tier0"), Tier.T0, "mttr_ms"),
+            _timing(healing, Tier.T1, "heal_ms"),
+            _timing(_pick(tier0, s, "healing", "tier0"), Tier.T0, "heal_ms"),
         ]
         lines.append("| " + " | ".join(cells) + " |")
 
-    def overall(last: int) -> str:
-        ids = {f"M{k}" for k in range(1, last + 1)}
-        main = [r for r in rows if r["phase"] == "main" and r["scenario"] in ids]
-        by = {a: [r for r in main if r["agent"] == a] for a in AGENTS}
-        return f"healing: {_ztar(by['healing'])}; baseline: {_ztar(by['baseline'])}"
+    lines += [
+        "",
+        "## ZTAR (FR-15.4, AC-15)",
+        "",
+        (
+            f"- Healable mutations ({', '.join(HEALABLE_MUTATIONS)}), healing: "
+            f"{_ztar(healing_rows)}; baseline: {_ztar(baseline_rows)}"
+        ),
+        (
+            "- M6-D, reported separately: "
+            f"healing {_ztar(healing_rows, ('M6-D',))}; "
+            f"baseline {_ztar(baseline_rows, ('M6-D',))}"
+        ),
+        (
+            "- M6-N, reported separately: "
+            f"healing {_ztar(healing_rows, ('M6-N',))}; "
+            f"baseline {_ztar(baseline_rows, ('M6-N',))}"
+        ),
+        "",
+        (
+            "M8 is a refusal, not an adaptation: it is counted in the Safe-Refusal Rate below "
+            "and never in ZTAR. C1, C2 and C3 are controls, and CLEAN only sets the token "
+            "baseline. M6 never enters the healable denominator."
+        ),
+    ]
+    if not jev_configured:
+        lines.append(
+            "With Jev disabled every M6-N run aborts LOW_CONFIDENCE without writing, so its "
+            "ZTAR is 0% by design and its refusal is counted below."
+        )
+
+    refusal = safe_refusal(healing_rows)
+    patches = false_patch_rate(healing_rows)
+    required = sorted({r["scenario"] for r in healing_rows if r["must_refuse"]})
+    lines += [
+        "",
+        "## Safe-Refusal Rate and False-Patch Rate (FR-15.4, AC-15)",
+        "",
+        (
+            f"- Safe-Refusal Rate: {_rate(refusal['refused'], refusal['runs'])} over "
+            f"{', '.join(required) or 'no'} runs, and no request carrying an invented value "
+            "was sent in any of them."
+        ),
+        (
+            f"- False-Patch Rate: {_rate(patches['false_patches'], patches['healed'])} of the "
+            "healed runs ended with a wrong final mock state."
+        ),
+    ]
 
     lines += [
         "",
-        "## ZTAR overall",
-        "",
-        f"- ZTAR M1-M7, {overall(7)}",
-        f"- ZTAR M1-M8, {overall(8)}",
+        "## Baseline outcomes (FR-15.8, AC-17)",
         "",
         (
-            "M8 counts as not adapted: it is a deliberate refusal (the healer aborts with "
-            "NO_SAFE_VALUE instead of inventing a value for the new required `priority`)."
+            "Measured for every scenario, never asserted as pass or fail: the error loop (the "
+            "baseline re-sends the same arguments until the iteration cap), the calls it made, "
+            "and the final data. `Task state correct` is the demo task's end state reached with "
+            "only expected writes (`n/a` where the scenario has no task: M8, M6-N without Jev "
+            "and the controls). `State integrity` is FR-15.2's final-state check, no wrong or "
+            "invented data, which is what the False-Patch Rate uses. Tokens are below."
         ),
+        "",
+        "| Scenario | Runs | Error loop | Calls (mean) | Task state correct | State integrity |",
+        "|---|---|---|---|---|---|",
     ]
-    if mode == "llm":
+    for s in scenarios:
+        base = _pick(main, s, "baseline")
+        done = sum(r["task_done"] and r["state_ok"] for r in base)
+        task = _rate(done, len(base)) if expectation(s, jev=jev_configured)[0] == "task" else "n/a"
+        calls = f"{mean(r['tool_calls'] for r in base):g}" if base else "-"
+        lines.append(
+            f"| {s} | {len(base)} | {sum(r['hit_limit'] for r in base)} hit cap "
+            f"| {calls} | {task} | {_rate(sum(r['state_ok'] for r in base), len(base))} |"
+        )
+
+    lines += [
+        "",
+        "## Timings by tier (FR-15.4, AC-14)",
+        "",
+        (
+            "Main and tier-0 passes, recovered heals. MTTR runs from the first failing response "
+            "caused by the mutation to the first verified-correct result; `heal_ms` is the "
+            "registry's internal heal time, reported separately."
+        ),
+        "",
+        "| Tier | n | mttr_ms mean / p50 / p95 | heal_ms mean / p50 / p95 |",
+        "|---|---|---|---|",
+    ]
+    for tier, stats in timing_summary(
+        h for r in (*healing_rows, *tier0) for h in r["heals"]
+    ).items():
+        lines.append(
+            f"| {int(tier)} | {stats['n']} | {_stats_cell(stats['mttr_ms'])} "
+            f"| {_stats_cell(stats['heal_ms'])} |"
+        )
+
+    overhead, tokens = token_overhead(main), token_summary(main)
+    lines += [
+        "",
+        "## Tokens (FR-8.7, FR-15.4, FR-15.5, AC-16)",
+        "",
+        ("Per run: mean / p50 / p95. `jev_tokens` is the classifier's own usage, reported in "
+         "its own column and never added to `llm_tokens`. Overhead is the mutated run's total "
+         "minus this agent's CLEAN-run median; for the baseline the same subtraction is its "
+         "wasted tokens. The ratio is healing overhead divided by baseline waste, `n/a` when "
+         "the baseline waste is 0."),
+        "",
+        (
+            "| Scenario | Healing llm_tokens | Baseline llm_tokens | jev_tokens "
+            "| Healing overhead | Baseline wasted | Ratio (healing : baseline) |"
+        ),
+        "|---|---|---|---|---|---|---|",
+    ]
+    for s in scenarios:
+        per_agent = tokens.get(s, {})
+        cells = [
+            s,
+            _stats_cell(per_agent.get("healing", {}).get("llm_tokens")),
+            _stats_cell(per_agent.get("baseline", {}).get("llm_tokens")),
+            _stats_cell(per_agent.get("healing", {}).get("jev_tokens")),
+        ]
+        gain = overhead.get(s)
+        mutated = bool(gain) and s.startswith("M")
+        wasted = gain["baseline"] if mutated else 0
+        cells += [
+            f"{gain['healing']:g}" if mutated else "-",
+            f"{wasted:g}" if mutated else "-",
+            (f"{gain['healing'] / wasted:.2f}" if wasted else "n/a") if mutated else "-",
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
+    if mode == "scripted":
         lines += [
             "",
-            "## Token overhead",
+            (
+                "Scripted mode makes no LLM call, so every `llm_tokens` value above is 0; run "
+                "`--agent llm` to measure token overhead (AC-16)."
+            ),
+        ]
+
+    lines += [
+        "",
+        "## Error-only ablation (`spec_mode=off`, FR-15.7, AC-23)",
+        "",
+        (
+            "Each mutation re-run once with the spec endpoint disabled, so diagnosis runs on "
+            "the error clue alone. There is no heal-rate threshold here; the False-Patch Rate "
+            "must stay 0. Combined or nested mutations (M5, M9) are expected to abort rather "
+            "than patch, and so are the refusals."
+        ),
+        "",
+    ]
+    if ablation:
+        lines += [
+            "| Mutation | Outcome | Reason | Final state | False patch |",
+            "|---|---|---|---|---|",
+        ]
+        for mid in ABLATION_SCENARIOS:
+            (row,) = [r for r in ablation if r["scenario"] == mid]
+            lines.append("| " + " | ".join((mid, *_ablation_cell(row))) + " |")
+        ablation_patches = false_patch_rate(ablation)
+        lines += [
             "",
             (
-                "Median LLM tokens per run against the CLEAN median of the same agent. "
-                "Healing overhead also adds the median Jev tokens per run."
+                f"- False-Patch Rate (ablation): "
+                f"{_rate(ablation_patches['false_patches'], ablation_patches['healed'])} of "
+                "the healed runs."
             ),
-            "",
         ]
-        overhead = token_overhead(rows)
-        if overhead:
-            lines += [
-                "| Scenario | Healing overhead | Baseline wasted |",
-                "|---|---|---|",
-                *(
-                    f"| {s} | {v['healing']:g} | {v['baseline']:g} |"
-                    for s, v in overhead.items()
-                ),
-            ]
-        else:
-            lines.append("No CLEAN runs in this benchmark, so no baseline to subtract.")
+    else:
+        lines.append("No M1-M9 scenario in this run, so no ablation was made.")
     return "\n".join(lines) + "\n"
 
 
