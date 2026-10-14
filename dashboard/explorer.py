@@ -97,7 +97,7 @@ PREDEFINED_QUERIES = [
         "tool_affected": "set_manager",
         "error_class": "E2",
         "description": "Same rename to 'subject' and 'supervisor', but the new fields carry no descriptions, so nothing tells them apart.",
-        "demonstrates": "The tie-breaker cannot decide. Without a confident Jev pick confirmed by a read-only preverify, the write is refused LOW_CONFIDENCE and the manager stays unset.",
+        "demonstrates": "The tie-breaker cannot decide. Without a confident Jev pick confirmed by a read-only preverify, the write is refused LOW_CONFIDENCE, the manager stays unset, and the agent still opens the ticket.",
     },
     {
         "id": "m7_silent",
@@ -117,7 +117,7 @@ PREDEFINED_QUERIES = [
         "tool_affected": "create_ticket",
         "error_class": "E2",
         "description": "API added required 'priority' field with no config source and no argument source. Server returns 422.",
-        "demonstrates": "SAFE REFUSAL: The registry strictly refuses to heal (NO_SAFE_VALUE) because it never invents, hallucinates, or defaults missing values. It aborts safely, protecting data integrity.",
+        "demonstrates": "SAFE REFUSAL: The registry strictly refuses to heal (NO_SAFE_VALUE) because it never invents, hallucinates, or defaults missing values. The agent is told the tool is unavailable and carries on; nothing is written with an invented value.",
     },
     {
         "id": "m9_wrap",
@@ -170,9 +170,9 @@ DRIFT = {
     "M4": ("POST /tickets  (no auth)", "Authorization: Bearer … required  (401)", "Heal: HEADER Authorization ← config:OAUTH_BEARER"),
     "M5": ('{"user_id": "123"}', '{"target": {"id": 123}}  + header X-Tenant-Id', "Heal: MOVE + CAST + HEADER in one tier-1 patch"),
     "M6-D": ('{"user_id", "manager_id"}', '{"subject", "supervisor"}  (described)', "Tie-breaker picks the mapping from field descriptions, 0 AI calls"),
-    "M6-N": ('{"user_id", "manager_id"}', '{"subject", "supervisor"}  (no descriptions)', "Refuse LOW_CONFIDENCE: no write on a guess"),
+    "M6-N": ('{"user_id", "manager_id"}', '{"subject", "supervisor"}  (no descriptions)', "Refuse LOW_CONFIDENCE: no write on a guess, then finish the other steps"),
     "M7": ('{"email": "ada.new@…"}', '{"email_address": …}  old field silently ignored, 200 OK', "Echo postcheck catches E6, MOVE email → email_address"),
-    "M8": ('{"user_id", "title"}', '{"user_id", "title", "priority"}  priority required', "Refuse NO_SAFE_VALUE (retry: false). Never invent priority"),
+    "M8": ('{"user_id", "title"}', '{"user_id", "title", "priority"}  priority required', "Refuse NO_SAFE_VALUE (retry: false): skip the tool, never invent priority"),
     "M9": ('{"user_id", "email"}', '{"payload": {"user_id", "email"}}', "Heal: MOVE ×2 into payload"),
     "C1": ("200 OK", "503 twice, then OK", "Not drift: bounded retry, no patch"),
     "C2": ('{"user_id": "999"}', "404 User not found  (spec unchanged)", "Business error passed through (NOT_DRIFT), no patch"),
@@ -902,9 +902,7 @@ async def run_explore(
                     "latency_ms": elapsed_ms,
                 })
 
-                # If healing safely aborted, prompt instructs agent to not repeat with same args
-                if cls is not ErrorClass.OK and heal_info and heal_info["outcome"] == "ABORTED":
-                    break
+                # A refused tool is skipped; the agent carries on (agents/scripted.py does too).
 
             # Step F: Run Baseline Agent with call-level tracing
             baseline_traces = []

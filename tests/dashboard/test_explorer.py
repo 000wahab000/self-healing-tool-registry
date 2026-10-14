@@ -269,3 +269,20 @@ async def test_every_scenario_has_a_preset_with_a_banner(client):
     assert set(presets) == {None, *info["mutations"]}
     for p in presets.values():
         assert p["before"] and p["after"] and p["expect"]
+
+
+async def test_explore_refused_tool_is_skipped_and_the_task_continues(client):
+    """M6-N refuses set_manager (step 3); the agent still opens the ticket (step 4)."""
+    res = (await client.post("/api/explore", json={"mutation": "M6-N"})).json()
+    h = res["healing"]
+    assert [t["tool"] for t in h["traces"]] == [
+        "get_user", "update_email", "set_manager", "create_ticket"
+    ]
+    (heal,) = h["heals"]
+    assert (heal["tool"], heal["outcome"], heal["reason"]) == (
+        "set_manager", "ABORTED", "LOW_CONFIDENCE"
+    )
+    assert h["traces"][2]["result"]["retry"] is False
+    assert h["data_state"]["users"]["123"]["manager_id"] is None  # nothing guessed
+    assert len(h["data_state"]["tickets"]) == 1
+    assert h["data_correct"] is True

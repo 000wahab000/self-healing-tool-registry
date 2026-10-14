@@ -343,7 +343,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
     <section class="hero">
       <p class="eyebrow">PS 01 · Runtime API schema drift</p>
       <h1>When an API breaks mid-task, the registry patches the tool. <span>Not the prompt.</span></h1>
-      <p class="sub">The LLM keeps speaking the frozen v1 schema. On a 4xx, or a 200 that drifted, the registry diffs the live spec, hot-patches the tool's wire schema in memory with a 4-operation DSL that cannot write a literal, and replays once. If no safe source exists for a value, it refuses instead of guessing.</p>
+      <p class="sub">The LLM keeps speaking the frozen v1 schema. On a 4xx, or a 200 that drifted, the registry diffs the live spec, hot-patches the tool's wire schema in memory with a 4-operation DSL that cannot write a literal, and replays once. If no safe source exists for a value, it refuses instead of guessing, tells the agent the tool is unavailable, and the agent carries on with the rest of the task.</p>
       <div class="strip" aria-label="Headline results">
         <div><small>Zero-touch adaptation</small><b>100%</b><span>healable M1–M5, M7, M9</span></div>
         <div><small>Safe-refusal rate</small><b>100%</b><span>M8, M6-N: 0 invented values</span></div>
@@ -516,7 +516,7 @@ const MAX_CALLS = 10;  // agents/common.py MAX_ITERATIONS
 const ACTS = [
   ["CLEAN", "Act 1", "Healthy v1", "Both agents finish 4/4 steps"],
   ["M5", "Act 2", "The headline break", "user_id → target.id (int) + X-Tenant-Id"],
-  ["M8", "Act 3", "The safety gate", "Unfillable priority: refuse, invent nothing"],
+  ["M8", "Act 3", "The safety gate", "Unfillable priority: skip the tool, invent nothing"],
   ["M3", "Act 4", "200 OK drift", "Nested response. Then try M7, silent ignore"],
 ];
 const $ = (id) => document.getElementById(id);
@@ -822,7 +822,7 @@ function stepState(ts, tool, o) {
   const heal = o.heal || ts.map((t) => t.heal_event).filter(Boolean).pop();
   if (heal) {
     const [k, text] = outcomeInfo(heal);
-    return { k: { good: "healed", warn: "refused", biz: "biz" }[k] || "fail", note: k === "warn" ? text + " (retry: false)" : text };
+    return { k: { good: "healed", warn: "refused", biz: "biz" }[k] || "fail", note: k === "warn" ? text + " · tool skipped" : text };
   }
   const last = ts[ts.length - 1];
   if (last.error_class === "OK") {
@@ -1015,7 +1015,7 @@ function healBox(h) {
   title.append(el("b", { good: "Hot-patched in memory", warn: "Refused by construction", biz: "Not schema drift" }[k] || "Patch failed verification"), el("span", text, { class: "muted" }));
   box.append(title, el("div", ["class " + h.class, "HTTP " + h.raw_code, "path " + (h.path || "-"), "MTTR " + h.mttr_ms + " ms"].join(" · "), { class: "heal-facts" }));
   if (h.fix) box.append(opChips(h.fix));
-  if (k === "warn") box.append(el("p", "0 invented values. The agent gets retry: false and stops on this call.", { class: "hint" }));
+  if (k === "warn") box.append(el("p", "0 invented values. The agent gets retry: false, treats this tool as unavailable for the rest of the task, and carries on with the other steps.", { class: "hint" }));
   if (k === "biz") box.append(el("p", "The spec is unchanged, so the error is the agent's to handle. No patch, no replay.", { class: "hint" }));
   return box;
 }
@@ -1123,9 +1123,10 @@ function finish(res, steps) {
   }
   const h = res.healing, b = res.baseline;
   const heals = (h.traces || []).map((t) => t.heal_event).filter(Boolean);
-  // M8 / M6-N end "correct" (nothing written), but the story is the refusal.
-  const hStatus = h.status !== "error" && heals.some((e) => e.outcome === "ABORTED") ? "refused" : h.status;
-  const hs = { done: ["good", "Task complete"], refused: ["warn", "Safe refusal · stopped"], error: ["bad", "LLM error"] }[hStatus] || ["bad", "Incomplete"];
+  // A refused tool is skipped, not fatal: the run finishes, minus what had no safe value.
+  const skipped = new Set(heals.filter((e) => e.outcome === "ABORTED").map((e) => e.tool));
+  const hStatus = h.status !== "error" && skipped.size ? "refused" : h.status;
+  const hs = { done: ["good", "Task complete"], refused: ["warn", "Finished · " + skipped.size + " tool skipped safely"], error: ["bad", "LLM error"] }[hStatus] || ["bad", "Incomplete"];
   $("d-status-healing").className = "pill " + hs[0];
   $("d-status-healing").textContent = hs[1];
   const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "False success · data not saved"];
@@ -1153,10 +1154,10 @@ function renderVerdict(res, heals, hStatus) {
   hc.append(el("h3", "Self-healing agent"),
     row("Tool calls", h.tool_calls),
     row("Heals", fixed.length ? fixed.map((e) => e.tool + " in " + (e.heal_ms ?? e.mttr_ms) + " ms (tier " + e.tier + ")").join(", ") : "none needed", true),
-    row("Safe refusals", refused.length ? refused.map((e) => e.tool + ": " + e.reason).join(", ") : "none", refused.length ? undefined : true),
+    row("Skipped safely", refused.length ? refused.map((e) => e.tool + ": " + e.reason).join(", ") : "none", refused.length ? undefined : true),
     row("Invented values", "0", true),
     ...dataRows(h.correctness_details),
-    row("Outcome", hStatus === "done" ? "Correct state" : hStatus === "refused" ? "Stopped safely, nothing corrupted" : "Did not finish", hTone !== "bad"));
+    row("Outcome", hStatus === "done" ? "Correct state" : hStatus === "refused" ? "Rest of the task done, nothing corrupted" : "Did not finish", hTone !== "bad"));
   const bc = el("div", null, { class: "card vcard " + (b.data_correct && !b.hit_limit ? "good" : "bad") });
   bc.append(el("h3", "Baseline agent"),
     row("Tool calls", b.tool_calls + (b.hit_limit ? " · cap hit" : ""), !b.hit_limit),
