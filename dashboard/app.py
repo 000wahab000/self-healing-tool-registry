@@ -28,7 +28,7 @@ from healer.jev import from_env
 from healer.models import AuditEvent
 from healer.registry import Registry
 from healer.store import Store
-from mock_api.app import ALIASES, MUTATIONS
+from mock_api.app import ALIASES, CUSTOM, MUTATIONS
 from mock_api.app import create_app as create_mock
 
 LEAD_IN_STEPS = 3  # scripted agents wait this many steps before their first call
@@ -57,6 +57,7 @@ class ExploreIn(BaseModel):
     query: str = ""
     mutation: str | None = None
     agent: Literal["scripted", "llm"] = "scripted"
+    custom: dict | None = None  # the drift spec when mutation is CUSTOM
 
 
 class Dashboard:
@@ -183,8 +184,15 @@ class Dashboard:
             await self._stop()
             self._clear()
 
-    async def explore(self, query: str, mutation: str | None, agent: str = "scripted") -> dict:
-        if mutation is not None and mutation not in MUTATIONS and mutation not in ALIASES:
+    async def explore(
+        self,
+        query: str,
+        mutation: str | None,
+        agent: str = "scripted",
+        custom: dict | None = None,
+    ) -> dict:
+        known = (*MUTATIONS, *ALIASES, CUSTOM)
+        if mutation is not None and mutation not in known:
             raise ValueError(f"unknown mutation {mutation!r}")
         async with self.lock:
             await self._stop()
@@ -199,6 +207,7 @@ class Dashboard:
                 mutation,
                 query,
                 agent,
+                custom,
             )
 
     async def wait(self) -> None:
@@ -262,6 +271,7 @@ class Dashboard:
             "outcome": e.outcome,
             "reason": e.reason,
             "mttr_ms": e.mttr_ms,
+            "heal_ms": e.heal_ms,
             "jev_tokens": e.jev_tokens,
             "fingerprint": e.fingerprint,
             "fix_id": e.fix_id,
@@ -304,7 +314,9 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.post("/api/explore")
     async def explore(body: ExploreIn) -> dict:
         try:
-            return await dash.explore(body.query, body.mutation, body.agent)
+            return await dash.explore(
+                body.query, body.mutation, body.agent, body.custom
+            )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
 

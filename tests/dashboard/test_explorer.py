@@ -208,3 +208,64 @@ def test_correctness_is_scoped_to_the_tools_actually_called():
     assert ok is True
     # No touched set keeps the original four-step semantics.
     assert explorer.check_data_correctness(data, None)[0] is False
+
+
+async def test_explore_custom_drift_heals_a_composed_break(client):
+    custom = {"tool": "get_user", "rename": {"user_id": "account"}, "to_int": "user_id",
+              "wrap": "query", "header": "X-Tenant-Id"}
+    r = await client.post("/api/explore", json={"mutation": "CUSTOM", "custom": custom})
+    res = r.json()
+    (heal,) = res["healing"]["heals"]
+    assert (heal["tool"], heal["outcome"]) == ("get_user", "RECOVERED")
+    assert [o["op"] for o in heal["fix"]["request_ops"]] == ["move", "cast", "header"]
+    assert res["healing"]["data_correct"] is True
+    assert res["baseline"]["hit_limit"] is True
+
+
+async def test_explore_custom_header_without_a_source_is_refused(client):
+    custom = {"tool": "create_ticket", "header": "X-Api-Version"}
+    r = await client.post("/api/explore", json={"mutation": "CUSTOM", "custom": custom})
+    res = r.json()
+    (heal,) = res["healing"]["heals"]
+    assert (heal["outcome"], heal["reason"]) == ("ABORTED", "NO_SAFE_VALUE")
+    assert res["healing"]["status"] == "refused"
+    assert res["healing"]["data_state"]["tickets"] == []
+
+
+async def test_explore_custom_drift_without_a_spec_is_a_400(client):
+    r = await client.post("/api/explore", json={"mutation": "CUSTOM"})
+    assert r.status_code == 400
+
+
+async def test_explore_shows_the_wire_traffic_and_the_patched_registry(client):
+    res = (await client.post("/api/explore", json={"mutation": "M5"})).json()
+    wire = res["healing"]["traces"][0]["wire"]
+    assert [(w["method"], w["path"]) for w in wire] == [
+        ("POST", "/users/lookup"),
+        ("GET", "/openapi.json"),
+        ("POST", "/users/lookup"),
+    ]
+    assert (wire[0]["body"], wire[0]["headers"]) == ({"user_id": "123"}, [])
+    assert (wire[2]["body"], wire[2]["headers"]) == ({"target": {"id": 123}}, ["x-tenant-id"])
+    reg = res["registry"]
+    assert reg["get_user"]["version"] == 2 and reg["get_user"]["fix"]["request_ops"]
+    assert reg["update_email"] == {**reg["update_email"], "version": 1, "fix": None}
+    # The agent-facing schema is still v1.
+    assert list(reg["get_user"]["agent_schema"]["properties"]) == ["user_id"]
+
+
+@pytest.mark.parametrize("mutation", ["C2", "C3"])
+async def test_explore_controls_pass_business_errors_through(client, mutation):
+    res = (await client.post("/api/explore", json={"mutation": mutation})).json()
+    (heal,) = res["healing"]["heals"]
+    assert (heal["outcome"], heal["fix"]) == ("NOT_DRIFT", None)
+    assert res["healing"]["data_correct"] is True  # nothing written
+    assert res["baseline"]["hit_limit"] is True
+
+
+async def test_every_scenario_has_a_preset_with_a_banner(client):
+    info = (await client.get("/api/explorer/info")).json()
+    presets = {p["mutation"]: p for p in info["predefined_queries"]}
+    assert set(presets) == {None, *info["mutations"]}
+    for p in presets.values():
+        assert p["before"] and p["after"] and p["expect"]

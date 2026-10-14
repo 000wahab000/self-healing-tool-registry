@@ -9,15 +9,17 @@ the current one, so data, counters, the idempotency map and the request log surv
 
 import copy
 import json
+import re
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, create_model
 
 # C1 to C3 are controls: they switch the mock but leave the spec unchanged (product.md §7).
 MUTATIONS = ("M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9", "C1", "C2", "C3")
 ALIASES = {"M6": "M6-D"}  # accepted, not listed
+CUSTOM = "CUSTOM"  # dashboard-only drift composed at runtime; never in the benchmark
 EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"  # C3
 Email = Annotated[str, Field(pattern=EMAIL_PATTERN)]
 SEED = {
@@ -118,6 +120,12 @@ class TicketOut(BaseModel):
     title: str
 
 
+V1_REQUEST = {
+    "get_user": UserRef,
+    "update_email": UpdateEmail,
+    "set_manager": SetManager,
+    "create_ticket": NewTicket,
+}
 bearer = HTTPBearer(auto_error=False)
 
 
@@ -125,6 +133,87 @@ async def require_tenant(
     x_tenant_id: Annotated[str, Header(min_length=1)],
 ) -> None:  # M5
     pass
+
+
+_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,39}$")
+_HEADER = re.compile(r"^[A-Za-z][A-Za-z0-9-]{0,39}$")
+
+
+def check_custom(spec: dict) -> dict:
+    """Validate a custom drift: one tool, any of rename / to_int / wrap / header / require.
+
+    {"tool": "get_user", "rename": {"user_id": "account"}, "to_int": "user_id",
+     "wrap": "payload", "header": "X-Tenant-Id", "require": "priority"}
+    """
+    if not isinstance(spec, dict) or spec.get("tool") not in V1_REQUEST:
+        raise ValueError(f"custom drift needs a tool, one of {sorted(V1_REQUEST)}")
+    fields = set(V1_REQUEST[spec["tool"]].model_fields)
+    rename = spec.get("rename") or {}
+    out = {"tool": spec["tool"], "rename": {}}
+    for old, new in rename.items():
+        if old not in fields or not isinstance(new, str) or not _NAME.match(new):
+            raise ValueError(f"bad rename {old!r} -> {new!r}")
+        out["rename"][old] = new
+    renamed = {out["rename"].get(f, f) for f in fields}
+    if len(renamed) != len(fields):
+        raise ValueError("rename collides with an existing field")
+    for key, pattern, taken in (
+        ("to_int", None, None),
+        ("wrap", _NAME, None),
+        ("require", _NAME, renamed),
+        ("header", _HEADER, None),
+    ):
+        value = spec.get(key) or None
+        if value is None:
+            continue
+        if key == "to_int" and value not in fields:
+            raise ValueError(f"to_int must name a v1 field, one of {sorted(fields)}")
+        if pattern and (not isinstance(value, str) or not pattern.match(value)):
+            raise ValueError(f"bad {key} {value!r}")
+        if taken and value in taken:
+            raise ValueError(f"{key} {value!r} already exists")
+        out[key] = value
+    if len(out) == 2 and not out["rename"]:
+        raise ValueError("custom drift changes nothing")
+    return out
+
+
+def _custom_model(spec: dict) -> type[BaseModel]:
+    v1 = V1_REQUEST[spec["tool"]]
+    fields = {}
+    for name, info in v1.model_fields.items():
+        if name == spec.get("to_int"):
+            info = Field(description=info.description)
+            fields[spec["rename"].get(name, name)] = (int, info)
+        else:
+            fields[spec["rename"].get(name, name)] = (info.annotation, info)
+    if spec.get("require"):
+        fields[spec["require"]] = (str, Field(description="New required field"))
+    model = create_model("CustomIn", __base__=Strict, **fields)
+    if spec.get("wrap"):
+        wrapped = {spec["wrap"]: (model, ...)}
+        model = create_model("CustomEnvelope", __base__=Strict, **wrapped)
+    return model
+
+
+def _to_v1(spec: dict, body: BaseModel) -> BaseModel:
+    """Undo the drift on a valid request so the v1 handler can serve it."""
+    data = body.model_dump()
+    if spec.get("wrap"):
+        data = data[spec["wrap"]]
+    data.pop(spec.get("require"), None)
+    for old, new in spec["rename"].items():
+        data[old] = data.pop(new)
+    if spec.get("to_int"):
+        data[spec["to_int"]] = str(data[spec["to_int"]])
+    return V1_REQUEST[spec["tool"]](**data)
+
+
+def _header_dep(name: str):
+    async def dep(value: Annotated[str, Header(alias=name, min_length=1)]) -> None:
+        pass
+
+    return dep
 
 
 def build(api: "MockApi", mid: str | None) -> FastAPI:
@@ -148,14 +237,35 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
         mid, SetManager
     )
     ticket_in = NewTicketPriority if mid == "M8" else NewTicket
+    custom = api.custom if mid == CUSTOM else None
+
+    def drifted(tool: str, model, deps: list) -> tuple:
+        """Request model, v1 adapter and dependencies for `tool` under a custom drift."""
+        if not custom or custom["tool"] != tool:
+            return model, lambda body: body, deps
+        header = custom.get("header")
+        if header:
+            auth = header.lower() == "authorization"
+            deps = [*deps, Depends(require_bearer if auth else _header_dep(header))]
+        return _custom_model(custom), lambda body: _to_v1(custom, body), deps
+
+    lookup_in, lookup_v1, lookup_deps = drifted(
+        "get_user", lookup_in, [Depends(require_tenant)] if mid == "M5" else []
+    )
+    email_in, email_v1, email_deps = drifted("update_email", email_in, [])
+    manager_in, manager_v1, manager_deps = drifted("set_manager", manager_in, [])
+    ticket_in, ticket_v1, ticket_deps = drifted(
+        "create_ticket", ticket_in, [Depends(require_bearer)] if mid == "M4" else []
+    )
 
     @app.post(
         "/users/lookup",
         operation_id="get_user",
         response_model=UserEnvelope if mid == "M3" else User,
-        dependencies=[Depends(require_tenant)] if mid == "M5" else [],
+        dependencies=lookup_deps,
     )
     async def get_user(body: lookup_in):
+        body = lookup_v1(body)
         api.get_user_calls += 1
         if mid == "C1" and api.get_user_calls <= 2:
             raise HTTPException(503, "Service unavailable")
@@ -169,8 +279,14 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
         user = {"id": uid, **api.user(uid)}
         return {"data": user} if mid == "M3" else user
 
-    @app.patch("/users/email", operation_id="update_email", response_model=EmailOut)
+    @app.patch(
+        "/users/email",
+        operation_id="update_email",
+        response_model=EmailOut,
+        dependencies=email_deps,
+    )
     async def update_email(body: email_in):
+        body = email_v1(body)
         if mid == "M9":
             body = body.payload
         uid = str(body.user_id)
@@ -190,9 +306,14 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
         api.user(manager)
         return uid, manager
 
-    @app.post("/users/manager", operation_id="set_manager", response_model=ManagerOut)
+    @app.post(
+        "/users/manager",
+        operation_id="set_manager",
+        response_model=ManagerOut,
+        dependencies=manager_deps,
+    )
     async def set_manager(body: manager_in):
-        uid, manager = manager_ids(body)
+        uid, manager = manager_ids(manager_v1(body))
         api.user(uid)["manager_id"] = manager
         return {"id": uid, "manager_id": manager}
 
@@ -202,18 +323,19 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
         response_model=ManagerOut,
     )
     async def validate_manager(body: manager_in):
-        uid, manager = manager_ids(body)
+        uid, manager = manager_ids(manager_v1(body))
         return {"id": uid, "manager_id": manager}
 
     @app.post(
         "/tickets",
         operation_id="create_ticket",
         response_model=TicketOut,
-        dependencies=[Depends(require_bearer)] if mid == "M4" else [],
+        dependencies=ticket_deps,
     )
     async def create_ticket(
         body: ticket_in, idempotency_key: Annotated[str | None, Header()] = None
     ):
+        body = ticket_v1(body)
         if idempotency_key in api.idempotency:
             return api.idempotency[idempotency_key]
         api.user(body.user_id)
@@ -265,6 +387,7 @@ class MockApi:
     def __init__(self, token: str) -> None:
         self.token = token
         self.requests: list[dict] = []
+        self.custom: dict | None = None
         self.admin = build_admin(self)
         self.reset()
 
@@ -274,9 +397,13 @@ class MockApi:
         self.requests.clear()
         self.set_mutation(None)
 
-    def set_mutation(self, mid: str | None) -> None:
-        if mid is not None and mid not in MUTATIONS and mid not in ALIASES:
+    def set_mutation(self, mid: str | None, custom: dict | None = None) -> None:
+        """`custom` is required for, and only used by, the CUSTOM drift."""
+        if mid == CUSTOM:
+            custom = check_custom(custom)
+        elif mid is not None and mid not in MUTATIONS and mid not in ALIASES:
             raise ValueError(f"unknown mutation {mid!r}")
+        self.custom = custom if mid == CUSTOM else None
         self.get_user_calls = 0
         self.mutation = mid
         self.inner = build(self, ALIASES.get(mid, mid))

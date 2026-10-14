@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from agents.common import MAX_ITERATIONS
+from bench.run import CONTROL_STEPS, CONTROL_TASK
 from healer.models import ErrorClass
 from healer.openapi_loader import fetch_spec, operations
 from healer.registry import Registry, _agent_schema
@@ -89,6 +90,16 @@ PREDEFINED_QUERIES = [
         "demonstrates": "Deterministic tie-breaker analyzes OpenAPI descriptions ('Employee to update' vs 'Manager to assign') to disambiguate the mapping correctly without needing an LLM.",
     },
     {
+        "id": "m6n_ambiguous",
+        "title": "Ambiguous Renames, No Descriptions (M6-N)",
+        "query": "Set manager for user 123 to 456.",
+        "mutation": "M6-N",
+        "tool_affected": "set_manager",
+        "error_class": "E2",
+        "description": "Same rename to 'subject' and 'supervisor', but the new fields carry no descriptions, so nothing tells them apart.",
+        "demonstrates": "The tie-breaker cannot decide. Without a confident Jev pick confirmed by a read-only preverify, the write is refused LOW_CONFIDENCE and the manager stays unset.",
+    },
+    {
         "id": "m7_silent",
         "title": "Silent Drift: email → email_address (M7) [FALSE DATA DEMO]",
         "query": "Update email for user 123 to ada.new@example.com.",
@@ -128,7 +139,49 @@ PREDEFINED_QUERIES = [
         "description": "API returns 503 twice, then recovers. This is infrastructure flakiness, NOT schema drift.",
         "demonstrates": "Registry classifies as E1 (TRANSIENT) and applies bounded exponential retry without triggering a schema heal. Both agents recover via retry.",
     },
+    {
+        "id": "c2_missing_user",
+        "title": "Control: Unknown User 404 (C2)",
+        "query": CONTROL_TASK["C2"],
+        "mutation": "C2",
+        "tool_affected": "get_user",
+        "error_class": "BUSINESS",
+        "description": "The agent asks for user 999, which does not exist. The spec is unchanged, so this is a business error, not drift.",
+        "demonstrates": "Registry classifies BUSINESS / NOT_DRIFT and passes the 404 through without healing or replaying.",
+    },
+    {
+        "id": "c3_bad_email",
+        "title": "Control: Invalid Email 422 (C3)",
+        "query": CONTROL_TASK["C3"],
+        "mutation": "C3",
+        "tool_affected": "update_email",
+        "error_class": "BUSINESS",
+        "description": "The agent sends 'not-an-email'. The API answers 422, but the spec is unchanged: the value is wrong, not the schema.",
+        "demonstrates": "Registry reclassifies the 422 as BUSINESS / NOT_DRIFT, audits it and returns it unchanged. No patch, no replay.",
+    },
 ]
+
+# Banner per scenario: what the agent sends (v1), what the drifted API wants, what should happen.
+DRIFT = {
+    None: ('{"user_id": "123"}', "No change: the API still serves v1", "Both agents finish all 4 steps"),
+    "M1": ('{"user_id": "123"}', '{"customer_id": "123"}', "Heal: MOVE user_id → customer_id"),
+    "M2": ('{"user_id": "123", "email": …}', '{"user_id": 123, "email": …}', "Heal: CAST user_id → int"),
+    "M3": ('→ {"id", "name", "email"}', '→ {"data": {"id", "name", "email"}}  (200 OK)', "Catch 200 OK shape drift (E5), un-nest with response MOVE ×3"),
+    "M4": ("POST /tickets  (no auth)", "Authorization: Bearer … required  (401)", "Heal: HEADER Authorization ← config:OAUTH_BEARER"),
+    "M5": ('{"user_id": "123"}', '{"target": {"id": 123}}  + header X-Tenant-Id', "Heal: MOVE + CAST + HEADER in one tier-1 patch"),
+    "M6-D": ('{"user_id", "manager_id"}', '{"subject", "supervisor"}  (described)', "Tie-breaker picks the mapping from field descriptions, 0 AI calls"),
+    "M6-N": ('{"user_id", "manager_id"}', '{"subject", "supervisor"}  (no descriptions)', "Refuse LOW_CONFIDENCE: no write on a guess"),
+    "M7": ('{"email": "ada.new@…"}', '{"email_address": …}  old field silently ignored, 200 OK', "Echo postcheck catches E6, MOVE email → email_address"),
+    "M8": ('{"user_id", "title"}', '{"user_id", "title", "priority"}  priority required', "Refuse NO_SAFE_VALUE (retry: false). Never invent priority"),
+    "M9": ('{"user_id", "email"}', '{"payload": {"user_id", "email"}}', "Heal: MOVE ×2 into payload"),
+    "C1": ("200 OK", "503 twice, then OK", "Not drift: bounded retry, no patch"),
+    "C2": ('{"user_id": "999"}', "404 User not found  (spec unchanged)", "Business error passed through (NOT_DRIFT), no patch"),
+    "C3": ('{"email": "not-an-email"}', "422 invalid email  (spec unchanged)", "Business error passed through (NOT_DRIFT), no replay"),
+}
+for _p in PREDEFINED_QUERIES:
+    _p["before"], _p["after"], _p["expect"] = DRIFT[_p["mutation"]]
+# Mock request headers that only describe the transport, not the drift.
+TRANSPORT_HEADERS = {"host", "accept", "accept-encoding", "connection", "user-agent", "content-length", "content-type"}
 
 ERROR_CLASSES = [
     {
@@ -358,13 +411,16 @@ def check_data_correctness(
     email = user.get("email")
     manager = user.get("manager_id")
 
-    email_ok = (email == "ada.new@example.com")
+    # C2/C3: a business error passed through must leave the data as seeded.
+    control = mutation in CONTROL_STEPS
+    want_email = SEED["users"]["123"]["email"] if control else "ada.new@example.com"
+    email_ok = email == want_email
     # M6-N: set_manager was aborted, so the manager must still be unset.
-    manager_ok = (manager is None) if mutation == "M6-N" else (manager == "456")
+    manager_ok = (manager is None) if mutation == "M6-N" or control else (manager == "456")
     # M8: the registry safely refused to invent a ticket, so none may exist.
     ticket_ok = (
         (len(tickets) == 0)
-        if mutation == "M8"
+        if mutation == "M8" or control
         else (len(tickets) > 0 and any(t.get("title") == "Email changed" for t in tickets))
     )
 
@@ -378,19 +434,19 @@ def check_data_correctness(
     details = {
         "email": {
             "value": email,
-            "expected": "ada.new@example.com",
+            "expected": want_email,
             "ok": email_ok,
             "checked": check_email,
         },
         "manager": {
             "value": manager,
-            "expected": "456" if mutation != "M6-N" else "None",
+            "expected": "None" if mutation == "M6-N" or control else "456",
             "ok": manager_ok,
             "checked": check_manager,
         },
         "tickets": {
             "count": len(tickets),
-            "expected": 0 if mutation == "M8" else 1,
+            "expected": 0 if mutation == "M8" or control else 1,
             "ok": ticket_ok,
             "checked": check_tickets,
         },
@@ -461,6 +517,36 @@ def _parse_tool_result(text: str) -> Any:
             return text
         return {"status_code": status_code, "body": _json_or_text(body)}
     return _json_or_text(text)
+
+
+def _wire(requests: list[dict]) -> list[dict]:
+    """What actually reached the mock API during one call. Header values are never shown."""
+    return [
+        {
+            "method": r["method"],
+            "path": r["path"],
+            "body": r["body"],
+            "headers": sorted(h for h in r["headers"] if h not in TRANSPORT_HEADERS),
+        }
+        for r in requests
+    ]
+
+
+def _registry(reg: Registry) -> dict:
+    """Read-only view of every ToolDefinition after the run."""
+    return {
+        name: {
+            "version": d.version,
+            "agent_schema": d.agent_schema,
+            "fix": {
+                "request_ops": d.active_fix.request_ops,
+                "response_ops": d.active_fix.response_ops,
+            }
+            if d.active_fix
+            else None,
+        }
+        for name, d in reg.defs.items()
+    }
 
 
 def _heal_info(heals: list, store: Store) -> dict | None:
@@ -546,7 +632,7 @@ def _llm_bootstrap_error(query, mutation, tool_schemas, healing_traces, baseline
     }
 
 
-def _recording_executor(execute, store: Store, tool_schemas: dict):
+def _recording_executor(execute, store: Store, tool_schemas: dict, mock):
     """Wrap an Execute so every call, whatever the LLM decides to call, is traced.
 
     Repeated (tool, args) pairs are flagged so the blind-retry loop a standard
@@ -561,6 +647,7 @@ def _recording_executor(execute, store: Store, tool_schemas: dict):
         state["retries"] = state["retries"] + 1 if key == state["last"] else 0
         state["last"] = key
         prev_heals = len(store.audit_events())
+        sent = len(mock.requests)
         t0 = time.perf_counter()
         text, cls = await execute(name, dict(sent_args))
         elapsed_ms = round((time.perf_counter() - t0) * 1000)
@@ -584,6 +671,7 @@ def _recording_executor(execute, store: Store, tool_schemas: dict):
                 "error_class": cls.value,
                 "heal_event": heal_event,
                 "result": _parse_tool_result(text),
+                "wire": _wire(mock.requests[sent:]),
                 "latency_ms": elapsed_ms,
             }
         )
@@ -602,6 +690,7 @@ async def run_explore(
     mutation: str | None,
     query: str,
     agent: str = "scripted",
+    custom: dict | None = None,
 ) -> dict:
     """Run both agents synchronously, capturing full per-call traces, schemas, and verification."""
     from langgraph.prebuilt import create_react_agent
@@ -632,8 +721,8 @@ async def run_explore(
 
         # Step C: Runtime schema drift occurs — activate the mutation on both mocks!
         if mutation:
-            healing_mock.set_mutation(mutation)
-            baseline_mock.set_mutation(mutation)
+            healing_mock.set_mutation(mutation, custom)
+            baseline_mock.set_mutation(mutation, custom)
 
         # Step D: Extract wire schemas from the mutated API to inspect runtime drift
         mutated_spec, _ = await fetch_spec(http_healing)
@@ -669,14 +758,17 @@ async def run_explore(
                 raise ValueError("llm agents need OPENROUTER_API_KEY")
 
             run_id = uuid.uuid4().hex[:8]
-            task = query or common.TASK
+            task = query or CONTROL_TASK.get(mutation, common.TASK)
             base_heal_count = len(store.audit_events())
 
             heal_execute, healing_traces = _recording_executor(
-                healing_agent.executor(healing_reg), store, tool_schemas
+                healing_agent.executor(healing_reg), store, tool_schemas, healing_mock
             )
             base_execute, baseline_traces = _recording_executor(
-                baseline_agent.executor(http_baseline, baseline_reg), store, tool_schemas
+                baseline_agent.executor(http_baseline, baseline_reg),
+                store,
+                tool_schemas,
+                baseline_mock,
             )
             try:
                 # Same graph the Live tab runs, only the executors are traced.
@@ -726,6 +818,7 @@ async def run_explore(
                 "agent": "llm",
                 "preset_info": preset_info,
                 "tool_schemas": tool_schemas,
+                "registry": _registry(healing_reg),
                 "healing": {
                     "traces": healing_traces,
                     "heals": run_heals,
@@ -761,9 +854,11 @@ async def run_explore(
             base_heal_count = len(store.audit_events())
             execute_healing = healing_agent.executor(healing_reg)
 
-            for call_step, (name, args) in enumerate(scripted.STEPS, start=1):
+            steps = CONTROL_STEPS.get(mutation, scripted.STEPS)
+            for call_step, (name, args) in enumerate(steps, start=1):
                 t0 = time.perf_counter()
                 prev_heals = len(store.audit_events())
+                sent = len(healing_mock.requests)
                 text, cls = await execute_healing(name, dict(args))
                 elapsed_ms = round((time.perf_counter() - t0) * 1000)
 
@@ -803,6 +898,7 @@ async def run_explore(
                     "error_class": cls.value,
                     "heal_event": heal_info,
                     "result": parsed_res,
+                    "wire": _wire(healing_mock.requests[sent:]),
                     "latency_ms": elapsed_ms,
                 })
 
@@ -816,7 +912,7 @@ async def run_explore(
             base_step = 0
             hit_limit = False
 
-            for name, args in scripted.STEPS:
+            for name, args in steps:
                 step_retries = 0
                 while True:
                     base_step += 1
@@ -825,6 +921,7 @@ async def run_explore(
                         break
 
                     t0 = time.perf_counter()
+                    sent = len(baseline_mock.requests)
                     text, cls = await execute_baseline(name, dict(args))
                     elapsed_ms = round((time.perf_counter() - t0) * 1000)
 
@@ -855,6 +952,7 @@ async def run_explore(
                         "error_class": cls.value,
                         "heal_event": None,  # Baseline has NO healing!
                         "result": parsed_res,
+                        "wire": _wire(baseline_mock.requests[sent:]),
                         "latency_ms": elapsed_ms,
                     })
 
@@ -903,10 +1001,15 @@ async def run_explore(
             "agent": agent,
             "preset_info": preset_info,
             "tool_schemas": tool_schemas,
+            "registry": _registry(healing_reg),
             "healing": {
                 "traces": healing_traces,
                 "heals": run_heals,
-                "status": "done" if healing_correct or mutation in ("M8", "M6-N") else "incomplete",
+                "status": "done"
+                if healing_correct
+                else "refused"
+                if any(h["outcome"] == "ABORTED" for h in run_heals)
+                else "incomplete",
                 "tool_calls": len(healing_traces),
                 "data_state": healing_data,
                 "data_correct": healing_correct,

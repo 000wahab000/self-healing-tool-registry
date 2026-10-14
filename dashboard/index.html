@@ -4,324 +4,474 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Self-healing tool registry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif&display=swap">
 <style>
 [hidden] { display: none !important; }
+/* Palette after cofounder.co: warm paper, near-black ink, 10% hairlines. */
 :root {
-  --bg: #fafaf9; --panel: #ffffff; --soft: #f5f5f4; --ink: #111827; --ink-2: #374151; --muted: #6b7280;
-  --line: #e7e5e4; --line-2: #d6d3d1; --accent: #2457d6; --accent-soft: #e8eefc; --on-ink: #ffffff;
-  --shadow: 0 1px 2px rgba(17,24,39,.04), 0 1px 3px rgba(17,24,39,.06);
-  --ok: #15803d; --ok-bg: #e3f6ea;
-  --biz: #475569; --biz-bg: #eef2f6;
-  --e1: #a16207; --e1-bg: #fdf3d3;
-  --e2: #b91c1c; --e2-bg: #fde8e6;
-  --e3: #7e22ce; --e3-bg: #f2e8fc;
-  --e4: #c2410c; --e4-bg: #ffecdc;
-  --e5: #be185d; --e5-bg: #fce7f1;
-  --e6: #0f766e; --e6-bg: #dcf4f1;
+  --bg: #f5f5f2; --panel: #fdfdfb; --soft: #efefeb; --ink: #171717; --ink-2: #48433f; --muted: #8c8783;
+  --line: rgba(0,0,0,.08); --line-2: rgba(0,0,0,.14); --on-ink: #fdfdfb;
+  --shadow: 0 1px 2px rgba(23,23,23,.04);
+  --ok: #2c7a4b; --ok-bg: #e5f1e8; --bad: #b3372d; --bad-bg: #f8e4e0; --warn: #93650a; --warn-bg: #f6ecd2;
+  --biz: #2f5b96; --biz-bg: #e3ebf6;
+  --e1: #93650a; --e1-bg: #f6ecd2; --e2: #b3372d; --e2-bg: #f8e4e0; --e3: #6f3fb0; --e3-bg: #efe6fa;
+  --e4: #b5521c; --e4-bg: #fbe9db; --e5: #a8336c; --e5-bg: #f9e3ee; --e6: #1f6f6a; --e6-bg: #dcefed;
+  --sans: Geist, "Inter Tight", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1215; --panel: #171b20; --soft: #1e242b; --ink: #eef1f5; --ink-2: #c9d0da; --muted: #8b96a5;
-    --line: #272e37; --line-2: #36404b; --accent: #7aa2ff; --accent-soft: #1b2744; --on-ink: #0f1215;
-    --shadow: none;
-    --ok: #6fd69a; --ok-bg: #153524; --biz: #a7b6c8; --biz-bg: #202a35;
-    --e1: #f0c75e; --e1-bg: #3a2f0a; --e2: #ff8d85; --e2-bg: #451a17; --e3: #c6a4ee; --e3-bg: #30214a;
+    --bg: #131312; --panel: #1b1b19; --soft: #232320; --ink: #efeee9; --ink-2: #c9c5bf; --muted: #8f8a84;
+    --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.16); --on-ink: #131312; --shadow: none;
+    --ok: #74cf98; --ok-bg: #173323; --bad: #ff8f84; --bad-bg: #44201b; --warn: #eec261; --warn-bg: #3a2e0d;
+    --biz: #8fb4ec; --biz-bg: #1c2a40;
+    --e1: #eec261; --e1-bg: #3a2e0d; --e2: #ff8f84; --e2-bg: #44201b; --e3: #c6a4ee; --e3-bg: #30214a;
     --e4: #ffa866; --e4-bg: #43250a; --e5: #f08cc0; --e5-bg: #43172d; --e6: #6fd6d6; --e6-bg: #0f3838;
   }
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink);
-  font: 14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
-button { font: inherit; color: inherit; cursor: pointer; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+code, pre, .mono { font-family: var(--mono); }
 
-/* top bar */
-.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-.top-in { max-width: 1160px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
-.logo { width: 22px; height: 22px; border-radius: 7px; background: var(--ink); display: grid; place-items: center; }
-.logo::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--on-ink); }
-.brand small { color: var(--muted); font-weight: 500; font-size: 13px; }
+/* top bar: wordmark + segmented nav, like cofounder.co */
+.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.top-in { max-width: 1240px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.brand { font: 26px/1 var(--serif); letter-spacing: -.01em; white-space: nowrap; }
 .spacer { flex: 1; }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px;
-  font-weight: 500; background: var(--biz-bg); color: var(--biz); white-space: nowrap; }
-.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .8; }
-.pill.good { background: var(--ok-bg); color: var(--ok); }
-.pill.bad { background: var(--e2-bg); color: var(--e2); }
-.pill.warn { background: var(--e1-bg); color: var(--e1); }
+nav.tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); overflow-x: auto; }
+nav.tabs button { background: none; border: 1px solid transparent; border-radius: 7px; padding: 5px 12px; color: var(--ink-2); white-space: nowrap; font-size: 14px; }
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button[aria-selected="true"] { background: var(--panel); border-color: var(--line-2); color: var(--ink); box-shadow: var(--shadow); }
+nav.tabs .count { margin-left: 6px; font: 11px var(--mono); color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; background: var(--soft); color: var(--ink-2); white-space: nowrap; border: 1px solid var(--line); }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .75; }
+.pill.good { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.pill.bad { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+.pill.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.pill.biz { background: var(--biz-bg); color: var(--biz); border-color: transparent; }
 .pill.plain::before { display: none; }
 
-nav.tabs { max-width: 1160px; margin: 0 auto; padding: 0 20px; display: flex; gap: 4px; overflow-x: auto; }
-nav.tabs button { background: none; border: 0; padding: 10px 12px; color: var(--muted); font-weight: 500;
-  border-bottom: 2px solid transparent; white-space: nowrap; }
-nav.tabs button:hover { color: var(--ink); }
-nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
-nav.tabs .count { margin-left: 6px; font-size: 11px; background: var(--soft); border-radius: 999px; padding: 1px 7px; color: var(--ink-2); }
-
-main { max-width: 1160px; margin: 0 auto; padding: 20px; }
+main { max-width: 1240px; margin: 0 auto; padding: 28px 20px 60px; }
+.eyebrow { font: 500 11.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 0 0 8px; }
+h1 { font-weight: 400; font-size: clamp(28px, 4vw, 44px); line-height: 1.08; letter-spacing: -.025em; margin: 0; max-width: 900px; }
+h1 span, h2 span.dim { color: var(--muted); }
+h2 { font-weight: 450; font-size: 20px; letter-spacing: -.015em; margin: 0; }
+h3 { font-weight: 500; font-size: 17px; letter-spacing: -.01em; margin: 0; }
+.sub { color: var(--ink-2); font-size: 14px; margin: 4px 0 0; }
+.muted { color: var(--muted); }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
-.pad { padding: 16px; }
-h2 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: -.01em; }
-.sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
-.head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.pad { padding: 18px; }
+.head { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.section { margin-top: 28px; }
 
 /* buttons */
-.btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); font-weight: 550; }
+.btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); font-size: 14px; }
 .btn:hover { border-color: var(--ink-2); }
 .btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .btn.primary:hover { opacity: .88; }
-.btn.ghost { border-color: transparent; color: var(--muted); }
-.btn.ghost:hover { color: var(--ink); background: var(--soft); }
+.btn.ghost { border-color: transparent; background: none; color: var(--ink-2); }
+.btn.ghost:hover { background: var(--soft); color: var(--ink); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
 .btn:disabled { opacity: .5; cursor: default; }
 
-/* controls */
-.controls { display: grid; gap: 18px; }
-.run { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.run .hint { color: var(--muted); font-size: 12px; margin-left: 4px; }
-.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-.group-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
-.group-label span { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 6px; }
-.muts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
-.mut { text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); display: grid; gap: 1px; }
-.mut:hover { border-color: var(--line-2); background: var(--soft); }
-.mut b { font-size: 12px; color: var(--muted); font-weight: 600; }
-.mut span { font-weight: 550; font-size: 13px; line-height: 1.25; }
-.mut i { font-style: normal; font-size: 11px; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; }
-.mut[aria-pressed="true"] { border-color: var(--e2); background: var(--e2-bg); }
-.mut[aria-pressed="true"] b { color: var(--e2); }
-#note { color: var(--e2); min-height: 0; font-size: 13px; }
-#note:empty { display: none; }
-
-/* latest heal */
-.latest { margin-top: 16px; padding: 12px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.latest .t { font-weight: 600; }
-.latest .none { color: var(--muted); }
-.ops { display: flex; flex-wrap: wrap; gap: 6px; }
-code, .op { font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; background: var(--soft); padding: 1px 7px; border-radius: 6px; color: var(--ink-2); }
-.op.resp { box-shadow: inset 3px 0 0 var(--e5); }
-
-/* panes */
-.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-top: 16px; }
-.pane-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.pane-head h2 { margin-right: auto; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px; margin: 12px 0; }
-.stat { background: var(--soft); border-radius: 8px; padding: 6px 10px; min-width: 0; }
-.stat small { display: block; color: var(--muted); font-size: 11px; }
-.stat b { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.err { color: var(--e2); font-size: 12px; margin: 0 0 8px; overflow-wrap: anywhere; }
-ol.calls { list-style: none; margin: 0; padding: 0; height: 300px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
-ol.calls li { display: grid; grid-template-columns: 84px 1fr auto 58px; gap: 8px; align-items: center; padding: 6px 10px;
-  border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-ol.calls li:last-child { border-bottom: 0; }
-ol.calls .empty { display: block; color: var(--muted); text-align: center; padding: 28px 12px; }
-.time, .ms { color: var(--muted); font-size: 12px; }
-.ms { text-align: right; }
-.tool { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
-
-/* badges */
-.badge { display: inline-block; min-width: 3.4em; text-align: center; padding: 1px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 650; background: var(--biz-bg); color: var(--biz); }
+/* tags, badges, ops */
+.tag { display: inline-block; padding: 1px 7px; border-radius: 5px; font: 11.5px/1.6 var(--mono); background: var(--soft); color: var(--ink-2); white-space: nowrap; }
+.tag.good { background: var(--ok-bg); color: var(--ok); }
+.tag.bad { background: var(--bad-bg); color: var(--bad); }
+.tag.warn { background: var(--warn-bg); color: var(--warn); }
+.tag.biz { background: var(--biz-bg); color: var(--biz); }
+.badge { display: inline-block; min-width: 3.2em; text-align: center; padding: 1px 7px; border-radius: 5px; font: 500 11.5px/1.6 var(--mono); background: var(--soft); color: var(--ink-2); }
 [data-k="OK"], [data-k="RECOVERED"] { background: var(--ok-bg); color: var(--ok); }
 [data-k="BUSINESS"], [data-k="NOT_DRIFT"] { background: var(--biz-bg); color: var(--biz); }
 [data-k="E1"] { background: var(--e1-bg); color: var(--e1); }
-[data-k="E2"], [data-k="ABORTED"], [data-k="VERIFY_FAILED"] { background: var(--e2-bg); color: var(--e2); }
+[data-k="E2"], [data-k="VERIFY_FAILED"] { background: var(--e2-bg); color: var(--e2); }
+[data-k="ABORTED"] { background: var(--warn-bg); color: var(--warn); }
 [data-k="E3"] { background: var(--e3-bg); color: var(--e3); }
 [data-k="E4"] { background: var(--e4-bg); color: var(--e4); }
 [data-k="E5"] { background: var(--e5-bg); color: var(--e5); }
 [data-k="E6"] { background: var(--e6-bg); color: var(--e6); }
+.ops { display: flex; flex-wrap: wrap; gap: 6px; }
+.op { font: 12px/1.6 var(--mono); background: var(--panel); border: 1px solid var(--line-2); padding: 1px 8px; border-radius: 6px; color: var(--ink); }
+.op b { font-weight: 600; }
+.op.resp { border-left: 3px solid var(--e5); }
+pre { margin: 0; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); }
 
-/* table */
+/* hero + headline strip */
+.hero .sub { max-width: 760px; font-size: 15.5px; margin-top: 12px; }
+.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.strip > div { padding: 12px 16px; border-right: 1px solid var(--line); min-width: 0; }
+.strip > div:last-child { border-right: 0; }
+.strip small { display: block; font: 500 10.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.strip b { display: block; font-weight: 450; font-size: 26px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.strip span { font-size: 12px; color: var(--ink-2); }
+
+/* composer: storyboard acts, scenario chips, custom drift, prompt */
+.acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.act { text-align: left; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 10px; background: color-mix(in srgb, var(--panel) 60%, transparent); display: grid; gap: 2px; }
+.act:hover { background: var(--panel); border-color: var(--ink-2); }
+.act small { font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.act b { font-weight: 500; font-size: 15px; }
+.act span { font-size: 13px; color: var(--ink-2); }
+.act[aria-pressed="true"] { border-color: var(--ink); background: var(--panel); box-shadow: inset 0 0 0 1px var(--ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.chip { padding: 5px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: none; font-size: 13px; display: inline-flex; gap: 6px; align-items: baseline; }
+.chip i { font: normal 11.5px var(--mono); color: var(--muted); }
+.chip:hover { border-color: var(--ink-2); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.chip[aria-pressed="true"] i { color: inherit; opacity: .7; }
+.custom { margin-top: 12px; padding: 14px; border: 1px dashed var(--line-2); border-radius: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 14px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.field .row { display: flex; gap: 6px; }
+.input { width: 100%; min-width: 0; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); font-size: 13.5px; }
+textarea.input { resize: vertical; min-height: 60px; line-height: 1.5; }
+.composer-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+.seg label { padding: 4px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--panel); box-shadow: 0 0 0 1px var(--line-2); }
+.seg label:has(input:disabled) { opacity: .45; cursor: default; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--ink); }
+
+/* drift banner */
+.banner { margin-top: 16px; padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--panel); display: grid; gap: 10px; }
+.banner.drift { border-color: color-mix(in srgb, var(--bad) 45%, transparent); background: linear-gradient(0deg, var(--panel), color-mix(in srgb, var(--bad-bg) 55%, var(--panel))); }
+.banner .top-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.banner .top-row .eyebrow { margin: 0; }
+.diff { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: stretch; }
+.diff > div { border-radius: 8px; padding: 8px 12px; min-width: 0; border: 1px solid var(--line); background: var(--soft); }
+.diff .after { background: var(--bad-bg); border-color: transparent; }
+.diff small { display: block; font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.diff code { font-size: 13px; overflow-wrap: anywhere; }
+.diff .after code { color: var(--bad); }
+.diff .arrow { align-self: center; color: var(--muted); font-size: 18px; border: 0; background: none; padding: 0; }
+.expect { font-size: 14px; }
+.expect b { font-weight: 550; }
+
+/* agent panes */
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+.cols > * { min-width: 0; }
+.pane-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pane-head h2 { margin-right: auto; }
+.pane.healing { border-top: 3px solid var(--ok); }
+.pane.baseline { border-top: 3px solid var(--bad); }
+.steps { list-style: none; margin: 14px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; grid-auto-flow: column; }
+.step { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; background: var(--soft); min-width: 0; display: grid; gap: 1px; transition: background .25s, border-color .25s; }
+.step .step-n { font: 500 10.5px var(--mono); letter-spacing: .08em; color: var(--muted); }
+.step b { font: 500 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step small { font-size: 12px; color: var(--ink-2); line-height: 1.3; }
+.step[data-k="done"], .step[data-k="healed"] { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.step[data-k="healed"] small, .step[data-k="done"] small { color: var(--ok); }
+.step[data-k="fail"] { background: var(--bad-bg); border-color: var(--bad); animation: pulse 1.1s ease-in-out infinite; }
+.step[data-k="fail"] small, .step[data-k="silent"] small { color: var(--bad); font-weight: 500; }
+.step[data-k="silent"] { background: var(--bad-bg); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.step[data-k="refused"] { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.step[data-k="refused"] small { color: var(--warn); font-weight: 500; }
+.step[data-k="biz"] { background: var(--biz-bg); border-color: color-mix(in srgb, var(--biz) 40%, transparent); }
+.step[data-k="biz"] small { color: var(--biz); font-weight: 500; }
+.step.capped { animation: none; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 22%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .step[data-k="fail"] { animation: none; } }
+.pane-tools { display: flex; gap: 4px; justify-content: flex-end; margin-bottom: 6px; }
+.calls { position: relative; display: grid; gap: 6px; max-height: 620px; overflow-y: auto; padding-right: 2px; }
+.calls .empty { color: var(--muted); text-align: center; padding: 26px 12px; border: 1px dashed var(--line-2); border-radius: 10px; font-size: 14px; }
+
+/* one tool call = one accordion row, numbered like cofounder's "1.1 … +" */
+details.call { border: 1px solid var(--line-2); border-radius: 10px; background: color-mix(in srgb, var(--panel) 70%, transparent); animation: rise .25s ease-out; }
+details.call[open] { background: var(--panel); }
+details.call > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex-wrap: wrap; }
+details.call > summary::-webkit-details-marker { display: none; }
+details.call .num { font: 500 12px var(--mono); color: var(--muted); }
+details.call .tool { font-size: 13.5px; font-weight: 500; }
+details.call .ms { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
+.plus { width: 16px; height: 16px; position: relative; flex: none; color: var(--muted); }
+.plus::before, .plus::after { content: ""; position: absolute; left: 3px; right: 3px; top: 7.5px; height: 1.5px; background: currentColor; transition: transform .2s; }
+.plus::after { transform: rotate(90deg); }
+details[open] > summary .plus::after { transform: rotate(0deg); }
+.call-body { padding: 2px 12px 12px; display: grid; gap: 8px; }
+details.json { border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+details.json > summary { cursor: pointer; padding: 5px 10px; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+details.json > pre, details.json > .wire { padding: 0 10px 8px; }
+details.json > pre { max-height: 260px; }
+.wire + .wire { border-top: 1px dashed var(--line-2); padding-top: 8px; }
+.wire-head { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; font-size: 12.5px; }
+.heal { border-radius: 9px; padding: 10px 12px; display: grid; gap: 6px; border: 1px solid transparent; }
+.heal.good { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
+.heal.warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+.heal.biz { background: var(--biz-bg); border-color: color-mix(in srgb, var(--biz) 30%, transparent); }
+.heal.bad { background: var(--bad-bg); }
+.heal-title { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.heal-title b { font-weight: 550; }
+.heal-facts { font: 11.5px var(--mono); color: var(--ink-2); }
+.hint { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.hint.bad { color: var(--bad); }
+@keyframes rise { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { details.call { animation: none; } }
+
+/* registry inspector */
+.registry { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.reg { border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px; background: var(--panel); transition: border-color .3s, background .3s; min-width: 0; }
+.reg.patched { border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: linear-gradient(0deg, var(--panel), color-mix(in srgb, var(--ok-bg) 60%, var(--panel))); }
+.reg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.reg-head code { font-size: 14px; font-weight: 500; margin-right: auto; }
+.reg dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 13px; }
+.reg dt { font: 11.5px/1.7 var(--mono); color: var(--muted); }
+.reg dd { margin: 0; min-width: 0; }
+.reg dt.wide, .reg dd.wide { grid-column: 1 / -1; }
+
+/* verdict */
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.vcard { padding: 16px; }
+.vcard.good { border-top: 3px solid var(--ok); }
+.vcard.bad { border-top: 3px solid var(--bad); }
+.vcard.warn { border-top: 3px solid var(--warn); }
+.vrow { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13.5px; border-bottom: 1px solid var(--line); }
+.vrow:last-child { border-bottom: 0; }
+.vrow span:last-child { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.val-good { color: var(--ok); } .val-bad { color: var(--bad); }
+.agent-info { font-size: 13px; color: var(--ink-2); display: grid; gap: 4px; margin-top: 12px; overflow-wrap: anywhere; }
+
+/* schema diff + reference */
+details.fold { margin-top: 12px; }
+details.fold > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; list-style: none; padding: 14px 18px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary h3 { margin-right: auto; }
+details.fold > .fold-body { padding: 0 18px 18px; }
+.schema-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.schema-col { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; display: grid; gap: 6px; align-content: start; }
+.schema-col pre { background: var(--soft); border-radius: 6px; padding: 6px 8px; max-height: 180px; font-size: 11.5px; }
+.schema-col pre.drift { background: var(--bad-bg); color: var(--bad); }
+.ref-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px; }
+.mini { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.mini th, .mini td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.mini th { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.errs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 8px; margin-top: 14px; }
+.errs > div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }
+
+/* live tab */
+.controls { display: grid; gap: 18px; }
+.run { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.run .hint { margin-left: 4px; }
+.groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.group-label { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+.group-label span { text-transform: none; letter-spacing: 0; margin-left: 6px; font-family: var(--sans); }
+.muts { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.mut { text-align: left; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 10px; background: none; display: grid; gap: 1px; }
+.mut:hover { border-color: var(--ink-2); }
+.mut b { font: 500 12px var(--mono); color: var(--muted); }
+.mut span { font-size: 13px; line-height: 1.25; }
+.mut i { font: normal 11px var(--mono); color: var(--muted); }
+.mut[aria-pressed="true"] { border-color: var(--bad); background: var(--bad-bg); }
+.mut[aria-pressed="true"] b { color: var(--bad); }
+#note { color: var(--bad); font-size: 13px; }
+#note:empty { display: none; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 0 0 12px; }
+.stat { background: var(--soft); border-radius: 8px; padding: 6px 10px; min-width: 0; }
+.stat small { display: block; color: var(--muted); font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.stat b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.err { color: var(--bad); font-size: 12.5px; margin: 0 0 8px; overflow-wrap: anywhere; }
+ol.calls-live { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+ol.calls-live li { display: grid; grid-template-columns: 84px 1fr auto 58px; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+ol.calls-live li:last-child { border-bottom: 0; }
+ol.calls-live .empty { display: block; color: var(--muted); text-align: center; padding: 28px 12px; }
+.time, .lat { color: var(--muted); font: 12px var(--mono); }
+.lat { text-align: right; }
+.calls-live .tool { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
+
+/* patch log + metrics */
 .scroll { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
-th { color: var(--muted); font-weight: 600; font-size: 12px; background: var(--soft); position: sticky; top: 0; }
+table.log { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.log th, table.log td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+table.log th { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--soft); position: sticky; top: 0; }
 tr.row { cursor: pointer; }
 tr.row:hover td { background: var(--soft); }
 tr.detail td { background: var(--soft); white-space: normal; }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-.detail-grid small { color: var(--muted); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.detail-grid small { color: var(--muted); display: block; font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
 .chev { color: var(--muted); display: inline-block; transition: transform .12s; margin-right: 6px; }
 tr.open .chev { transform: rotate(90deg); }
 td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-space: normal; }
-
-/* metrics */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .metric { padding: 16px; }
-.metric small { color: var(--muted); font-size: 12px; font-weight: 550; display: block; }
-.metric .v { font-size: 28px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
-.metric .v em { font-size: 13px; font-style: normal; color: var(--muted); font-weight: 500; margin-left: 4px; }
-.metric .s { color: var(--muted); font-size: 12px; }
+.metric small { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); display: block; }
+.metric .v { font-size: 30px; font-weight: 400; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+.metric .v em { font-size: 13px; font-style: normal; color: var(--muted); margin-left: 4px; }
+.metric .s { color: var(--ink-2); font-size: 12.5px; }
 .reasons { margin-top: 16px; padding: 16px; }
 .reasons .ops { margin-top: 8px; }
-pre { margin: 0; max-height: 70vh; overflow: auto; font: 12.5px/1.6 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; color: var(--ink-2); }
-
-@media (max-width: 560px) {
-  main { padding: 12px; }
-  ol.calls li { grid-template-columns: 70px 1fr auto; }
-  ol.calls .ms { display: none; }
-}
-
-/* explorer styles */
-.exp-ref { margin-bottom: 16px; }
-.exp-ref summary { cursor: pointer; font-weight: 650; font-size: 14px; display: flex; align-items: center; gap: 8px; user-select: none; }
-.exp-ref summary:hover { color: var(--accent); }
-.exp-ref-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; margin-top: 14px; }
-.exp-box { background: var(--soft); border-radius: 10px; padding: 12px 14px; border: 1px solid var(--line); }
-.exp-box h3 { margin: 0 0 6px; font-size: 13.5px; font-weight: 650; letter-spacing: -.01em; }
-.exp-mini-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
-.exp-mini-table th, .exp-mini-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: normal; vertical-align: top; }
-.exp-mini-table th { background: transparent; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
-
-.exp-query-panel { margin-bottom: 16px; display: grid; gap: 12px; }
-.exp-select-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
-.exp-select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); font: inherit; color: var(--ink); width: 100%; font-weight: 550; }
-.exp-select:focus { outline: 2px solid var(--accent); }
-.exp-query-desc { background: var(--soft); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
-.exp-query-desc b { color: var(--ink); }
-.exp-input { width: 100%; min-height: 52px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); font: inherit; color: var(--ink); resize: vertical; }
-.exp-input:focus { outline: 2px solid var(--accent); }
-.exp-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-
-.exp-schemas-card { margin-bottom: 16px; }
-.schema-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; margin-top: 10px; }
-.schema-col { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
-.schema-header { padding: 6px 10px; background: var(--soft); font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line); }
-.schema-header .badge { margin-left: auto; }
-.schema-body { padding: 8px 10px; font: 11.5px/1.5 ui-monospace, Menlo, Consolas, monospace; overflow-x: auto; max-height: 200px; overflow-y: auto; color: var(--ink-2); margin: 0; }
-.schema-drift-alert { background: var(--e2-bg); color: var(--e2); padding: 6px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; margin-top: 8px; display: flex; align-items: center; gap: 6px; }
-.schema-match-alert { background: var(--ok-bg); color: var(--ok); padding: 6px 10px; font-size: 12px; font-weight: 600; border-radius: 6px; margin-top: 8px; display: flex; align-items: center; gap: 6px; }
-
-.trace-step { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; background: var(--panel); overflow: hidden; box-shadow: var(--shadow); }
-.trace-step-head { padding: 8px 12px; background: var(--soft); display: flex; align-items: center; gap: 8px; font-size: 12.5px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.trace-step-head b { font-size: 13px; }
-.trace-step-body { padding: 10px 12px; display: grid; gap: 8px; }
-.trace-section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-top: 4px; }
-.trace-code { font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; background: var(--soft); padding: 8px 10px; border-radius: 6px; overflow-x: auto; max-height: 160px; overflow-y: auto; color: var(--ink); border: 1px solid var(--line); margin: 0; }
-.trace-heal-box { background: var(--ok-bg); border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); border-radius: 8px; padding: 10px 12px; color: var(--ink); margin: 6px 0; }
-.trace-heal-box.aborted { background: var(--e2-bg); border-color: color-mix(in srgb, var(--e2) 35%, transparent); }
-.trace-heal-title { font-weight: 650; font-size: 12.5px; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.trace-heal-ops { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-
-.step-schemas-details { border: 1px dashed var(--line-2); border-radius: 6px; padding: 6px 10px; font-size: 12px; margin-top: 2px; }
-.step-schemas-details summary { cursor: pointer; color: var(--accent); font-weight: 600; user-select: none; }
-.step-schemas-details summary:hover { text-decoration: underline; }
-.step-schemas-content { margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-@media (max-width: 720px) { .step-schemas-content { grid-template-columns: 1fr; } }
-
-.exp-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
-.exp-summary-card { padding: 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); }
-.exp-summary-card.good-card { border-top: 4px solid var(--ok); }
-.exp-summary-card.bad-card { border-top: 4px solid var(--e2); }
-.exp-summary-title { font-weight: 650; font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.exp-stat-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12.5px; border-bottom: 1px solid var(--line); }
-.exp-stat-row:last-child { border-bottom: none; }
-.exp-stat-label { color: var(--muted); }
-.exp-stat-val { font-weight: 600; font-variant-numeric: tabular-nums; }
-.val-good { color: var(--ok); }
-.val-bad { color: var(--e2); }
-
-.spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; }
+#report { max-height: 72vh; }
+.spinner { display: inline-block; width: 11px; height: 11px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* explorer overflow guard: long provider errors / JSON must wrap inside the
-   panel instead of stretching the whole grid past the viewport */
-#view-explorer { min-width: 0; }
-#view-explorer .card { min-width: 0; max-width: 100%; }
-.exp-query-panel > *, .exp-ref-grid > *, .schema-grid > *,
-.exp-summary-grid > *, .cols > * { min-width: 0; max-width: 100%; }
-.exp-box, .schema-col, .trace-step, .exp-summary-card { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-.trace-step-body, .trace-step-head, .schema-header,
-.exp-query-desc, .exp-summary-title, .exp-stat-row { min-width: 0; }
-.exp-stat-row { gap: 10px; }
-.exp-stat-val { overflow-wrap: anywhere; word-break: break-word; text-align: right; }
-#exp-agent-info { min-width: 0; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; word-break: break-word; }
-#exp-agent-info > div { overflow-wrap: anywhere; word-break: break-word; min-width: 0; }
-.trace-code, .schema-body, pre { max-width: 100%; overflow-wrap: anywhere; }
-.step-schemas-content > * { min-width: 0; }
-#exp-run-status, #exp-spinner { white-space: normal; overflow-wrap: anywhere; word-break: break-word; min-width: 0; max-width: 100%; }
-.exp-actions > * { min-width: 0; max-width: 100%; }
-@media (max-width: 640px) { .exp-select-row { grid-template-columns: 1fr; } }
-#view-explorer .cols { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
-#ref-errors-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)) !important; }
-
+@media (max-width: 640px) {
+  main { padding: 18px 14px 40px; }
+  .diff { grid-template-columns: 1fr; }
+  .diff .arrow { transform: rotate(90deg); justify-self: center; }
+  .steps { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+  ol.calls-live li { grid-template-columns: 70px 1fr auto; }
+  ol.calls-live .lat { display: none; }
+}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="top-in">
-    <div class="brand"><span class="logo" aria-hidden="true"></span>Self-healing tool registry <small>Live demo</small></div>
+    <div class="brand">Self-healing registry</div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button role="tab" aria-selected="true" data-tab="demo">Demo</button>
+      <button role="tab" aria-selected="false" data-tab="live">Live stream</button>
+      <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
+      <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
+      <button role="tab" aria-selected="false" data-tab="report" id="tab-report" hidden>Report</button>
+    </nav>
     <span class="spacer"></span>
     <span class="pill plain" id="mutation-chip">No mutation</span>
     <span class="pill warn" id="conn-chip">Connecting</span>
   </div>
-  <nav class="tabs" role="tablist" aria-label="Views">
-    <button role="tab" aria-selected="true" data-tab="live">Live</button>
-    <button role="tab" aria-selected="false" data-tab="explorer">Explorer</button>
-    <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
-    <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
-    <button role="tab" aria-selected="false" data-tab="report" id="tab-report" hidden>Report</button>
-  </nav>
 </header>
 
 <main>
+  <!-- DEMO -->
+  <div id="view-demo" role="tabpanel">
+    <section class="hero">
+      <p class="eyebrow">PS 01 · Runtime API schema drift</p>
+      <h1>When an API breaks mid-task, the registry patches the tool. <span>Not the prompt.</span></h1>
+      <p class="sub">The LLM keeps speaking the frozen v1 schema. On a 4xx, or a 200 that drifted, the registry diffs the live spec, hot-patches the tool's wire schema in memory with a 4-operation DSL that cannot write a literal, and replays once. If no safe source exists for a value, it refuses instead of guessing.</p>
+      <div class="strip" aria-label="Headline results">
+        <div><small>Zero-touch adaptation</small><b>100%</b><span>healable M1–M5, M7, M9</span></div>
+        <div><small>Safe-refusal rate</small><b>100%</b><span>M8, M6-N: 0 invented values</span></div>
+        <div><small>False-patch rate</small><b>0%</b><span>every scenario, benchmark N=3</span></div>
+        <div><small>Tier-1 heal, this session</small><b id="strip-t1">–</b><span>diff + patch + replay</span></div>
+        <div><small>Tier-0 heal, this session</small><b id="strip-t0">–</b><span>run a scenario twice</span></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">1 — Pick the break</p>
+      <div class="acts" id="acts"></div>
+      <div class="chips" id="scenarios" aria-label="All scenarios"></div>
+      <div class="custom" id="custom" hidden>
+        <label class="field"><span>Tool</span><select class="input" id="c-tool"></select></label>
+        <div class="field"><span>Rename field</span><div class="row"><select class="input" id="c-from" aria-label="Field to rename"></select><input class="input" id="c-to" placeholder="new name" aria-label="New field name"></div></div>
+        <label class="field"><span>String → int</span><select class="input" id="c-int"></select></label>
+        <label class="field"><span>Wrap body in</span><input class="input" id="c-wrap" placeholder="e.g. payload"></label>
+        <label class="field"><span>Require header</span><input class="input" id="c-header" list="c-headers" placeholder="e.g. X-Tenant-Id"></label>
+        <label class="field"><span>Add required field</span><input class="input" id="c-req" placeholder="e.g. priority"></label>
+        <datalist id="c-headers"><option value="X-Tenant-Id"><option value="Authorization"><option value="X-Api-Version"></datalist>
+      </div>
+      <div id="demo-banner"></div>
+    </section>
+
+    <section class="section">
+      <p class="eyebrow">2 — Send the prompt</p>
+      <textarea class="input" id="prompt" rows="2" aria-label="Task prompt"></textarea>
+      <div class="composer-foot">
+        <div class="seg" role="radiogroup" aria-label="Agent mode">
+          <label><input type="radio" name="mode" value="scripted" checked>Scripted</label>
+          <label id="llm-label"><input type="radio" name="mode" value="llm">Live LLM</label>
+        </div>
+        <button class="btn primary" id="run-demo">Run both agents</button>
+        <button class="btn ghost" id="reset-demo">Reset mocks</button>
+        <span class="pill plain" id="demo-status">Ready</span>
+        <span class="muted" id="llm-status" style="font-size:12.5px"></span>
+      </div>
+    </section>
+
+    <div id="demo-results" hidden>
+      <section class="section">
+        <p class="eyebrow">3 — Watch both agents</p>
+        <div class="cols">
+          <section class="card pad pane baseline">
+            <div class="pane-head"><h2>Baseline agent <span class="dim">standard framework</span></h2><span class="pill" id="d-status-baseline">idle</span></div>
+            <ol class="steps" id="d-steps-baseline"></ol>
+            <div class="pane-tools"><button class="btn ghost small" data-fold="baseline" data-open="1">Expand all</button><button class="btn ghost small" data-fold="baseline" data-open="0">Collapse all</button></div>
+            <div class="calls" id="d-calls-baseline"></div>
+          </section>
+          <section class="card pad pane healing">
+            <div class="pane-head"><h2>Self-healing agent <span class="dim">registry facade</span></h2><span class="pill" id="d-status-healing">idle</span></div>
+            <ol class="steps" id="d-steps-healing"></ol>
+            <div class="pane-tools"><button class="btn ghost small" data-fold="healing" data-open="1">Expand all</button><button class="btn ghost small" data-fold="healing" data-open="0">Collapse all</button></div>
+            <div class="calls" id="d-calls-healing"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="head"><div><p class="eyebrow">4 — In-memory tool registry</p><h2>ToolDefinition, live <span class="dim">· agent_schema never changes</span></h2></div></div>
+        <div class="registry" id="registry"></div>
+        <details class="card fold">
+          <summary><h3>Schema diff <span class="muted" style="font-size:14px">· frozen v1 agent schema vs. live wire schema</span></h3><span class="plus" aria-hidden="true"></span></summary>
+          <div class="fold-body"><div class="schema-grid" id="schema-grid"></div></div>
+        </details>
+      </section>
+
+      <section class="section">
+        <p class="eyebrow">5 — Verdict</p>
+        <div class="verdict" id="verdict"></div>
+        <div class="agent-info" id="agent-info" hidden></div>
+      </section>
+    </div>
+
+    <details class="card fold section">
+      <summary><h3>Reference <span class="muted" style="font-size:14px">· mock API, mutation catalog, error classes</span></h3><span class="plus" aria-hidden="true"></span></summary>
+      <div class="fold-body">
+        <div class="ref-grid">
+          <div><p class="eyebrow">Tools</p><table class="mini"><thead><tr><th>Tool</th><th>Route</th><th>Postchecks</th></tr></thead><tbody id="ref-tools"></tbody></table></div>
+          <div><p class="eyebrow">Mutations</p><table class="mini"><thead><tr><th>ID</th><th>Tool</th><th>Class</th><th>What changes</th></tr></thead><tbody id="ref-muts"></tbody></table></div>
+        </div>
+        <div class="errs" id="ref-errors"></div>
+      </div>
+    </details>
+  </div>
+
   <!-- LIVE -->
-  <div id="view-live" role="tabpanel">
+  <div id="view-live" role="tabpanel" hidden>
+    <div class="head"><div><p class="eyebrow">Real-time</p><h2>Break the API while both agents are running</h2></div></div>
     <section class="card pad controls">
-      <div>
-        <div class="head" style="margin-bottom:8px">
-          <div><h2>Run the demo task</h2><p class="sub">Both agents look up a user, change the email, set a manager and open a ticket.</p></div>
-        </div>
-        <div class="run">
-          <button class="btn primary" id="start-scripted">Start scripted run</button>
-          <button class="btn" id="start-llm">Start LLM run</button>
-          <button class="btn ghost" id="reset">Reset</button>
-          <span class="hint">Tip: start a run, then break the API while it works.</span>
-        </div>
+      <div class="run">
+        <button class="btn primary" id="start-scripted">Start scripted run</button>
+        <button class="btn" id="start-llm">Start LLM run</button>
+        <button class="btn ghost" id="reset">Reset</button>
+        <span class="hint muted">Start a run, then pick a break below while it works.</span>
       </div>
       <div>
-        <div class="head" style="margin-bottom:8px">
-          <div><h2>Break the API</h2><p class="sub">Pick one change. It applies to both agents instantly.</p></div>
-          <span class="spacer"></span>
-          <button class="btn ghost" id="clear-mut">Clear mutation</button>
-        </div>
+        <div class="head" style="margin-bottom:8px"><span class="spacer"></span><button class="btn ghost small" id="clear-mut">Clear mutation</button></div>
         <div class="groups" id="mutations"></div>
       </div>
       <div id="note" role="status"></div>
     </section>
-
-    <section class="card latest" id="latest" aria-live="polite"></section>
-
-    <div class="cols">
-      <section class="card pad" id="col-healing">
-        <div class="pane-head">
-          <h2>Healing agent</h2>
-          <span class="pill bad plain" id="cap-healing" hidden>Iteration cap</span>
-          <span class="pill" id="status-healing">idle</span>
-        </div>
-        <div class="stats" id="stats-healing"></div>
-        <p class="err" id="err-healing" hidden></p>
-        <ol class="calls" id="calls-healing"></ol>
-      </section>
-      <section class="card pad" id="col-baseline">
-        <div class="pane-head">
-          <h2>Baseline agent</h2>
-          <span class="pill bad plain" id="cap-baseline" hidden>Iteration cap</span>
-          <span class="pill" id="status-baseline">idle</span>
-        </div>
+    <div id="live-banner"></div>
+    <div class="cols section">
+      <section class="card pad pane baseline" id="col-baseline">
+        <div class="pane-head"><h2>Baseline agent</h2><span class="pill bad plain" id="cap-baseline" hidden>Iteration cap</span><span class="pill" id="status-baseline">idle</span></div>
+        <ol class="steps" id="steps-baseline"></ol>
         <div class="stats" id="stats-baseline"></div>
         <p class="err" id="err-baseline" hidden></p>
-        <ol class="calls" id="calls-baseline"></ol>
+        <ol class="calls-live" id="calls-baseline"></ol>
+      </section>
+      <section class="card pad pane healing" id="col-healing">
+        <div class="pane-head"><h2>Self-healing agent</h2><span class="pill bad plain" id="cap-healing" hidden>Iteration cap</span><span class="pill" id="status-healing">idle</span></div>
+        <ol class="steps" id="steps-healing"></ol>
+        <div class="stats" id="stats-healing"></div>
+        <p class="err" id="err-healing" hidden></p>
+        <ol class="calls-live" id="calls-healing"></ol>
       </section>
     </div>
   </div>
 
   <!-- PATCH LOG -->
   <div id="view-heals" role="tabpanel" hidden>
-    <div class="head"><div><h2>Patch log</h2><p class="sub">One row per heal attempt. Select a row for details.</p></div></div>
+    <div class="head"><div><p class="eyebrow">Audit</p><h2>Patch log <span class="dim">· one row per heal attempt, written before the agent sees the result</span></h2></div></div>
     <section class="card scroll">
-      <table>
-        <thead><tr><th>Time</th><th>Tool</th><th>Class</th><th>Tier</th><th>Path</th><th>Outcome</th><th>Reason</th><th>MTTR</th><th>Fix operations</th></tr></thead>
+      <table class="log">
+        <thead><tr><th>Time</th><th>Tool</th><th>Class</th><th>Tier</th><th>Path</th><th>Outcome</th><th>MTTR</th><th>Heal</th><th>Fix operations</th></tr></thead>
         <tbody id="heals"></tbody>
       </table>
     </section>
@@ -329,155 +479,19 @@ pre { margin: 0; max-height: 70vh; overflow: auto; font: 12.5px/1.6 ui-monospace
 
   <!-- METRICS -->
   <div id="view-metrics" role="tabpanel" hidden>
-    <div class="head"><div><h2>Metrics</h2><p class="sub">Computed from the audit log since the last reset.</p></div></div>
+    <div class="head"><div><p class="eyebrow">Since the last reset</p><h2>Metrics</h2></div></div>
     <div class="cards" id="metrics"></div>
     <section class="card reasons" id="reasons" hidden>
-      <h2>Refusal reasons</h2>
+      <h3>Refusal reasons</h3>
       <div class="ops" id="reasons-list"></div>
     </section>
   </div>
 
   <!-- REPORT -->
   <div id="view-report" role="tabpanel" hidden>
-    <div class="head"><div><h2>Benchmark report</h2><p class="sub">Latest results from the benchmark runner.</p></div></div>
+    <div class="head"><div><p class="eyebrow">bench/report.md</p><h2>Benchmark report</h2></div></div>
     <section class="card pad"><pre id="report"></pre></section>
   </div>
-
-  <!-- EXPLORER -->
-  <div id="view-explorer" role="tabpanel" hidden>
-    <div class="head" style="margin-bottom:14px">
-      <div>
-        <h2>Tool Registry & Schema Drift Explorer</h2>
-        <p class="sub">Interactively demonstrate runtime API schema drift, inspect input & output schemas per tool call, and witness the self-healing registry repairing errors while standard frameworks loop or feed false data.</p>
-      </div>
-    </div>
-
-    <!-- REFERENCE DRAWER -->
-    <details class="card pad exp-ref" id="exp-ref-details">
-      <summary>
-        <span>📖 Mock API & Schema Drift Reference</span>
-        <span class="pill plain" style="margin-left:auto">4 Tools · 10 Mutations · 8 Error Classes</span>
-      </summary>
-      <div class="exp-ref-grid">
-        <div class="exp-box">
-          <h3>Mock API Endpoints & Seed Data</h3>
-          <p class="sub" style="margin-bottom:8px">In-process FastAPI service serving OpenAPI 3.x with strict validation. Seed users: <code>123</code> (Ada), <code>456</code> (Bob). Config: <code>Authorization</code> &larr; <code>OAUTH_BEARER</code>, <code>X-Tenant-Id</code> &larr; <code>TENANT_ID</code>.</p>
-          <table class="exp-mini-table">
-            <thead><tr><th>Tool</th><th>Method / Path</th><th>Idempotent</th><th>Postchecks</th></tr></thead>
-            <tbody id="ref-tools-body"></tbody>
-          </table>
-        </div>
-        <div class="exp-box">
-          <h3>Runtime Drift Mutation Catalog</h3>
-          <p class="sub" style="margin-bottom:8px">Runtime breaking changes switchable on stage:</p>
-          <div style="max-height: 240px; overflow-y: auto;">
-            <table class="exp-mini-table">
-              <thead><tr><th>ID</th><th>Tool</th><th>Drift Introduced</th><th>Class</th><th>Expected Action</th></tr></thead>
-              <tbody id="ref-mutations-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <div class="exp-box" style="margin-top:12px">
-        <h3>Error Classification Taxonomy (Product Spec §8)</h3>
-        <div id="ref-errors-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; margin-top:8px;"></div>
-      </div>
-    </details>
-
-    <!-- QUERY & SCENARIO CONTROL PANEL -->
-    <section class="card pad exp-query-panel">
-      <div class="head" style="margin-bottom:4px">
-        <div>
-          <h2>Demonstration Scenarios & Query Input</h2>
-          <p class="sub">Select a predefined test scenario or customize your prompt. The active mutation and expected behavior update automatically.</p>
-        </div>
-        <span class="spacer"></span>
-        <span class="pill plain" id="exp-active-mutation-chip">No mutation</span>
-      </div>
-
-      <div class="exp-select-row">
-        <select id="exp-preset-select" class="exp-select" aria-label="Select demonstration scenario"></select>
-        <button class="btn ghost" id="exp-reset-btn" title="Reset mock data and clear previous results">Reset Mocks</button>
-      </div>
-
-      <div style="margin-top:12px; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--soft);">
-        <div style="font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px">Agent Mode</div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap">
-          <label style="flex:1 1 200px; min-width:0">
-            <input type="radio" name="exp-agent-mode" value="scripted" checked> Scripted demo
-          </label>
-          <label style="flex:1 1 200px; min-width:0">
-            <input type="radio" name="exp-agent-mode" value="llm"> Live LLM via OpenRouter
-          </label>
-        </div>
-        <div id="exp-agent-status" style="margin-top:8px; font-size:12px; color:var(--muted)"></div>
-
-      <div id="exp-agent-info" style="margin-top:8px; padding:8px; background:var(--soft); border-radius:6px; display:none"></div>
-      </div>
-
-      <div id="exp-scenario-desc" class="exp-query-desc"></div>
-
-      <div>
-        <label style="display:block; font-size:12px; font-weight:600; color:var(--muted); margin-bottom:4px">QUERY / TASK PROMPT</label>
-        <textarea id="exp-query-text" class="exp-input" rows="2" placeholder="Task prompt for the demonstration..."></textarea>
-      </div>
-
-      <div class="exp-actions">
-        <button class="btn primary" id="exp-run-btn">▶ Run Both Agents & Compare</button>
-        <span id="exp-spinner" hidden class="pill warn"><span class="spinner"></span> Executing agents & collecting traces...</span>
-        <span id="exp-run-status" class="pill plain">Ready to run</span>
-      </div>
-    </section>
-
-    <!-- RESULTS SECTION -->
-    <div id="exp-results" hidden>
-      <!-- SCHEMA DRIFT INSPECTION CARD -->
-      <section class="card pad exp-schemas-card" id="exp-schemas-card">
-        <div class="head">
-          <div>
-            <h2>Runtime Schema Drift Inspection (API Wire vs Agent Spec)</h2>
-            <p class="sub">Examines the frozen Agent-Facing Schema (v1) against the live Wire Schema currently served by the mutated API.</p>
-          </div>
-        </div>
-        <div class="schema-grid" id="exp-schemas-grid"></div>
-      </section>
-
-      <!-- SIDE-BY-SIDE TRACES -->
-      <div class="cols">
-        <!-- HEALING AGENT -->
-        <section class="card pad" style="border-top: 4px solid var(--ok);">
-          <div class="pane-head">
-            <h2>🛡️ Healing Agent (Self-Healing Registry)</h2>
-            <span class="pill good" id="exp-healing-status">done</span>
-          </div>
-          <p class="sub" style="margin-bottom:12px">Calls route through Registry: auto-detects drift, diffs schemas, synthesizes safe hot-patches, replays, and verifies.</p>
-          <div id="exp-healing-traces" class="trace"></div>
-        </section>
-
-        <!-- BASELINE AGENT -->
-        <section class="card pad" style="border-top: 4px solid var(--e2);">
-          <div class="pane-head">
-            <h2>⚠️ Baseline Agent (Standard Framework)</h2>
-            <span class="pill bad" id="exp-baseline-status">failed</span>
-          </div>
-          <p class="sub" style="margin-bottom:12px">Static tool definitions: receives raw HTTP errors (422/401) causing retry loops, or accepts silent drift feeding corrupted data.</p>
-          <div id="exp-baseline-traces" class="trace"></div>
-        </section>
-      </div>
-
-      <!-- DATA INTEGRITY COMPARISON -->
-      <section class="card pad" style="margin-top:16px">
-        <div class="head">
-          <div>
-            <h2>Data Integrity & Outcome Verification</h2>
-            <p class="sub">Verification of whether the upstream database reached the verified target state vs corrupted or uncompleted state.</p>
-          </div>
-        </div>
-        <div class="exp-summary-grid" id="exp-summary-grid"></div>
-      </section>
-    </div>
-  </div>
-
 </main>
 
 <script>
@@ -493,6 +507,18 @@ const GROUPS = [
 ];
 const AGENTS = ["healing", "baseline"];
 const CLASS_NAMES = { OK: "OK", BUSINESS: "Business error", E1: "Transient", E2: "Rejected", E3: "Undecodable", E4: "Soft error", E5: "Shape drift", E6: "Silent ignore" };
+// The demo task, as the scripted agents send it (agents/scripted.py STEPS).
+const TASK_ARGS = { get_user: { user_id: "123" }, update_email: { user_id: "123", email: "ada.new@example.com" }, set_manager: { user_id: "123", manager_id: "456" }, create_ticket: { user_id: "123", title: "Email changed" } };
+const TOOLS = Object.keys(TASK_ARGS);
+const STEP_LABEL = { get_user: "Look up user 123", update_email: "Set the new email", set_manager: "Set manager 456", create_ticket: "Open a ticket" };
+const CONTROL_TOOLS = { C2: ["get_user"], C3: ["get_user", "update_email"] };  // bench CONTROL_STEPS
+const MAX_CALLS = 10;  // agents/common.py MAX_ITERATIONS
+const ACTS = [
+  ["CLEAN", "Act 1", "Healthy v1", "Both agents finish 4/4 steps"],
+  ["M5", "Act 2", "The headline break", "user_id → target.id (int) + X-Tenant-Id"],
+  ["M8", "Act 3", "The safety gate", "Unfillable priority: refuse, invent nothing"],
+  ["M3", "Act 4", "200 OK drift", "Nested response. Then try M7, silent ignore"],
+];
 const $ = (id) => document.getElementById(id);
 
 function el(tag, text, attrs) {
@@ -502,6 +528,7 @@ function el(tag, text, attrs) {
   return node;
 }
 function note(text) { $("note").textContent = text || ""; }
+function formatJson(v) { try { return JSON.stringify(v, null, 2); } catch (e) { return String(v); } }
 
 /* ---------- demo simulator (used only when the API is unreachable) ---------- */
 const Demo = (() => {
@@ -741,12 +768,436 @@ async function act(path, body) {
 /* ---------- tabs ---------- */
 function showTab(name) {
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
-  for (const v of ["live", "explorer", "heals", "metrics", "report"]) $("view-" + v).hidden = v !== name;
-  if (name === "explorer") initExplorer();
+  for (const v of ["demo", "live", "heals", "metrics", "report"]) $("view-" + v).hidden = v !== name;
 }
 for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => showTab(b.dataset.tab);
 
-/* ---------- controls ---------- */
+/* ---------- shared rendering ---------- */
+const path = (p) => p.join(".");
+function opText(o) {
+  switch (o.op) {
+    case "move": return ["MOVE", path(o.from) + " → " + path(o.to)];
+    case "cast": return ["CAST", path(o.path) + " → " + o.to];
+    case "header": return ["HEADER", o.name + " ← config:" + o.src.key];
+    case "route": return ["ROUTE", o.method + " " + o.path];
+    default: return ["", JSON.stringify(o)];
+  }
+}
+function opChip(o, resp) {
+  const [verb, rest] = opText(o);
+  const s = el("span", null, { class: "op" + (resp ? " resp" : "") });
+  s.append(el("b", (resp ? "response " : "") + verb), " " + rest);
+  return s;
+}
+function opChips(fix) {
+  const wrap = el("div", null, { class: "ops" });
+  if (!fix) { wrap.appendChild(el("span", "No fix: refused", { class: "muted" })); return wrap; }
+  for (const o of fix.request_ops) wrap.appendChild(opChip(o, false));
+  for (const o of fix.response_ops) wrap.appendChild(opChip(o, true));
+  if (!fix.request_ops.length && !fix.response_ops.length) wrap.appendChild(el("span", "No operations", { class: "muted" }));
+  return wrap;
+}
+function badge(key, text) {
+  const b = el("span", text === undefined ? key : text, { class: "badge", "data-k": key });
+  if (CLASS_NAMES[key]) b.title = CLASS_NAMES[key];
+  return b;
+}
+// [tone, label] for one heal attempt: the enum codes, said plainly.
+function outcomeInfo(h) {
+  const ms = h.heal_ms ?? h.mttr_ms;
+  if (h.outcome === "RECOVERED") return ["good", "Healed in " + ms + " ms · Tier " + h.tier];
+  if (h.outcome === "NOT_DRIFT") return ["biz", "Business error · passed through"];
+  if (h.outcome === "ABORTED") return ["warn", "Safe refusal · " + h.reason];
+  return ["bad", h.outcome + (h.reason ? " · " + h.reason : "")];
+}
+function outcomePill(h) { const [k, t] = outcomeInfo(h); return el("span", t, { class: "tag " + k }); }
+function clock(ms) {
+  const d = new Date(ms);
+  return d.toLocaleTimeString([], { hour12: false }) + "." + String(ms % 1000).padStart(3, "0");
+}
+
+/* One stepper cell. `ts` are this agent's calls of `tool` so far; `heal` the heal on that tool, if any. */
+function stepState(ts, tool, o) {
+  if (!ts.length) return { k: "pending", note: o.done ? "Never reached" : STEP_LABEL[tool] };
+  const heal = o.heal || ts.map((t) => t.heal_event).filter(Boolean).pop();
+  if (heal) {
+    const [k, text] = outcomeInfo(heal);
+    return { k: { good: "healed", warn: "refused", biz: "biz" }[k] || "fail", note: k === "warn" ? text + " (retry: false)" : text };
+  }
+  const last = ts[ts.length - 1];
+  if (last.error_class === "OK") {
+    const d = o.details && o.details[{ update_email: "email", set_manager: "manager", create_ticket: "tickets" }[tool]];
+    if (d && d.checked !== false && !d.ok && o.done) return { k: "silent", note: "200 OK, but nothing was saved" };
+    return { k: "done", note: ts.length > 1 ? "OK after " + ts.length + " calls" : "OK" };
+  }
+  const code = (last.result && last.result.status_code) || last.error_class;
+  if (o.healing) return { k: "fail", note: code + " · error returned to agent" };
+  if (o.capped) return { k: "fail", note: code + " · iteration cap hit (" + o.total + "/" + MAX_CALLS + ")", capped: true };
+  return { k: "fail", note: code + " · same payload again (call " + o.total + "/" + MAX_CALLS + ")" };
+}
+function renderSteps(box, tools, traces, o) {
+  box.replaceChildren(...tools.map((tool, i) => {
+    const st = stepState(traces.filter((t) => t.tool === tool), tool, { ...o, heal: o.heals && o.heals[tool] });
+    const li = el("li", null, { class: "step" + (st.capped ? " capped" : ""), "data-k": st.k });
+    li.append(el("span", "Step " + (i + 1), { class: "step-n" }), el("b", tool), el("small", st.note));
+    return li;
+  }));
+}
+
+/* Drift banner: title, before → after, what the healer should do. */
+function bannerData(id) {
+  if (id === "CUSTOM") {
+    const s = customSpec();
+    return { id, title: "Your custom drift", tool: s.tool, before: JSON.stringify(TASK_ARGS[s.tool]), after: customAfter(s), expect: "Unscripted: watch whether the registry heals it or refuses it." };
+  }
+  const p = presets[id];
+  return p && { id, title: p.title, tool: p.tool_affected, before: p.before, after: p.after, expect: p.expect };
+}
+function renderBanner(box, id) {
+  const b = bannerData(id);
+  if (!b) { box.replaceChildren(); return; }
+  const clean = id === "CLEAN";
+  const wrap = el("div", null, { class: "banner" + (clean ? "" : " drift") });
+  const top = el("div", null, { class: "top-row" });
+  top.append(el("p", clean ? "No drift · API serves v1" : "Active API drift · " + id, { class: "eyebrow" }));
+  if (b.tool) top.append(el("span", b.tool, { class: "tag" }));
+  const diff = el("div", null, { class: "diff" });
+  const side = (label, text, cls) => { const d = el("div", null, { class: cls }); d.append(el("small", label), el("code", text)); return d; };
+  diff.append(side("Before · v1 agent schema", b.before, "before"), el("span", "→", { class: "arrow", "aria-hidden": "true" }), side(clean ? "After · unchanged" : "After · drifted wire schema", b.after, clean ? "before" : "after"));
+  const exp = el("div", null, { class: "expect" });
+  exp.append(el("span", "Expected: ", { class: "muted" }), el("b", b.expect));
+  wrap.append(top, el("h3", b.title), diff, exp);
+  box.replaceChildren(wrap);
+}
+
+/* ---------- demo tab ---------- */
+let presets = {}, expInfo = null, demoSel = "CLEAN", demoRun = 0, demoBusy = false;
+const demoChips = {}, lastHeal = {};
+
+function selectScenario(id) {
+  demoSel = id;
+  for (const [k, b] of Object.entries(demoChips)) b.setAttribute("aria-pressed", String(k === id));
+  for (const c of document.querySelectorAll(".act")) c.setAttribute("aria-pressed", String(c.dataset.id === id));
+  $("custom").hidden = id !== "CUSTOM";
+  if (presets[id]) $("prompt").value = presets[id].query;
+  else if (id === "CUSTOM") $("prompt").value = presets.CLEAN ? presets.CLEAN.query : "";
+  renderBanner($("demo-banner"), id);
+}
+for (const [id, label, title, sub] of ACTS) {
+  const b = el("button", null, { class: "act", "data-id": id, "aria-pressed": "false" });
+  b.append(el("small", label + " · " + (id === "CLEAN" ? "no drift" : id)), el("b", title), el("span", sub));
+  b.onclick = () => selectScenario(id);
+  $("acts").appendChild(b);
+}
+for (const [id, text, tool] of [["CLEAN", "No drift", "v1"], ...GROUPS.flatMap((g) => g[2]), ["CUSTOM", "Custom drift…", "any tool"]]) {
+  const b = el("button", null, { class: "chip", "aria-pressed": "false", title: tool + ": " + text });
+  b.append(el("b", id === "CLEAN" || id === "CUSTOM" ? text : id + " " + text), el("i", tool));
+  b.onclick = () => selectScenario(id);
+  demoChips[id] = b;
+  $("scenarios").appendChild(b);
+}
+
+/* custom drift builder: one tool, any mix of the five changes the mock can make */
+function fillFields() {
+  const fields = Object.keys(TASK_ARGS[$("c-tool").value]);
+  $("c-from").replaceChildren(el("option", "(none)", { value: "" }), ...fields.map((f) => el("option", f, { value: f })));
+  $("c-int").replaceChildren(el("option", "(none)", { value: "" }), ...fields.map((f) => el("option", f, { value: f })));
+}
+$("c-tool").replaceChildren(...TOOLS.map((t) => el("option", t, { value: t })));
+fillFields();
+$("c-from").value = "user_id"; $("c-to").value = "account_id";
+$("c-tool").onchange = () => { fillFields(); renderBanner($("demo-banner"), demoSel); };
+for (const id of ["c-from", "c-to", "c-int", "c-wrap", "c-header", "c-req"]) $(id).oninput = () => renderBanner($("demo-banner"), demoSel);
+function customSpec() {
+  const v = (id) => $(id).value.trim();
+  const s = { tool: v("c-tool") };
+  if (v("c-from") && v("c-to")) s.rename = { [v("c-from")]: v("c-to") };
+  for (const [k, id] of [["to_int", "c-int"], ["wrap", "c-wrap"], ["header", "c-header"], ["require", "c-req"]]) if (v(id)) s[k] = v(id);
+  return s;
+}
+function customAfter(s) {
+  let d = { ...TASK_ARGS[s.tool] };
+  if (s.to_int) d[s.to_int] = /^\d+$/.test(d[s.to_int]) ? Number(d[s.to_int]) : "‹int›";
+  for (const [from, to] of Object.entries(s.rename || {})) { d[to] = d[from]; delete d[from]; }
+  if (s.require) d[s.require] = "‹required›";
+  if (s.wrap) d = { [s.wrap]: d };
+  return JSON.stringify(d) + (s.header ? "  + header " + s.header : "");
+}
+
+async function initDemo() {
+  try {
+    expInfo = await call("/api/explorer/info");
+  } catch (err) {
+    $("demo-status").textContent = "Explorer info unavailable: " + err.message;
+    return;
+  }
+  for (const p of expInfo.predefined_queries) presets[p.mutation || "CLEAN"] = p;
+  renderReference(expInfo);
+  if (expInfo.llm_available) $("llm-status").textContent = "LLM: " + expInfo.llm_model;
+  else {
+    document.querySelector("input[name=mode][value=llm]").disabled = true;
+    $("llm-label").title = "Set OPENROUTER_API_KEY to enable the live LLM";
+    $("llm-status").textContent = "No OPENROUTER_API_KEY: scripted agents only";
+  }
+  selectScenario(demoSel);
+  if (lastLiveMut !== undefined) renderBanner($("live-banner"), lastLiveMut || "CLEAN");
+}
+
+async function runDemo() {
+  if (demoBusy) return;
+  demoBusy = true;
+  const status = $("demo-status");
+  $("run-demo").disabled = true;
+  status.className = "pill warn";
+  status.replaceChildren(el("span", null, { class: "spinner" }), " Running both agents");
+  try {
+    const agent = document.querySelector("input[name=mode]:checked").value;
+    const res = await call("/api/explore", {
+      query: $("prompt").value,
+      mutation: demoSel === "CLEAN" ? null : demoSel,
+      agent,
+      custom: demoSel === "CUSTOM" ? customSpec() : null,
+    });
+    status.className = "pill plain";
+    status.textContent = "Replaying " + ((res.healing.traces || []).length + (res.baseline.traces || []).length) + " tool calls";
+    replay(res);
+  } catch (err) {
+    status.className = "pill bad";
+    status.textContent = "Failed: " + err.message;
+  } finally {
+    demoBusy = false;
+    $("run-demo").disabled = false;
+  }
+}
+$("run-demo").onclick = runDemo;
+$("reset-demo").onclick = async () => {
+  demoRun++;
+  try { await call("/api/reset", {}); } catch (err) { $("demo-status").textContent = err.message; return; }
+  $("demo-results").hidden = true;
+  $("demo-status").className = "pill plain";
+  $("demo-status").textContent = "Mocks reset";
+  poll();
+};
+for (const b of document.querySelectorAll("[data-fold]")) {
+  b.onclick = () => { for (const d of $("d-calls-" + b.dataset.fold).querySelectorAll("details.call")) d.open = b.dataset.open === "1"; };
+}
+
+/* One tool call as an accordion row; the agent input, wire traffic and output fold separately. */
+function jsonBlock(label, value, open) {
+  const d = el("details", null, { class: "json" });
+  d.open = open;
+  d.append(el("summary", label), el("pre", formatJson(value)));
+  return d;
+}
+function wireBlock(wire, heal) {
+  const d = el("details", null, { class: "json" });
+  d.open = !!heal;
+  d.append(el("summary", "On the wire · " + wire.length + (wire.length > 1 ? " requests" : " request")));
+  wire.forEach((w, i) => {
+    const row = el("div", null, { class: "wire" });
+    const head = el("div", null, { class: "wire-head" });
+    head.append(el("span", w.method + " " + w.path, { class: "mono" }));
+    if (w.path === "/openapi.json") head.append(el("span", "diagnose: fetch live spec", { class: "tag biz" }));
+    else if (w.path.endsWith("/validate")) head.append(el("span", "preverify, read-only", { class: "tag biz" }));
+    else if (i > 0) head.append(el("span", heal && heal.outcome === "RECOVERED" ? "patched replay" : "retry", { class: "tag " + (heal ? "good" : "") }));
+    else if (heal) head.append(el("span", "rejected v1 call", { class: "tag bad" }));
+    for (const h of w.headers || []) head.append(el("span", "+ " + h, { class: "tag" }));
+    row.append(head);
+    if (w.body !== null && w.body !== undefined) row.append(el("pre", formatJson(w.body)));
+    d.append(row);
+  });
+  return d;
+}
+function healBox(h) {
+  const [k, text] = outcomeInfo(h);
+  const box = el("div", null, { class: "heal " + k });
+  const title = el("div", null, { class: "heal-title" });
+  title.append(el("b", { good: "Hot-patched in memory", warn: "Refused by construction", biz: "Not schema drift" }[k] || "Patch failed verification"), el("span", text, { class: "muted" }));
+  box.append(title, el("div", ["class " + h.class, "HTTP " + h.raw_code, "path " + (h.path || "-"), "MTTR " + h.mttr_ms + " ms"].join(" · "), { class: "heal-facts" }));
+  if (h.fix) box.append(opChips(h.fix));
+  if (k === "warn") box.append(el("p", "0 invented values. The agent gets retry: false and stops on this call.", { class: "hint" }));
+  if (k === "biz") box.append(el("p", "The spec is unchanged, so the error is the agent's to handle. No patch, no replay.", { class: "hint" }));
+  return box;
+}
+function callCard(t, healing, i) {
+  const h = t.heal_event;
+  const d = el("details", null, { class: "call" });
+  d.open = !!h;
+  const sum = el("summary");
+  const code = t.result && t.result.status_code;
+  sum.append(el("span", String(i + 1).padStart(2, "0"), { class: "num" }), el("code", t.tool, { class: "tool" }), badge(t.error_class));
+  if (code && code >= 400) sum.append(el("span", "HTTP " + code, { class: "tag bad" }));
+  if (t.is_retry) sum.append(el("span", "same payload ×" + (t.retry_count + 1), { class: "tag bad" }));
+  if (h) sum.append(outcomePill(h));
+  sum.append(el("span", t.latency_ms + " ms", { class: "ms" }), el("span", null, { class: "plus", "aria-hidden": "true" }));
+  const body = el("div", null, { class: "call-body" });
+  body.append(jsonBlock("Agent input · frozen v1 schema", t.args, true));
+  if (t.coerced && t.coerced.length) body.append(el("p", "Lossless coercion to v1: " + t.coerced.map((c) => c.field + " " + JSON.stringify(c.from) + " → " + JSON.stringify(c.to)).join(", "), { class: "hint" }));
+  if (h) body.append(healBox(h));
+  if (t.wire && t.wire.length) body.append(wireBlock(t.wire, h));
+  body.append(jsonBlock(healing ? "Output · returned to agent" : "Output · raw response to agent", t.result, true));
+  if (!healing && t.error_class !== "OK") body.append(el("p", "The raw error goes straight back to the LLM, which re-sends the same payload.", { class: "hint bad" }));
+  d.append(sum, body);
+  return d;
+}
+
+function renderRegistry(snap, healed) {
+  $("registry").replaceChildren(...TOOLS.map((tool) => {
+    const r = snap && snap[tool];
+    const patched = !!(r && r.fix && healed.has(tool));
+    const card = el("div", null, { class: "reg" + (patched ? " patched" : "") });
+    const head = el("div", null, { class: "reg-head" });
+    head.append(el("code", tool), el("span", patched ? "v" + r.version + " · PATCHED" : "v1", { class: "tag" + (patched ? " good" : "") }));
+    const dl = el("dl");
+    const row = (k, v, wide) => { const dd = el("dd", null, wide ? { class: "wide" } : {}); dd.append(v); dl.append(el("dt", k, wide ? { class: "wide" } : {}), dd); };
+    row("agent_schema", "Frozen at v1 · 0 extra prompt tokens");
+    row("wire_schema", patched ? "Synced to the live API" : "v1");
+    if (patched) row("active DSL patch", opChips(r.fix), true);
+    else row("active patch", el("span", "none", { class: "muted" }));
+    card.append(head, dl);
+    return card;
+  }));
+}
+function renderSchemaDiff(schemas) {
+  $("schema-grid").replaceChildren(...Object.entries(schemas || {}).map(([name, s]) => {
+    const c = el("div", null, { class: "schema-col" });
+    const head = el("div", null, { class: "reg-head" });
+    head.append(el("code", name), el("span", s.input_drift ? "input drift" : s.output_drift ? "output drift" : "no drift", { class: "tag " + (s.input_drift || s.output_drift ? "bad" : "good") }));
+    c.append(head,
+      el("small", "Agent input · v1, frozen", { class: "muted" }), el("pre", formatJson(s.agent_input)),
+      el("small", "Wire input · live API", { class: "muted" }), el("pre", formatJson(s.actual_input), { class: s.input_drift ? "drift" : "" }));
+    if (s.output_drift) c.append(el("small", "Wire output · live API", { class: "muted" }), el("pre", formatJson(s.actual_output), { class: "drift" }));
+    return c;
+  }));
+}
+
+const STEP_MS = 420;
+function replay(res) {
+  const run = ++demoRun;
+  const tools = CONTROL_TOOLS[res.mutation] || TOOLS;
+  const shown = { healing: [], baseline: [] };
+  const healed = new Set();
+  $("demo-results").hidden = false;
+  $("verdict").replaceChildren();
+  $("agent-info").hidden = true;
+  renderRegistry(res.registry, healed);
+  renderSchemaDiff(res.tool_schemas);
+  const steps = (a, done) => renderSteps($("d-steps-" + a), tools, shown[a], {
+    healing: a === "healing", details: res[a].correctness_details, done, total: shown[a].length,
+    capped: done && res[a].hit_limit,
+  });
+  for (const a of AGENTS) {
+    $("d-calls-" + a).replaceChildren();
+    steps(a, false);
+    $("d-status-" + a).className = "pill warn";
+    $("d-status-" + a).textContent = "running";
+  }
+  $("demo-results").scrollIntoView({ behavior: "smooth", block: "start" });
+  const tick = () => {
+    if (run !== demoRun) return;
+    let more = false;
+    for (const a of AGENTS) {
+      const traces = res[a].traces || [];
+      const i = shown[a].length;
+      if (i >= traces.length) continue;
+      const t = traces[i];
+      shown[a].push(t);
+      const list = $("d-calls-" + a);
+      const card = list.appendChild(callCard(t, a === "healing", i));
+      list.scrollTop = card.offsetTop - 4;  // the new call's header, even when its body is open
+      if (t.heal_event && t.heal_event.outcome === "RECOVERED") { healed.add(t.tool); renderRegistry(res.registry, healed); }
+      steps(a, false);
+      more = more || i + 1 < traces.length;
+    }
+    if (more) setTimeout(tick, STEP_MS);
+    else finish(res, steps);
+  };
+  setTimeout(tick, 250);
+}
+function finish(res, steps) {
+  for (const a of AGENTS) {
+    steps(a, true);
+    if (!(res[a].traces || []).length) $("d-calls-" + a).replaceChildren(el("div", res[a].error || "No tool calls recorded.", { class: "empty" }));
+    const healCard = $("d-calls-" + a).querySelector("details.call[open]");
+    if (healCard) $("d-calls-" + a).scrollTop = healCard.offsetTop - 4;  // end on the heal, the moment that matters
+  }
+  const h = res.healing, b = res.baseline;
+  const heals = (h.traces || []).map((t) => t.heal_event).filter(Boolean);
+  // M8 / M6-N end "correct" (nothing written), but the story is the refusal.
+  const hStatus = h.status !== "error" && heals.some((e) => e.outcome === "ABORTED") ? "refused" : h.status;
+  const hs = { done: ["good", "Task complete"], refused: ["warn", "Safe refusal · stopped"], error: ["bad", "LLM error"] }[hStatus] || ["bad", "Incomplete"];
+  $("d-status-healing").className = "pill " + hs[0];
+  $("d-status-healing").textContent = hs[1];
+  const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "False success · data not saved"];
+  $("d-status-baseline").className = "pill " + bs[0];
+  $("d-status-baseline").textContent = bs[1];
+  for (const e of heals) if (e.outcome === "RECOVERED") lastHeal[e.tier] = e.heal_ms ?? e.mttr_ms;
+  for (const t of ["0", "1"]) if (lastHeal[t] !== undefined) $("strip-t" + t).textContent = lastHeal[t] + " ms";
+  renderVerdict(res, heals, hStatus);
+  $("demo-status").className = "pill plain";
+  $("demo-status").textContent = "Done · run again to hit the tier-0 cache";
+}
+function renderVerdict(res, heals, hStatus) {
+  const box = $("verdict");
+  const row = (label, val, good) => { const r = el("div", null, { class: "vrow" }); r.append(el("span", label, { class: "muted" }), el("span", String(val), { class: good === undefined ? "" : good ? "val-good" : "val-bad" })); return r; };
+  const dataRows = (d) => !d ? [row("Data", "no data: the agents did not run", false)] : [
+    row("Email in the database", (d.email.value || "none") + (d.email.ok ? " ✓" : " ✗"), d.email.ok),
+    row("Manager", (d.manager.value || "none") + (d.manager.ok ? " ✓" : " ✗"), d.manager.ok),
+    row("Tickets", d.tickets.count + (d.tickets.ok ? " ✓" : " ✗"), d.tickets.ok),
+  ];
+  const h = res.healing, b = res.baseline;
+  const fixed = heals.filter((e) => e.outcome === "RECOVERED");
+  const refused = heals.filter((e) => e.outcome === "ABORTED");
+  const hTone = { done: "good", refused: "warn" }[hStatus] || "bad";
+  const hc = el("div", null, { class: "card vcard " + hTone });
+  hc.append(el("h3", "Self-healing agent"),
+    row("Tool calls", h.tool_calls),
+    row("Heals", fixed.length ? fixed.map((e) => e.tool + " in " + (e.heal_ms ?? e.mttr_ms) + " ms (tier " + e.tier + ")").join(", ") : "none needed", true),
+    row("Safe refusals", refused.length ? refused.map((e) => e.tool + ": " + e.reason).join(", ") : "none", refused.length ? undefined : true),
+    row("Invented values", "0", true),
+    ...dataRows(h.correctness_details),
+    row("Outcome", hStatus === "done" ? "Correct state" : hStatus === "refused" ? "Stopped safely, nothing corrupted" : "Did not finish", hTone !== "bad"));
+  const bc = el("div", null, { class: "card vcard " + (b.data_correct && !b.hit_limit ? "good" : "bad") });
+  bc.append(el("h3", "Baseline agent"),
+    row("Tool calls", b.tool_calls + (b.hit_limit ? " · cap hit" : ""), !b.hit_limit),
+    row("Heals", "none: raw errors go back to the LLM"),
+    ...dataRows(b.correctness_details),
+    row("Outcome", b.hit_limit ? "Looped until the iteration cap" : b.data_correct ? "Correct state" : "Reported success, data wrong", b.data_correct && !b.hit_limit));
+  box.replaceChildren(bc, hc);
+  const info = $("agent-info");
+  info.replaceChildren();
+  if (res.agent === "llm") {
+    info.append(el("div", "Live LLM · " + ((h.llm_tokens || 0) + (b.llm_tokens || 0)) + " tokens across both agents"));
+    for (const [label, side] of [["Baseline said", b], ["Self-healing agent said", h]]) {
+      if (side.final_text) info.append(el("div", label + ": " + side.final_text));
+      if (side.error) info.append(el("div", label.split(" ")[0] + " error: " + side.error, { class: "val-bad" }));
+    }
+  }
+  info.hidden = !info.childNodes.length;
+}
+
+function renderReference(info) {
+  $("ref-tools").replaceChildren(...Object.entries(info.mock_info.tools).map(([name, t]) => {
+    const tr = el("tr");
+    tr.append(el("td", name, { class: "mono" }), el("td", t.method + " " + t.path, { class: "mono" }), el("td", (t.postchecks || []).map((p) => p.type + (p.response ? " " + p.response.join(".") : "")).join(", ") || "none"));
+    return tr;
+  }));
+  $("ref-muts").replaceChildren(...info.predefined_queries.filter((p) => p.mutation).map((p) => {
+    const tr = el("tr"), cls = el("td");
+    cls.append(badge(p.error_class));
+    tr.append(el("td", p.mutation, { class: "mono" }), el("td", p.tool_affected || "-", { class: "mono" }), cls, el("td", p.description));
+    return tr;
+  }));
+  $("ref-errors").replaceChildren(...info.error_classes.map((e) => {
+    const d = el("div");
+    const top = el("div", null, { style: "display:flex; gap:6px; align-items:center; margin-bottom:4px" });
+    top.append(badge(e.code), el("b", e.name));
+    d.append(top, el("div", e.description, { class: "muted" }), el("div", "Action: " + e.action));
+    return d;
+  }));
+}
+
+/* ---------- live tab ---------- */
 const mutationButtons = {};
 for (const [title, hint, items] of GROUPS) {
   const g = el("div");
@@ -768,37 +1219,9 @@ $("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_
 $("start-llm").onclick = () => act("/api/start", { agent: "llm" });
 $("reset").onclick = () => act("/api/reset", {});
 
-/* ---------- rendering ---------- */
-const path = (p) => p.join(".");
-function opText(o) {
-  switch (o.op) {
-    case "move": return "move " + path(o.from) + " → " + path(o.to);
-    case "cast": return "cast " + path(o.path) + " → " + o.to;
-    case "header": return "header " + o.name + " ← config " + o.src.key;
-    case "route": return "route " + o.method + " " + o.path;
-    default: return JSON.stringify(o);
-  }
-}
-function badge(key, text) {
-  const b = el("span", text === undefined ? key : text, { class: "badge", "data-k": key });
-  if (CLASS_NAMES[key]) b.title = CLASS_NAMES[key];
-  return b;
-}
-function clock(ms) {
-  const d = new Date(ms);
-  return d.toLocaleTimeString([], { hour12: false }) + "." + String(ms % 1000).padStart(3, "0");
-}
-function opChips(fix) {
-  const wrap = el("div", null, { class: "ops" });
-  if (!fix) { wrap.appendChild(el("span", "No fix (refused)", { style: "color:var(--muted)" })); return wrap; }
-  for (const o of fix.request_ops) wrap.appendChild(el("span", opText(o), { class: "op" }));
-  for (const o of fix.response_ops) wrap.appendChild(el("span", "response: " + opText(o), { class: "op resp" }));
-  if (!fix.request_ops.length && !fix.response_ops.length) wrap.appendChild(el("span", "No operations", { style: "color:var(--muted)" }));
-  return wrap;
-}
-
-let after = 0, epoch = null, healSig = "", busy = false, connected = false;
+let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut;
 const counts = { healing: 0, baseline: 0 };
+const liveCalls = { healing: [], baseline: [] };
 
 function emptyCalls(agent) {
   const li = el("li", null, { class: "emptyrow" });
@@ -807,7 +1230,7 @@ function emptyCalls(agent) {
 }
 function clearView() {
   after = 0; healSig = "";
-  for (const a of AGENTS) { counts[a] = 0; emptyCalls(a); }
+  for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; emptyCalls(a); }
 }
 function addCall(e) {
   const list = $("calls-" + e.agent);
@@ -815,10 +1238,11 @@ function addCall(e) {
   if (list.querySelector(".emptyrow")) list.replaceChildren();
   const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 8;
   const li = el("li");
-  li.append(el("span", clock(e.ts_ms), { class: "time" }), el("span", e.tool, { class: "tool" }), badge(e.class), el("span", e.latency_ms + " ms", { class: "ms" }));
+  li.append(el("span", clock(e.ts_ms), { class: "time" }), el("span", e.tool, { class: "tool" }), badge(e.class), el("span", e.latency_ms + " ms", { class: "lat" }));
   list.appendChild(li);
   if (stick) list.scrollTop = list.scrollHeight;
   counts[e.agent] += 1;
+  liveCalls[e.agent].push({ tool: e.tool, error_class: e.class });
 }
 function stat(label, value) {
   const s = el("div", null, { class: "stat" });
@@ -831,6 +1255,8 @@ function renderRun(agent, s) {
   status.textContent = run.status;
   status.className = "pill " + ({ running: "warn", done: "good", error: "bad" }[run.status] || "");
   $("cap-" + agent).hidden = !run.hit_limit;
+  const heals = agent === "healing" ? Object.fromEntries(s.heals.map((h) => [h.tool, h])) : {};
+  renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, total: counts[agent], capped: run.hit_limit });
   const data = s.mocks[agent].data, user = data.users["123"];
   const stats = [stat("Tool calls", counts[agent]), stat("Email", user.email), stat("Manager", user.manager_id || "none"), stat("Tickets", data.tickets.length)];
   if (run.llm_tokens) stats.push(stat("Tokens", run.llm_tokens));
@@ -838,19 +1264,6 @@ function renderRun(agent, s) {
   const err = $("err-" + agent);
   err.hidden = !run.error;
   err.textContent = run.error ? "Error: " + run.error : "";
-}
-function renderLatest(heals) {
-  const box = $("latest");
-  box.replaceChildren();
-  if (!heals.length) {
-    box.appendChild(el("span", "No heals yet. Break the API to see the registry repair a tool call.", { class: "none" }));
-    return;
-  }
-  const h = heals[heals.length - 1];
-  box.append(el("span", "Latest heal", { class: "t" }), el("code", h.tool), badge(h.class), el("span", "→"), badge(h.outcome));
-  if (h.reason) box.appendChild(el("span", h.reason, { class: "op" }));
-  box.appendChild(opChips(h.fix));
-  box.appendChild(el("span", h.mttr_ms + " ms", { class: "time" }));
 }
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
@@ -860,7 +1273,7 @@ function renderHeals(heals) {
   const body = $("heals");
   body.replaceChildren();
   if (!heals.length) {
-    body.appendChild(el("tr")).appendChild(el("td", "No heals yet. Break the API during a run and they will appear here.", { colspan: "9", class: "empty" }));
+    body.appendChild(el("tr")).appendChild(el("td", "No heals yet. Run a scenario on the Demo tab, or break the API during a live run.", { colspan: "9", class: "empty" }));
     return;
   }
   const cell = (child) => { const td = el("td"); td.append(child); return td; };
@@ -869,11 +1282,15 @@ function renderHeals(heals) {
     const first = el("td"); first.append(el("span", "▸", { class: "chev" }), clock(h.ts_ms));
     const fixCell = el("td"); fixCell.append(opChips(h.fix));
     fixCell.style.whiteSpace = "normal"; fixCell.style.minWidth = "260px";
-    tr.append(first, el("td", h.tool), cell(badge(h.class)), el("td", String(h.tier)), el("td", h.path || "-"), cell(badge(h.outcome)), el("td", h.reason || "-"), el("td", h.mttr_ms + " ms"), fixCell);
+    const [k, text] = outcomeInfo(h);
+    const outcome = el("td"); outcome.append(el("span", k === "warn" ? "Safe refusal · 0 invented values" : k === "biz" ? "Business error pass-through" : text.split(" · ")[0], { class: "tag " + k }));
+    if (h.reason && h.reason !== "NOT_DRIFT") outcome.append(" ", el("span", h.reason, { class: "tag" }));
+    tr.append(first, el("td", h.tool, { class: "mono" }), cell(badge(h.class)), el("td", String(h.tier)), el("td", h.path || "-"), outcome,
+      el("td", h.mttr_ms + " ms"), el("td", h.heal_ms === undefined || h.heal_ms === null ? "-" : h.heal_ms + " ms"), fixCell);
     const dt = el("tr", null, { class: "detail", hidden: "" });
     const dd = el("td", null, { colspan: "9" });
     const grid = el("div", null, { class: "detail-grid" });
-    const item = (k, v) => { const d = el("div"); d.append(el("small", k), el("code", v)); return d; };
+    const item = (key, v) => { const d = el("div"); d.append(el("small", key), el("code", v)); return d; };
     grid.append(item("Fingerprint", h.fingerprint || "-"), item("Raw code", String(h.raw_code ?? "-")), item("Fix id", String(h.fix_id ?? "-")), item("Jev tokens", String(h.jev_tokens ?? 0)));
     dd.appendChild(grid); dt.appendChild(dd);
     const toggle = () => { const open = dt.hidden; dt.hidden = !open; tr.classList.toggle("open", open); tr.setAttribute("aria-expanded", String(open)); };
@@ -892,18 +1309,16 @@ function metric(title, value, unit, sub) {
 }
 function renderMetrics(m) {
   const by = m.outcomes.by_outcome;
-  const recovered = by.RECOVERED || 0, refused = by.ABORTED || 0;
-  const other = Object.values(by).reduce((a, b) => a + b, 0) - recovered - refused;
   const tier = (t, name) => {
     const x = m.mttr[t];
     if (!x) return metric("Tier " + t + " MTTR · " + name, "–", "", "No recovered heals yet");
     return metric("Tier " + t + " MTTR · " + name, String(Math.round(x.p50_ms)), "ms p50", "p95 " + Math.round(x.p95_ms) + " ms · n=" + x.n);
   };
   $("metrics").replaceChildren(
-    metric("Recovered", String(recovered), "", "Heals that passed verification"),
-    metric("Refused", String(refused), "", "Safely aborted, nothing invented"),
-    metric("Other", String(other), "", "Verify failed or not drift"),
-    tier("1", "diff / Jev"), tier("0", "cache"),
+    metric("Recovered", String(by.RECOVERED || 0), "", "Patched, replayed once, verified"),
+    metric("Safe refusals", String(by.ABORTED || 0), "", "Aborted with 0 invented values"),
+    metric("Passed through", String(by.NOT_DRIFT || 0), "", "Business errors, not drift"),
+    tier("1", "diff / tie-breaker"), tier("0", "fix cache"),
   );
   const reasons = Object.entries(m.outcomes.by_reason);
   $("reasons").hidden = !reasons.length;
@@ -911,12 +1326,12 @@ function renderMetrics(m) {
 }
 function render(s) {
   const chip = $("mutation-chip");
-  chip.textContent = s.active_mutation ? "Mutation " + s.active_mutation : "No mutation";
+  chip.textContent = s.active_mutation ? "Live mutation " + s.active_mutation : "No mutation";
   chip.className = "pill " + (s.active_mutation ? "bad" : "plain");
   for (const [id, b] of Object.entries(mutationButtons)) b.setAttribute("aria-pressed", String(id === s.active_mutation));
+  if (s.active_mutation !== lastLiveMut) { lastLiveMut = s.active_mutation; renderBanner($("live-banner"), lastLiveMut || "CLEAN"); }
   for (const e of s.events) { addCall(e); after = e.event_id; }
   for (const a of AGENTS) renderRun(a, s);
-  renderLatest(s.heals);
   renderHeals(s.heals);
   renderMetrics(s.metrics);
 }
@@ -946,463 +1361,8 @@ function loadReport() {
   }).catch(() => {});
 }
 clearView();
-poll().then(loadReport);
+poll().then(() => { loadReport(); initDemo(); });
 setInterval(poll, 500);
-
-/* ========================================================================== */
-/* EXPLORER TAB LOGIC                                                         */
-/* ========================================================================== */
-let expInfo = null;
-let expSelectedPreset = null;
-let expBusy = false;
-
-function formatJson(obj) {
-  try {
-    return JSON.stringify(obj, null, 2);
-  } catch (e) {
-    return String(obj);
-  }
-}
-
-async function initExplorer() {
-  if (expInfo) return;
-  try {
-    expInfo = await call("/api/explorer/info");
-    renderExplorerRef(expInfo);
-    populateExplorerPresets(expInfo.predefined_queries);
-    // Show key/model availability status
-    const statusDiv = $("exp-agent-status");
-    const llmRadio = document.querySelector("input[name='exp-agent-mode'][value='llm']");
-    if (statusDiv) {
-      if (expInfo.llm_available) {
-        statusDiv.textContent = `OpenRouter key configured — model ${expInfo.llm_model}`;
-        statusDiv.className = "pill good";
-      } else {
-        statusDiv.textContent = "No OPENROUTER_API_KEY — live LLM disabled";
-        statusDiv.className = "pill warn";
-        // Do not offer a mode the backend cannot serve.
-        if (llmRadio) { llmRadio.disabled = true; llmRadio.closest("label").style.opacity = ".45"; }
-      }
-    }
-  } catch (err) {
-    console.error("Failed to load explorer info:", err);
-  }
-}
-
-function renderExplorerRef(info) {
-  // 1. Tools table
-  const toolsBody = $("ref-tools-body");
-  if (toolsBody) {
-    toolsBody.replaceChildren();
-    for (const [name, t] of Object.entries(info.mock_info.tools)) {
-      const tr = el("tr");
-      const postchecksStr = (t.postchecks || []).map(p => p.type + (p.response ? ` (${p.response.join(".")})` : "")).join(", ");
-      tr.append(
-        el("td", name, { style: "font-family:ui-monospace,Menlo,monospace; font-weight:600" }),
-        el("td", t.method + " " + t.path, { style: "font-family:ui-monospace,Menlo,monospace; font-size:11px" }),
-        el("td", t.idempotent ? "Idempotent" : "Non-idempotent"),
-        el("td", postchecksStr || "None", { style: "font-size:11px; color:var(--muted)" })
-      );
-      toolsBody.appendChild(tr);
-    }
-  }
-
-  // 2. Mutations table
-  const mutsBody = $("ref-mutations-body");
-  if (mutsBody) {
-    mutsBody.replaceChildren();
-    for (const p of info.predefined_queries) {
-      if (!p.mutation) continue;
-      const tr = el("tr");
-      tr.append(
-        el("td", p.mutation, { style: "font-weight:700; color:var(--e2)" }),
-        el("td", p.tool_affected || "-", { style: "font-family:ui-monospace,Menlo,monospace" }),
-        el("td", p.description, { style: "font-size:11.5px" }),
-        el("td", null).appendChild(badge(p.error_class)),
-        el("td", p.demonstrates, { style: "font-size:11px; color:var(--ink-2)" })
-      );
-      mutsBody.appendChild(tr);
-    }
-  }
-
-  // 3. Error classes grid
-  const errorsGrid = $("ref-errors-grid");
-  if (errorsGrid) {
-    errorsGrid.replaceChildren();
-    for (const e of info.error_classes) {
-      const card = el("div", null, { class: "exp-box", style: "padding:8px 10px; background:var(--panel)" });
-      const top = el("div", null, { style: "display:flex; align-items:center; gap:6px; margin-bottom:4px" });
-      top.append(badge(e.code), el("b", e.name, { style: "font-size:12px" }));
-      card.append(
-        top,
-        el("p", e.description, { style: "font-size:11.5px; color:var(--muted); margin:0 0 4px" }),
-        el("small", "Action: " + e.action, { style: "font-size:11px; color:var(--ink-2); font-weight:550; display:block" })
-      );
-      errorsGrid.appendChild(card);
-    }
-  }
-}
-
-function populateExplorerPresets(presets) {
-  const select = $("exp-preset-select");
-  if (!select) return;
-  select.replaceChildren();
-
-  presets.forEach((p, idx) => {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = `${p.title} [${p.error_class}]`;
-    select.appendChild(opt);
-  });
-
-  select.onchange = () => {
-    const chosen = presets.find(p => p.id === select.value);
-    applyPreset(chosen);
-  };
-
-  if (presets.length > 0) {
-    applyPreset(presets[0]);
-  }
-}
-
-function applyPreset(p) {
-  expSelectedPreset = p;
-  if (!p) return;
-  $("exp-query-text").value = p.query;
-
-  const chip = $("exp-active-mutation-chip");
-  if (chip) {
-    chip.textContent = p.mutation ? "Mutation: " + p.mutation : "No mutation (Clean)";
-    chip.className = "pill " + (p.mutation ? "bad" : "good");
-  }
-
-  const desc = $("exp-scenario-desc");
-  if (desc) {
-    desc.replaceChildren();
-    desc.innerHTML = `<div><b>Scenario:</b> ${p.title}</div>
-      <div style="margin-top:2px"><b>Drift Mechanism:</b> ${p.description}</div>
-      <div style="margin-top:2px; color:var(--accent)"><b>Demonstration Goal:</b> ${p.demonstrates}</div>`;
-  }
-}
-
-async function runExplorer() {
-  if (expBusy) return;
-  expBusy = true;
-
-  const btn = $("exp-run-btn");
-  const spinner = $("exp-spinner");
-  const status = $("exp-run-status");
-
-  btn.disabled = true;
-  spinner.hidden = false;
-  status.textContent = "Executing tool calls...";
-
-  try {
-    const query = $("exp-query-text").value;
-    const mutation = expSelectedPreset ? expSelectedPreset.mutation : null;
-
-    // Read agent mode from radio buttons
-    const agent = (document.querySelector("input[name='exp-agent-mode']:checked") || { value: "scripted" }).value;
-
-    const res = await call("/api/explore", { query, mutation, agent });
-    renderExplorerResults(res);
-    const failed = res.healing.status === "error" ? res.healing.error
-      : res.baseline.status === "error" ? res.baseline.error : null;
-    // Full error detail already renders per-agent below; keep the pill short.
-    const short = failed && failed.length > 160 ? failed.slice(0, 160) + "…" : failed;
-    status.textContent = failed ? "Completed with errors — " + short : "Comparison completed";
-    if (failed) status.title = failed;
-  } catch (err) {
-    // Surface backend 400 errors (e.g. missing OPENROUTER_API_KEY) in status line
-    status.textContent = "Failed: " + (err.message || err);
-    note("Explorer error: " + (err.message || err));
-  } finally {
-    expBusy = false;
-    btn.disabled = false;
-    spinner.hidden = true;
-  }
-}
-
-function renderExplorerResults(res) {
-  $("exp-results").hidden = false;
-
-  // 1. Render active runtime schema drift cards
-  renderSchemaDriftCards(res.tool_schemas);
-
-  // 2. Render Healing Agent traces
-  renderTraces("exp-healing-traces", res.healing.traces, true);
-  const statusText = (side) => side.status === "error" ? "LLM Error" : side.status === "iteration_cap" ? "Iteration Cap (10 Loops)" : "Task Complete";
-  const healStatus = $("exp-healing-status");
-  healStatus.textContent = statusText(res.healing);
-  healStatus.className = "pill " + (res.healing.status === "error" ? "bad" : res.healing.data_correct ? "good" : "warn");
-
-  // 3. Render Baseline Agent traces
-  renderTraces("exp-baseline-traces", res.baseline.traces, false);
-  const baseStatus = $("exp-baseline-status");
-  baseStatus.textContent = res.baseline.status === "error" ? "LLM Error"
-    : res.baseline.hit_limit ? "Iteration Cap (10 Loops)"
-    : (res.baseline.data_correct ? "Task Complete" : "False Data Fed");
-  baseStatus.className = "pill " + (res.baseline.status === "error" || !res.baseline.data_correct ? "bad" : "good");
-
-  // 5. Render agent mode info and LLM metrics when present
-  const agentInfo = $("exp-agent-info");
-  if (agentInfo) {
-    agentInfo.hidden = false;
-    agentInfo.style.display = "block";
-    const tokens = (res.healing.llm_tokens || 0) + (res.baseline.llm_tokens || 0);
-    // textContent everywhere: agent output must never be parsed as markup.
-    const quote = (side, label) => {
-      if (!side.final_text) return null;
-      const row = el("div", null, { style: "margin-top:4px" });
-      row.append(el("span", label + ": ", { style: "color:var(--muted)" }), el("span", String(side.final_text)));
-      return row;
-    };
-    agentInfo.replaceChildren();
-    const head = el("div", null, { style: "display:flex; gap:8px; align-items:baseline; flex-wrap:wrap" });
-    head.append(el("span", res.agent === "llm" ? "Live LLM mode — real OpenRouter model" : "Scripted demo mode — fixed tool sequence", { style: "color:var(--ink); font-weight:600" }));
-    if (res.agent === "llm") head.append(el("span", `${tokens} tokens · ${(res.healing.tool_calls || 0) + (res.baseline.tool_calls || 0)} tool calls`, { style: "color:var(--muted)" }));
-    agentInfo.append(head);
-    for (const q of [quote(res.healing, "Healing agent said"), quote(res.baseline, "Baseline agent said")]) if (q) agentInfo.appendChild(q);
-    for (const [label, side] of [["Healing", res.healing], ["Baseline", res.baseline]]) {
-      if (side.error) agentInfo.append(el("div", `${label} error: ${side.error}`, { style: "color:var(--e2); font-size:11.5px" }));
-    }
-  }
-
-  // 4. Render Data Integrity summary footer
-  renderDataIntegritySummary(res);
-
-  // Scroll smoothly to results
-  $("exp-results").scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function renderSchemaDriftCards(schemas) {
-  const grid = $("exp-schemas-grid");
-  if (!grid) return;
-  grid.replaceChildren();
-
-  for (const [name, s] of Object.entries(schemas)) {
-    const card = el("div", null, { class: "schema-col" });
-
-    // Header
-    const head = el("div", null, { class: "schema-header" });
-    head.append(
-      el("span", s.method, { style: "font-family:ui-monospace,Menlo,monospace; font-size:10px; padding:2px 6px; border-radius:4px; background:var(--ink); color:var(--on-ink)" }),
-      el("b", name),
-      badge(s.input_drift ? "E2" : (s.output_drift ? "E5" : "OK"), s.input_drift ? "Input Drift" : (s.output_drift ? "Output Drift" : "No Drift"))
-    );
-
-    // Body with input & output comparison
-    const body = el("div", null, { class: "pad", style: "padding:10px" });
-
-    // Input comparison
-    body.append(
-      el("div", "Agent Input Schema (v1, Frozen)", { class: "trace-section-label" }),
-      el("pre", formatJson(s.agent_input), { class: "schema-body" }),
-      el("div", "Live Wire Input Schema (mutated API)", { class: "trace-section-label", style: "margin-top:6px" }),
-      el("pre", formatJson(s.actual_input), { class: "schema-body", style: s.input_drift ? "background:var(--e2-bg); border:1px solid var(--e2)" : "" })
-    );
-
-    if (s.input_drift) {
-      body.appendChild(el("div", "⚠️ Schema Drift: API field names or types have changed!", { class: "schema-drift-alert" }));
-    } else {
-      body.appendChild(el("div", "✓ Input Schema matches v1 definition", { class: "schema-match-alert" }));
-    }
-
-    // Output comparison
-    body.append(
-      el("div", "Expected Output Schema (v1)", { class: "trace-section-label", style: "margin-top:10px" }),
-      el("pre", formatJson(s.expected_output), { class: "schema-body" }),
-      el("div", "Live Wire Output Schema (mutated API)", { class: "trace-section-label", style: "margin-top:6px" }),
-      el("pre", formatJson(s.actual_output), { class: "schema-body", style: s.output_drift ? "background:var(--e5-bg); border:1px solid var(--e5)" : "" })
-    );
-
-    if (s.output_drift) {
-      body.appendChild(el("div", "⚠️ Output Shape Drift: API response body envelope altered!", { class: "schema-drift-alert", style: "background:var(--e5-bg); color:var(--e5)" }));
-    }
-
-    card.append(head, body);
-    grid.appendChild(card);
-  }
-}
-
-function renderTraces(containerId, traces, isHealing) {
-  const container = $(containerId);
-  if (!container) return;
-  container.replaceChildren();
-
-  if (!traces || traces.length === 0) {
-    container.appendChild(el("p", "No tool calls recorded.", { class: "sub" }));
-    return;
-  }
-
-  traces.forEach(t => {
-    const card = el("div", null, { class: "trace-step" });
-
-    // Step Header
-    const head = el("div", null, { class: "trace-step-head" });
-    head.append(
-      el("span", "#" + t.step, { style: "font-weight:700; color:var(--muted); font-size:12px" }),
-      el("b", t.tool, { style: "font-family:ui-monospace,Menlo,monospace" }),
-      badge(t.error_class),
-      el("span", t.latency_ms + " ms", { style: "color:var(--muted); font-size:11.5px; margin-left:auto" })
-    );
-
-    if (t.is_retry) {
-      head.appendChild(el("span", "Retry #" + t.retry_count, { class: "pill bad plain", style: "font-size:11px; padding:1px 6px" }));
-    }
-
-    // Step Body
-    const body = el("div", null, { class: "trace-step-body" });
-
-    // 1. Collapsible Schemas for this specific call (User requested feature!)
-    const schemaDetails = el("details", null, { class: "step-schemas-details" });
-    schemaDetails.appendChild(el("summary", "🔍 Actual Input & Output Schemas for this call"));
-
-    const schemaContent = el("div", null, { class: "step-schemas-content" });
-    const inBox = el("div");
-    inBox.append(
-      el("small", "Actual Wire Input Schema:", { style: "font-weight:600; display:block; color:var(--muted); margin-bottom:2px" }),
-      el("pre", formatJson(t.actual_input_schema), { class: "trace-code", style: "font-size:11px; max-height:140px" })
-    );
-    const outBox = el("div");
-    outBox.append(
-      el("small", "Actual Wire Output Schema:", { style: "font-weight:600; display:block; color:var(--muted); margin-bottom:2px" }),
-      el("pre", formatJson(t.actual_output_schema), { class: "trace-code", style: "font-size:11px; max-height:140px" })
-    );
-    schemaContent.append(inBox, outBox);
-    schemaDetails.appendChild(schemaContent);
-    body.appendChild(schemaDetails);
-
-    // 2. Request Arguments
-    body.append(
-      el("div", "Request Arguments Sent by Agent", { class: "trace-section-label" }),
-      el("pre", formatJson(t.args), { class: "trace-code" })
-    );
-
-    // 2b. What the registry actually put on the wire, when it differed
-    if (t.coerced && t.coerced.length) {
-      const box = el("div", null, { class: "trace-heal-box", style: "margin-top:8px" });
-      box.append(el("div", "Lossless coercion to match the frozen v1 schema", { class: "trace-heal-title" }));
-      box.append(el("pre", formatJson(t.sent_args), { class: "trace-code" }));
-      for (const c of t.coerced) {
-        box.append(el("div", `${c.field}: ${JSON.stringify(c.from)} → ${JSON.stringify(c.to)}`, { style: "font-size:11.5px; color:var(--muted)" }));
-      }
-      body.appendChild(box);
-    }
-
-    // 3. Heal event (if healed in healing agent)
-    if (t.heal_event) {
-      const h = t.heal_event;
-      const isRecovered = h.outcome === "RECOVERED";
-      const healBox = el("div", null, { class: "trace-heal-box" + (isRecovered ? "" : " aborted") });
-      const healTitle = el("div", null, { class: "trace-heal-title" });
-      healTitle.append(
-        el("span", isRecovered ? "⚕ Self-Healing Patch Applied" : "🛡️ Safe Refusal Enforced"),
-        badge(h.class),
-        el("span", "→"),
-        badge(h.outcome),
-        el("span", `(${h.mttr_ms} ms MTTR)`, { style: "font-weight:normal; font-size:11.5px; color:var(--muted)" })
-      );
-      healBox.appendChild(healTitle);
-
-      if (h.reason) {
-        healBox.appendChild(el("div", "Reason: " + h.reason, { style: "font-size:12px; font-weight:600; color:var(--e2)" }));
-      }
-
-      if (h.fix) {
-        healBox.appendChild(opChips(h.fix));
-      }
-      body.appendChild(healBox);
-    }
-
-    // 4. Response delivered to agent
-    body.append(
-      el("div", isHealing ? "Final Verified Result" : "Raw Response to Agent (Unrepaired)", { class: "trace-section-label" }),
-      el("pre", formatJson(t.result), { class: "trace-code" })
-    );
-
-    // 5. Explanatory notice for baseline errors
-    if (!isHealing) {
-      if (t.error_class === "E2" || t.error_class === "E1") {
-        body.appendChild(el("div", "❌ Unhandled error fed to agent. Standard framework retries the same payload.", { style: "font-size:11px; color:var(--e2); font-weight:550" }));
-      } else if (t.error_class === "OK" && t.tool === "update_email" && t.input_drift) {
-        body.appendChild(el("div", "⚠️ FALSE DATA FED: API returned 200 OK while ignoring old field. Agent thinks email was updated, but database was NOT updated!", { style: "font-size:11.5px; color:var(--e4); font-weight:600" }));
-      }
-    }
-
-    card.append(head, body);
-    container.appendChild(card);
-  });
-}
-
-function renderDataIntegritySummary(res) {
-  const grid = $("exp-summary-grid");
-  if (!grid) return;
-  grid.replaceChildren();
-
-  // A run that never reached the provider has no data state to compare.
-  if (!res.healing.correctness_details || !res.baseline.correctness_details) {
-    grid.appendChild(el("div", "No data comparison: " + ((res.healing.error || res.baseline.error) || "the agents did not run."), { class: "exp-summary-card bad-card" }));
-    return;
-  }
-
-  // Helper row builder
-  const makeRow = (label, val, isGood) => {
-    const row = el("div", null, { class: "exp-stat-row" });
-    row.append(
-      el("span", label, { class: "exp-stat-label" }),
-      el("span", String(val), { class: "exp-stat-val " + (isGood ? "val-good" : "val-bad") })
-    );
-    return row;
-  };
-
-  // 1. Healing Summary Card
-  const h = res.healing;
-  const hDetails = h.correctness_details;
-  const hCard = el("div", null, { class: "exp-summary-card " + (h.data_correct ? "good-card" : "good-card") });
-  const hTitle = el("div", null, { class: "exp-summary-title" });
-  hTitle.append(
-    el("span", "🛡️ Healing Agent Verdict"),
-    badge(h.data_correct ? "OK" : "BUSINESS", h.data_correct ? "DATA VERIFIED" : "SAFE REFUSAL")
-  );
-  hCard.append(
-    hTitle,
-    makeRow("Tool Calls Made", h.tool_calls, true),
-    makeRow("User Email in Database", hDetails.email.value + (hDetails.email.ok ? " ✓" : " ✗"), hDetails.email.ok),
-    makeRow("Manager in Database", (hDetails.manager.value || "None") + (hDetails.manager.ok ? " ✓" : " ✗"), hDetails.manager.ok),
-    makeRow("Tickets Created", hDetails.tickets.count + (hDetails.tickets.ok ? " ✓" : " ✗"), hDetails.tickets.ok),
-    makeRow("Overall Data Integrity", h.data_correct ? "100% CORRECT" : "SAFELY PROTECTED", true)
-  );
-
-  // 2. Baseline Summary Card
-  const b = res.baseline;
-  const bDetails = b.correctness_details;
-  const bCard = el("div", null, { class: "exp-summary-card " + (b.data_correct ? "good-card" : "bad-card") });
-  const bTitle = el("div", null, { class: "exp-summary-title" });
-  bTitle.append(
-    el("span", "⚠️ Baseline Agent Verdict"),
-    badge(b.data_correct ? "OK" : "E2", b.data_correct ? "PASSED" : (b.hit_limit ? "RECURSION LIMIT" : "FALSE DATA FED"))
-  );
-  bCard.append(
-    bTitle,
-    makeRow("Tool Calls Made", b.tool_calls + (b.hit_limit ? " (Cap Hit)" : ""), !b.hit_limit),
-    makeRow("User Email in Database", bDetails.email.value + (bDetails.email.ok ? " ✓" : " ✗ (Old Value)"), bDetails.email.ok),
-    makeRow("Manager in Database", (bDetails.manager.value || "None") + (bDetails.manager.ok ? " ✓" : " ✗"), bDetails.manager.ok),
-    makeRow("Tickets Created", bDetails.tickets.count + (bDetails.tickets.ok ? " ✓" : " ✗"), bDetails.tickets.ok),
-    makeRow("Overall Data Integrity", b.data_correct ? "100% CORRECT" : (b.hit_limit ? "FAILED / INCOMPLETE" : "FALSE DATA IN DATABASE"), b.data_correct)
-  );
-
-  grid.append(hCard, bCard);
-}
-
-// Bind button clicks
-$("exp-run-btn").onclick = runExplorer;
-$("exp-reset-btn").onclick = async () => {
-  await act("/api/reset", {});
-  $("exp-results").hidden = true;
-  $("exp-run-status").textContent = "Mocks reset. Ready to run.";
-};
-
 </script>
 </body>
 </html>
