@@ -73,10 +73,16 @@ def calls(s: dict, agent: str) -> list[tuple[str, str]]:
 
 
 async def test_index_serves_the_page(client):
-    r = await client.get("/")
+    r = await client.get("/live")
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
     assert "/api/state" in r.text
+
+
+async def test_landing_links_to_the_live_page(client):
+    r = await client.get("/")
+    assert r.status_code == 200
+    assert 'href="/live"' in r.text
 
 
 def test_mutation_buttons_cover_every_scenario_including_m6_m9_and_c3():

@@ -305,7 +305,7 @@ Design principles:
 - **FR-16.1** A side-by-side live view of both agents showing tool calls, errors and heal events.
 - **FR-16.2** One-click mutation triggers.
 - **FR-16.3** A patch log read from the audit log, and a metrics panel.
-- **FR-16.4** A Demo view: pick a scenario (or compose a custom drift), send a prompt to both agents, and replay the run side by side with a 4-step tracker per agent. Each tool call expands on its own to show the agent input, the requests that reached the API (header names only, never values) and the output. A registry view shows each tool's `version` and active fix while `agent_schema` stays at v1.
+- **FR-16.4** A landing page at `/` explains the problem, where the registry sits, and how drift is detected, classified and patched. The Live view (`/live`) has four presets (CLEAN, M5, M8, M3) that run both agents side by side with a 4-step tracker per agent. Each tool call is a dropdown, closed by default, showing the agent input, the error, the new input the registry sent (header names only, never values) and the final output.
 
 ### STRETCH
 
@@ -361,7 +361,7 @@ Design principles:
 | C2 | Control | `get_user` | Unknown user `999` returns `404` | BUSINESS | pass-through | n/a |
 | C3 | Control | `update_email` | Invalid email value (for example `not-an-email`), spec unchanged | E2 (422), reclassified BUSINESS | pass-through, audit `NOT_DRIFT`, no replay | n/a |
 
-**Custom drift (dashboard only):** the Demo view can compose a `CUSTOM` drift on one tool from a rename, a string-to-int change, body wrapping, a required header and a required field. It exercises the same registry on breaks nobody scripted; it is not part of the catalog above, the benchmark or any metric.
+**Custom drift (API only):** `POST /api/explore` accepts a `CUSTOM` drift on one tool from a rename, a string-to-int change, body wrapping, a required header and a required field. It exercises the same registry on breaks nobody scripted; it is not part of the catalog above, the benchmark or any metric.
 
 **Demo task [A]:** "Look up user 123, change their email, set their manager to 456, and open a support ticket confirming the change."
 

@@ -300,6 +300,14 @@ def create_app(db_path: str | None = None) -> FastAPI:
     app.state.dash = dash
 
     @app.get("/", include_in_schema=False)
+    async def landing() -> FileResponse:
+        return FileResponse(HERE / "landing.html", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/theme.css", include_in_schema=False)
+    async def theme() -> FileResponse:
+        return FileResponse(HERE / "theme.css", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/live", include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(HERE / "index.html", headers={"Cache-Control": "no-cache"})
 

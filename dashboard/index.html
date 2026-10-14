@@ -6,80 +6,9 @@
 <title>Self-healing tool registry</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Chivo+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif&display=swap">
+<link rel="stylesheet" href="/theme.css">
 <style>
-[hidden] { display: none !important; }
-/* Palette after cofounder.co: warm paper, near-black ink, 10% hairlines. */
-:root {
-  --bg: #f5f5f2; --panel: #fdfdfb; --soft: #efefeb; --ink: #171717; --ink-2: #48433f; --muted: #8c8783;
-  --line: rgba(0,0,0,.08); --line-2: rgba(0,0,0,.14); --on-ink: #fdfdfb;
-  --shadow: 0 1px 2px rgba(23,23,23,.04);
-  --ok: #2c7a4b; --ok-bg: #e5f1e8; --bad: #b3372d; --bad-bg: #f8e4e0; --warn: #93650a; --warn-bg: #f6ecd2;
-  --biz: #2f5b96; --biz-bg: #e3ebf6;
-  --e1: #93650a; --e1-bg: #f6ecd2; --e2: #b3372d; --e2-bg: #f8e4e0; --e3: #6f3fb0; --e3-bg: #efe6fa;
-  --e4: #b5521c; --e4-bg: #fbe9db; --e5: #a8336c; --e5-bg: #f9e3ee; --e6: #1f6f6a; --e6-bg: #dcefed;
-  --sans: Geist, "Inter Tight", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
-  --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #131312; --panel: #1b1b19; --soft: #232320; --ink: #efeee9; --ink-2: #c9c5bf; --muted: #8f8a84;
-    --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.16); --on-ink: #131312; --shadow: none;
-    --ok: #74cf98; --ok-bg: #173323; --bad: #ff8f84; --bad-bg: #44201b; --warn: #eec261; --warn-bg: #3a2e0d;
-    --biz: #8fb4ec; --biz-bg: #1c2a40;
-    --e1: #eec261; --e1-bg: #3a2e0d; --e2: #ff8f84; --e2-bg: #44201b; --e3: #c6a4ee; --e3-bg: #30214a;
-    --e4: #ffa866; --e4-bg: #43250a; --e5: #f08cc0; --e5-bg: #43172d; --e6: #6fd6d6; --e6-bg: #0f3838;
-  }
-}
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
-button, input, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-code, pre, .mono { font-family: var(--mono); }
-
-/* top bar: wordmark + segmented nav, like cofounder.co */
-.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
-.top-in { max-width: 1240px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.brand { font: 26px/1 var(--serif); letter-spacing: -.01em; white-space: nowrap; }
-.spacer { flex: 1; }
-nav.tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); overflow-x: auto; }
-nav.tabs button { background: none; border: 1px solid transparent; border-radius: 7px; padding: 5px 12px; color: var(--ink-2); white-space: nowrap; font-size: 14px; }
-nav.tabs button:hover { color: var(--ink); }
-nav.tabs button[aria-selected="true"] { background: var(--panel); border-color: var(--line-2); color: var(--ink); box-shadow: var(--shadow); }
-nav.tabs .count { margin-left: 6px; font: 11px var(--mono); color: var(--muted); }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; background: var(--soft); color: var(--ink-2); white-space: nowrap; border: 1px solid var(--line); }
-.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .75; }
-.pill.good { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
-.pill.bad { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
-.pill.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
-.pill.biz { background: var(--biz-bg); color: var(--biz); border-color: transparent; }
-.pill.plain::before { display: none; }
-
-main { max-width: 1240px; margin: 0 auto; padding: 28px 20px 60px; }
-.eyebrow { font: 500 11.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 0 0 8px; }
-h1 { font-weight: 400; font-size: clamp(28px, 4vw, 44px); line-height: 1.08; letter-spacing: -.025em; margin: 0; max-width: 900px; }
-h1 span, h2 span.dim { color: var(--muted); }
-h2 { font-weight: 450; font-size: 20px; letter-spacing: -.015em; margin: 0; }
-h3 { font-weight: 500; font-size: 17px; letter-spacing: -.01em; margin: 0; }
-.sub { color: var(--ink-2); font-size: 14px; margin: 4px 0 0; }
-.muted { color: var(--muted); }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
-.pad { padding: 18px; }
-.head { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-.section { margin-top: 28px; }
-
-/* buttons */
-.btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); font-size: 14px; }
-.btn:hover { border-color: var(--ink-2); }
-.btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.btn.primary:hover { opacity: .88; }
-.btn.ghost { border-color: transparent; background: none; color: var(--ink-2); }
-.btn.ghost:hover { background: var(--soft); color: var(--ink); }
-.btn.small { padding: 4px 10px; font-size: 13px; }
-.btn:disabled { opacity: .5; cursor: default; }
 
 /* tags, badges, ops */
 .tag { display: inline-block; padding: 1px 7px; border-radius: 5px; font: 11.5px/1.6 var(--mono); background: var(--soft); color: var(--ink-2); white-space: nowrap; }
@@ -103,14 +32,6 @@ h3 { font-weight: 500; font-size: 17px; letter-spacing: -.01em; margin: 0; }
 .op.resp { border-left: 3px solid var(--e5); }
 pre { margin: 0; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); }
 
-/* hero + headline strip */
-.hero .sub { max-width: 760px; font-size: 15.5px; margin-top: 12px; }
-.strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
-.strip > div { padding: 12px 16px; border-right: 1px solid var(--line); min-width: 0; }
-.strip > div:last-child { border-right: 0; }
-.strip small { display: block; font: 500 10.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
-.strip b { display: block; font-weight: 450; font-size: 26px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin-top: 2px; }
-.strip span { font-size: 12px; color: var(--ink-2); }
 
 /* composer: storyboard acts, scenario chips, custom drift, prompt */
 .acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
@@ -120,18 +41,6 @@ pre { margin: 0; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wr
 .act b { font-weight: 500; font-size: 15px; }
 .act span { font-size: 13px; color: var(--ink-2); }
 .act[aria-pressed="true"] { border-color: var(--ink); background: var(--panel); box-shadow: inset 0 0 0 1px var(--ink); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
-.chip { padding: 5px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: none; font-size: 13px; display: inline-flex; gap: 6px; align-items: baseline; }
-.chip i { font: normal 11.5px var(--mono); color: var(--muted); }
-.chip:hover { border-color: var(--ink-2); }
-.chip[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.chip[aria-pressed="true"] i { color: inherit; opacity: .7; }
-.custom { margin-top: 12px; padding: 14px; border: 1px dashed var(--line-2); border-radius: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 14px; }
-.field { display: grid; gap: 4px; min-width: 0; }
-.field > span { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
-.field .row { display: flex; gap: 6px; }
-.input { width: 100%; min-width: 0; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); font-size: 13.5px; }
-textarea.input { resize: vertical; min-height: 60px; line-height: 1.5; }
 .composer-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
 .seg label { padding: 4px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
@@ -179,7 +88,6 @@ textarea.input { resize: vertical; min-height: 60px; line-height: 1.5; }
 .step.capped { animation: none; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 22%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .step[data-k="fail"] { animation: none; } }
-.pane-tools { display: flex; gap: 4px; justify-content: flex-end; margin-bottom: 6px; }
 .calls { position: relative; display: grid; gap: 6px; max-height: 620px; overflow-y: auto; padding-right: 2px; }
 .calls .empty { color: var(--muted); text-align: center; padding: 26px 12px; border: 1px dashed var(--line-2); border-radius: 10px; font-size: 14px; }
 
@@ -196,11 +104,9 @@ details.call .ms { margin-left: auto; font: 12px var(--mono); color: var(--muted
 .plus::after { transform: rotate(90deg); }
 details[open] > summary .plus::after { transform: rotate(0deg); }
 .call-body { padding: 2px 12px 12px; display: grid; gap: 8px; }
-details.json { border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
-details.json > summary { cursor: pointer; padding: 5px 10px; font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-details.json > pre, details.json > .wire { padding: 0 10px 8px; }
-details.json > pre { max-height: 260px; }
-.wire + .wire { border-top: 1px dashed var(--line-2); padding-top: 8px; }
+.blk { display: grid; gap: 4px; }
+.blk > small { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.blk > pre { background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; max-height: 260px; }
 .wire-head { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; font-size: 12.5px; }
 .heal { border-radius: 9px; padding: 10px 12px; display: grid; gap: 6px; border: 1px solid transparent; }
 .heal.good { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
@@ -215,45 +121,6 @@ details.json > pre { max-height: 260px; }
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
 @media (prefers-reduced-motion: reduce) { details.call { animation: none; } }
 
-/* registry inspector */
-.registry { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; }
-.reg { border: 1px solid var(--line-2); border-radius: 10px; padding: 12px 14px; background: var(--panel); transition: border-color .3s, background .3s; min-width: 0; }
-.reg.patched { border-color: color-mix(in srgb, var(--ok) 55%, transparent); background: linear-gradient(0deg, var(--panel), color-mix(in srgb, var(--ok-bg) 60%, var(--panel))); }
-.reg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.reg-head code { font-size: 14px; font-weight: 500; margin-right: auto; }
-.reg dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 13px; }
-.reg dt { font: 11.5px/1.7 var(--mono); color: var(--muted); }
-.reg dd { margin: 0; min-width: 0; }
-.reg dt.wide, .reg dd.wide { grid-column: 1 / -1; }
-
-/* verdict */
-.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
-.vcard { padding: 16px; }
-.vcard.good { border-top: 3px solid var(--ok); }
-.vcard.bad { border-top: 3px solid var(--bad); }
-.vcard.warn { border-top: 3px solid var(--warn); }
-.vrow { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13.5px; border-bottom: 1px solid var(--line); }
-.vrow:last-child { border-bottom: 0; }
-.vrow span:last-child { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
-.val-good { color: var(--ok); } .val-bad { color: var(--bad); }
-.agent-info { font-size: 13px; color: var(--ink-2); display: grid; gap: 4px; margin-top: 12px; overflow-wrap: anywhere; }
-
-/* schema diff + reference */
-details.fold { margin-top: 12px; }
-details.fold > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; list-style: none; padding: 14px 18px; }
-details.fold > summary::-webkit-details-marker { display: none; }
-details.fold > summary h3 { margin-right: auto; }
-details.fold > .fold-body { padding: 0 18px 18px; }
-.schema-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; }
-.schema-col { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; display: grid; gap: 6px; align-content: start; }
-.schema-col pre { background: var(--soft); border-radius: 6px; padding: 6px 8px; max-height: 180px; font-size: 11.5px; }
-.schema-col pre.drift { background: var(--bad-bg); color: var(--bad); }
-.ref-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px; }
-.mini { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.mini th, .mini td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-.mini th { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-.errs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 8px; margin-top: 14px; }
-.errs > div { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }
 
 /* live tab */
 .controls { display: grid; gap: 18px; }
@@ -325,8 +192,8 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
   <div class="top-in">
     <div class="brand">Self-healing registry</div>
     <nav class="tabs" role="tablist" aria-label="Views">
-      <button role="tab" aria-selected="true" data-tab="demo">Demo</button>
-      <button role="tab" aria-selected="false" data-tab="live">Live stream</button>
+      <a href="/">Home</a>
+      <button role="tab" aria-selected="true" data-tab="live">Live stream</button>
       <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
       <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
       <button role="tab" aria-selected="false" data-tab="report" id="tab-report" hidden>Report</button>
@@ -338,103 +205,22 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
 </header>
 
 <main>
-  <!-- DEMO -->
-  <div id="view-demo" role="tabpanel">
-    <section class="hero">
-      <p class="eyebrow">PS 01 · Runtime API schema drift</p>
-      <h1>When an API breaks mid-task, the registry patches the tool. <span>Not the prompt.</span></h1>
-      <p class="sub">The LLM keeps speaking the frozen v1 schema. On a 4xx, or a 200 that drifted, the registry diffs the live spec, hot-patches the tool's wire schema in memory with a 4-operation DSL that cannot write a literal, and replays once. If no safe source exists for a value, it refuses instead of guessing, tells the agent the tool is unavailable, and the agent carries on with the rest of the task.</p>
-      <div class="strip" aria-label="Headline results">
-        <div><small>Zero-touch adaptation</small><b>100%</b><span>healable M1–M5, M7, M9</span></div>
-        <div><small>Safe-refusal rate</small><b>100%</b><span>M8, M6-N: 0 invented values</span></div>
-        <div><small>False-patch rate</small><b>0%</b><span>every scenario, benchmark N=3</span></div>
-        <div><small>Tier-1 heal, this session</small><b id="strip-t1">–</b><span>diff + patch + replay</span></div>
-        <div><small>Tier-0 heal, this session</small><b id="strip-t0">–</b><span>run a scenario twice</span></div>
-      </div>
-    </section>
-
-    <section class="section">
-      <p class="eyebrow">1 — Pick the break</p>
-      <div class="acts" id="acts"></div>
-      <div class="chips" id="scenarios" aria-label="All scenarios"></div>
-      <div class="custom" id="custom" hidden>
-        <label class="field"><span>Tool</span><select class="input" id="c-tool"></select></label>
-        <div class="field"><span>Rename field</span><div class="row"><select class="input" id="c-from" aria-label="Field to rename"></select><input class="input" id="c-to" placeholder="new name" aria-label="New field name"></div></div>
-        <label class="field"><span>String → int</span><select class="input" id="c-int"></select></label>
-        <label class="field"><span>Wrap body in</span><input class="input" id="c-wrap" placeholder="e.g. payload"></label>
-        <label class="field"><span>Require header</span><input class="input" id="c-header" list="c-headers" placeholder="e.g. X-Tenant-Id"></label>
-        <label class="field"><span>Add required field</span><input class="input" id="c-req" placeholder="e.g. priority"></label>
-        <datalist id="c-headers"><option value="X-Tenant-Id"><option value="Authorization"><option value="X-Api-Version"></datalist>
-      </div>
-      <div id="demo-banner"></div>
-    </section>
-
-    <section class="section">
-      <p class="eyebrow">2 — Send the prompt</p>
-      <textarea class="input" id="prompt" rows="2" aria-label="Task prompt"></textarea>
-      <div class="composer-foot">
-        <div class="seg" role="radiogroup" aria-label="Agent mode">
-          <label><input type="radio" name="mode" value="scripted" checked>Scripted</label>
-          <label id="llm-label"><input type="radio" name="mode" value="llm">Live LLM</label>
-        </div>
-        <button class="btn primary" id="run-demo">Run both agents</button>
-        <button class="btn ghost" id="reset-demo">Reset mocks</button>
-        <span class="pill plain" id="demo-status">Ready</span>
-        <span class="muted" id="llm-status" style="font-size:12.5px"></span>
-      </div>
-    </section>
-
-    <div id="demo-results" hidden>
-      <section class="section">
-        <p class="eyebrow">3 — Watch both agents</p>
-        <div class="cols">
-          <section class="card pad pane baseline">
-            <div class="pane-head"><h2>Baseline agent <span class="dim">standard framework</span></h2><span class="pill" id="d-status-baseline">idle</span></div>
-            <ol class="steps" id="d-steps-baseline"></ol>
-            <div class="pane-tools"><button class="btn ghost small" data-fold="baseline" data-open="1">Expand all</button><button class="btn ghost small" data-fold="baseline" data-open="0">Collapse all</button></div>
-            <div class="calls" id="d-calls-baseline"></div>
-          </section>
-          <section class="card pad pane healing">
-            <div class="pane-head"><h2>Self-healing agent <span class="dim">registry facade</span></h2><span class="pill" id="d-status-healing">idle</span></div>
-            <ol class="steps" id="d-steps-healing"></ol>
-            <div class="pane-tools"><button class="btn ghost small" data-fold="healing" data-open="1">Expand all</button><button class="btn ghost small" data-fold="healing" data-open="0">Collapse all</button></div>
-            <div class="calls" id="d-calls-healing"></div>
-          </section>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="head"><div><p class="eyebrow">4 — In-memory tool registry</p><h2>ToolDefinition, live <span class="dim">· agent_schema never changes</span></h2></div></div>
-        <div class="registry" id="registry"></div>
-        <details class="card fold">
-          <summary><h3>Schema diff <span class="muted" style="font-size:14px">· frozen v1 agent schema vs. live wire schema</span></h3><span class="plus" aria-hidden="true"></span></summary>
-          <div class="fold-body"><div class="schema-grid" id="schema-grid"></div></div>
-        </details>
-      </section>
-
-      <section class="section">
-        <p class="eyebrow">5 — Verdict</p>
-        <div class="verdict" id="verdict"></div>
-        <div class="agent-info" id="agent-info" hidden></div>
-      </section>
-    </div>
-
-    <details class="card fold section">
-      <summary><h3>Reference <span class="muted" style="font-size:14px">· mock API, mutation catalog, error classes</span></h3><span class="plus" aria-hidden="true"></span></summary>
-      <div class="fold-body">
-        <div class="ref-grid">
-          <div><p class="eyebrow">Tools</p><table class="mini"><thead><tr><th>Tool</th><th>Route</th><th>Postchecks</th></tr></thead><tbody id="ref-tools"></tbody></table></div>
-          <div><p class="eyebrow">Mutations</p><table class="mini"><thead><tr><th>ID</th><th>Tool</th><th>Class</th><th>What changes</th></tr></thead><tbody id="ref-muts"></tbody></table></div>
-        </div>
-        <div class="errs" id="ref-errors"></div>
-      </div>
-    </details>
-  </div>
-
   <!-- LIVE -->
-  <div id="view-live" role="tabpanel" hidden>
+  <div id="view-live" role="tabpanel">
     <div class="head"><div><p class="eyebrow">Real-time</p><h2>Break the API while both agents are running</h2></div></div>
     <section class="card pad controls">
+      <div>
+        <p class="eyebrow">Run a scenario on both agents</p>
+        <div class="acts" id="acts"></div>
+        <div class="composer-foot">
+          <div class="seg" role="radiogroup" aria-label="Agent mode">
+            <label><input type="radio" name="mode" value="scripted" checked>Scripted</label>
+            <label id="llm-label"><input type="radio" name="mode" value="llm">Live LLM</label>
+          </div>
+          <span class="pill plain" id="preset-status">Ready</span>
+          <span class="muted" id="llm-status" style="font-size:12.5px"></span>
+        </div>
+      </div>
       <div class="run">
         <button class="btn primary" id="start-scripted">Start scripted run</button>
         <button class="btn" id="start-llm">Start LLM run</button>
@@ -454,6 +240,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <ol class="steps" id="steps-baseline"></ol>
         <div class="stats" id="stats-baseline"></div>
         <p class="err" id="err-baseline" hidden></p>
+        <div class="calls" id="p-calls-baseline"></div>
         <ol class="calls-live" id="calls-baseline"></ol>
       </section>
       <section class="card pad pane healing" id="col-healing">
@@ -461,6 +248,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <ol class="steps" id="steps-healing"></ol>
         <div class="stats" id="stats-healing"></div>
         <p class="err" id="err-healing" hidden></p>
+        <div class="calls" id="p-calls-healing"></div>
         <ol class="calls-live" id="calls-healing"></ol>
       </section>
     </div>
@@ -485,7 +273,6 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
       <h3>Refusal reasons</h3>
       <div class="ops" id="reasons-list"></div>
     </section>
-  </div>
 
   <!-- REPORT -->
   <div id="view-report" role="tabpanel" hidden>
@@ -761,6 +548,7 @@ async function call(path, body) {
 }
 async function act(path, body) {
   note("");
+  clearPreset();
   try { await call(path, body); } catch (err) { note(err.message); }
   poll();
 }
@@ -768,9 +556,11 @@ async function act(path, body) {
 /* ---------- tabs ---------- */
 function showTab(name) {
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
-  for (const v of ["demo", "live", "heals", "metrics", "report"]) $("view-" + v).hidden = v !== name;
+  for (const v of ["live", "heals", "metrics", "report"]) $("view-" + v).hidden = v !== name;
 }
 for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => showTab(b.dataset.tab);
+// The landing page links to /live#heals etc.
+if (["heals", "metrics", "report"].includes(location.hash.slice(1))) showTab(location.hash.slice(1));
 
 /* ---------- shared rendering ---------- */
 const path = (p) => p.join(".");
@@ -846,10 +636,6 @@ function renderSteps(box, tools, traces, o) {
 
 /* Drift banner: title, before → after, what the healer should do. */
 function bannerData(id) {
-  if (id === "CUSTOM") {
-    const s = customSpec();
-    return { id, title: "Your custom drift", tool: s.tool, before: JSON.stringify(TASK_ARGS[s.tool]), after: customAfter(s), expect: "Unscripted: watch whether the registry heals it or refuses it." };
-  }
   const p = presets[id];
   return p && { id, title: p.title, tool: p.tool_affected, before: p.before, after: p.after, expect: p.expect };
 }
@@ -870,93 +656,60 @@ function renderBanner(box, id) {
   box.replaceChildren(wrap);
 }
 
-/* ---------- demo tab ---------- */
-let presets = {}, expInfo = null, demoSel = "CLEAN", demoRun = 0, demoBusy = false;
-const demoChips = {}, lastHeal = {};
+/* ---------- preset runs (Live tab) ---------- */
+let presets = {}, expInfo = null, presetRun = 0, presetBusy = false, exploreRes = null;
+const presetCards = {};
 
-function selectScenario(id) {
-  demoSel = id;
-  for (const [k, b] of Object.entries(demoChips)) b.setAttribute("aria-pressed", String(k === id));
-  for (const c of document.querySelectorAll(".act")) c.setAttribute("aria-pressed", String(c.dataset.id === id));
-  $("custom").hidden = id !== "CUSTOM";
-  if (presets[id]) $("prompt").value = presets[id].query;
-  else if (id === "CUSTOM") $("prompt").value = presets.CLEAN ? presets.CLEAN.query : "";
-  renderBanner($("demo-banner"), id);
+function selectPreset(id) {
+  for (const [k, b] of Object.entries(presetCards)) b.setAttribute("aria-pressed", String(k === id));
+  renderBanner($("live-banner"), id);
 }
 for (const [id, label, title, sub] of ACTS) {
-  const b = el("button", null, { class: "act", "data-id": id, "aria-pressed": "false" });
+  const b = el("button", null, { class: "act", "aria-pressed": "false" });
   b.append(el("small", label + " · " + (id === "CLEAN" ? "no drift" : id)), el("b", title), el("span", sub));
-  b.onclick = () => selectScenario(id);
+  b.onclick = () => runPreset(id);
+  presetCards[id] = b;
   $("acts").appendChild(b);
 }
-for (const [id, text, tool] of [["CLEAN", "No drift", "v1"], ...GROUPS.flatMap((g) => g[2]), ["CUSTOM", "Custom drift…", "any tool"]]) {
-  const b = el("button", null, { class: "chip", "aria-pressed": "false", title: tool + ": " + text });
-  b.append(el("b", id === "CLEAN" || id === "CUSTOM" ? text : id + " " + text), el("i", tool));
-  b.onclick = () => selectScenario(id);
-  demoChips[id] = b;
-  $("scenarios").appendChild(b);
+// Drop any preset result (Reset, a live run or a live mutation takes over the columns).
+function clearPreset() {
+  presetRun++; exploreRes = null;
+  for (const a of AGENTS) $("p-calls-" + a).replaceChildren();
+  for (const b of Object.values(presetCards)) b.setAttribute("aria-pressed", "false");
+  $("preset-status").className = "pill plain";
+  $("preset-status").textContent = "Ready";
 }
 
-/* custom drift builder: one tool, any mix of the five changes the mock can make */
-function fillFields() {
-  const fields = Object.keys(TASK_ARGS[$("c-tool").value]);
-  $("c-from").replaceChildren(el("option", "(none)", { value: "" }), ...fields.map((f) => el("option", f, { value: f })));
-  $("c-int").replaceChildren(el("option", "(none)", { value: "" }), ...fields.map((f) => el("option", f, { value: f })));
-}
-$("c-tool").replaceChildren(...TOOLS.map((t) => el("option", t, { value: t })));
-fillFields();
-$("c-from").value = "user_id"; $("c-to").value = "account_id";
-$("c-tool").onchange = () => { fillFields(); renderBanner($("demo-banner"), demoSel); };
-for (const id of ["c-from", "c-to", "c-int", "c-wrap", "c-header", "c-req"]) $(id).oninput = () => renderBanner($("demo-banner"), demoSel);
-function customSpec() {
-  const v = (id) => $(id).value.trim();
-  const s = { tool: v("c-tool") };
-  if (v("c-from") && v("c-to")) s.rename = { [v("c-from")]: v("c-to") };
-  for (const [k, id] of [["to_int", "c-int"], ["wrap", "c-wrap"], ["header", "c-header"], ["require", "c-req"]]) if (v(id)) s[k] = v(id);
-  return s;
-}
-function customAfter(s) {
-  let d = { ...TASK_ARGS[s.tool] };
-  if (s.to_int) d[s.to_int] = /^\d+$/.test(d[s.to_int]) ? Number(d[s.to_int]) : "‹int›";
-  for (const [from, to] of Object.entries(s.rename || {})) { d[to] = d[from]; delete d[from]; }
-  if (s.require) d[s.require] = "‹required›";
-  if (s.wrap) d = { [s.wrap]: d };
-  return JSON.stringify(d) + (s.header ? "  + header " + s.header : "");
-}
-
-async function initDemo() {
+async function initPresets() {
   try {
     expInfo = await call("/api/explorer/info");
   } catch (err) {
-    $("demo-status").textContent = "Explorer info unavailable: " + err.message;
+    $("preset-status").textContent = "Explorer info unavailable: " + err.message;
     return;
   }
   for (const p of expInfo.predefined_queries) presets[p.mutation || "CLEAN"] = p;
-  renderReference(expInfo);
   if (expInfo.llm_available) $("llm-status").textContent = "LLM: " + expInfo.llm_model;
   else {
     document.querySelector("input[name=mode][value=llm]").disabled = true;
     $("llm-label").title = "Set OPENROUTER_API_KEY to enable the live LLM";
     $("llm-status").textContent = "No OPENROUTER_API_KEY: scripted agents only";
   }
-  selectScenario(demoSel);
   if (lastLiveMut !== undefined) renderBanner($("live-banner"), lastLiveMut || "CLEAN");
 }
 
-async function runDemo() {
-  if (demoBusy) return;
-  demoBusy = true;
-  const status = $("demo-status");
-  $("run-demo").disabled = true;
+async function runPreset(id) {
+  if (presetBusy || !presets[id]) return;
+  presetBusy = true;
+  note("");
+  selectPreset(id);
+  const status = $("preset-status");
   status.className = "pill warn";
   status.replaceChildren(el("span", null, { class: "spinner" }), " Running both agents");
   try {
-    const agent = document.querySelector("input[name=mode]:checked").value;
     const res = await call("/api/explore", {
-      query: $("prompt").value,
-      mutation: demoSel === "CLEAN" ? null : demoSel,
-      agent,
-      custom: demoSel === "CUSTOM" ? customSpec() : null,
+      query: presets[id].query,
+      mutation: id === "CLEAN" ? null : id,
+      agent: document.querySelector("input[name=mode]:checked").value,
     });
     status.className = "pill plain";
     status.textContent = "Replaying " + ((res.healing.traces || []).length + (res.baseline.traces || []).length) + " tool calls";
@@ -965,56 +718,23 @@ async function runDemo() {
     status.className = "pill bad";
     status.textContent = "Failed: " + err.message;
   } finally {
-    demoBusy = false;
-    $("run-demo").disabled = false;
+    presetBusy = false;
   }
 }
-$("run-demo").onclick = runDemo;
-$("reset-demo").onclick = async () => {
-  demoRun++;
-  try { await call("/api/reset", {}); } catch (err) { $("demo-status").textContent = err.message; return; }
-  $("demo-results").hidden = true;
-  $("demo-status").className = "pill plain";
-  $("demo-status").textContent = "Mocks reset";
-  poll();
-};
-for (const b of document.querySelectorAll("[data-fold]")) {
-  b.onclick = () => { for (const d of $("d-calls-" + b.dataset.fold).querySelectorAll("details.call")) d.open = b.dataset.open === "1"; };
-}
 
-/* One tool call as an accordion row; the agent input, wire traffic and output fold separately. */
-function jsonBlock(label, value, open) {
-  const d = el("details", null, { class: "json" });
-  d.open = open;
-  d.append(el("summary", label), el("pre", formatJson(value)));
+/* One tool call as a closed accordion row; opening it shows input, error, registry rewrite, output. */
+function block(label, ...kids) {
+  const d = el("div", null, { class: "blk" });
+  d.append(el("small", label), ...kids);
   return d;
 }
-function wireBlock(wire, heal) {
-  const d = el("details", null, { class: "json" });
-  d.open = !!heal;
-  d.append(el("summary", "On the wire · " + wire.length + (wire.length > 1 ? " requests" : " request")));
-  wire.forEach((w, i) => {
-    const row = el("div", null, { class: "wire" });
-    const head = el("div", null, { class: "wire-head" });
-    head.append(el("span", w.method + " " + w.path, { class: "mono" }));
-    if (w.path === "/openapi.json") head.append(el("span", "diagnose: fetch live spec", { class: "tag biz" }));
-    else if (w.path.endsWith("/validate")) head.append(el("span", "preverify, read-only", { class: "tag biz" }));
-    else if (i > 0) head.append(el("span", heal && heal.outcome === "RECOVERED" ? "patched replay" : "retry", { class: "tag " + (heal ? "good" : "") }));
-    else if (heal) head.append(el("span", "rejected v1 call", { class: "tag bad" }));
-    for (const h of w.headers || []) head.append(el("span", "+ " + h, { class: "tag" }));
-    row.append(head);
-    if (w.body !== null && w.body !== undefined) row.append(el("pre", formatJson(w.body)));
-    d.append(row);
-  });
-  return d;
-}
+const pre = (v) => el("pre", formatJson(v));
 function healBox(h) {
   const [k, text] = outcomeInfo(h);
   const box = el("div", null, { class: "heal " + k });
   const title = el("div", null, { class: "heal-title" });
   title.append(el("b", { good: "Hot-patched in memory", warn: "Refused by construction", biz: "Not schema drift" }[k] || "Patch failed verification"), el("span", text, { class: "muted" }));
-  box.append(title, el("div", ["class " + h.class, "HTTP " + h.raw_code, "path " + (h.path || "-"), "MTTR " + h.mttr_ms + " ms"].join(" · "), { class: "heal-facts" }));
-  if (h.fix) box.append(opChips(h.fix));
+  box.append(title, el("div", "class " + h.class + " · HTTP " + h.raw_code + (h.reason ? " · " + h.reason : ""), { class: "heal-facts" }));
   if (k === "warn") box.append(el("p", "0 invented values. The agent gets retry: false, treats this tool as unavailable for the rest of the task, and carries on with the other steps.", { class: "hint" }));
   if (k === "biz") box.append(el("p", "The spec is unchanged, so the error is the agent's to handle. No patch, no replay.", { class: "hint" }));
   return box;
@@ -1022,90 +742,56 @@ function healBox(h) {
 function callCard(t, healing, i) {
   const h = t.heal_event;
   const d = el("details", null, { class: "call" });
-  d.open = !!h;
   const sum = el("summary");
   const code = t.result && t.result.status_code;
   sum.append(el("span", String(i + 1).padStart(2, "0"), { class: "num" }), el("code", t.tool, { class: "tool" }), badge(t.error_class));
   if (code && code >= 400) sum.append(el("span", "HTTP " + code, { class: "tag bad" }));
-  if (t.is_retry) sum.append(el("span", "same payload ×" + (t.retry_count + 1), { class: "tag bad" }));
   if (h) sum.append(outcomePill(h));
   sum.append(el("span", t.latency_ms + " ms", { class: "ms" }), el("span", null, { class: "plus", "aria-hidden": "true" }));
   const body = el("div", null, { class: "call-body" });
-  body.append(jsonBlock("Agent input · frozen v1 schema", t.args, true));
-  if (t.coerced && t.coerced.length) body.append(el("p", "Lossless coercion to v1: " + t.coerced.map((c) => c.field + " " + JSON.stringify(c.from) + " → " + JSON.stringify(c.to)).join(", "), { class: "hint" }));
-  if (h) body.append(healBox(h));
-  if (t.wire && t.wire.length) body.append(wireBlock(t.wire, h));
-  body.append(jsonBlock(healing ? "Output · returned to agent" : "Output · raw response to agent", t.result, true));
-  if (!healing && t.error_class !== "OK") body.append(el("p", "The raw error goes straight back to the LLM, which re-sends the same payload.", { class: "hint bad" }));
+  body.append(block("Agent input", pre(t.args)));
+  if (h) body.append(block("Error", healBox(h)));
+  else if (t.error_class !== "OK") body.append(block("Error", pre(t.result)));
+  const sent = (t.wire || []).filter((w) => w.path !== "/openapi.json" && !w.path.endsWith("/validate"));
+  if (healing && sent.length > 1) {
+    const w = sent[sent.length - 1];
+    const head = el("div", null, { class: "wire-head" });
+    head.append(el("span", w.method + " " + w.path, { class: "mono" }));
+    for (const name of w.headers || []) head.append(el("span", "+ " + name, { class: "tag" }));
+    body.append(block("New input from tool registry", head, ...(w.body !== null && w.body !== undefined ? [pre(w.body)] : []), ...(h && h.fix ? [opChips(h.fix)] : [])));
+  }
+  body.append(block("Final output", pre(t.result)));
   d.append(sum, body);
   return d;
 }
 
-function renderRegistry(snap, healed) {
-  $("registry").replaceChildren(...TOOLS.map((tool) => {
-    const r = snap && snap[tool];
-    const patched = !!(r && r.fix && healed.has(tool));
-    const card = el("div", null, { class: "reg" + (patched ? " patched" : "") });
-    const head = el("div", null, { class: "reg-head" });
-    head.append(el("code", tool), el("span", patched ? "v" + r.version + " · PATCHED" : "v1", { class: "tag" + (patched ? " good" : "") }));
-    const dl = el("dl");
-    const row = (k, v, wide) => { const dd = el("dd", null, wide ? { class: "wide" } : {}); dd.append(v); dl.append(el("dt", k, wide ? { class: "wide" } : {}), dd); };
-    row("agent_schema", "Frozen at v1 · 0 extra prompt tokens");
-    row("wire_schema", patched ? "Synced to the live API" : "v1");
-    if (patched) row("active DSL patch", opChips(r.fix), true);
-    else row("active patch", el("span", "none", { class: "muted" }));
-    card.append(head, dl);
-    return card;
-  }));
-}
-function renderSchemaDiff(schemas) {
-  $("schema-grid").replaceChildren(...Object.entries(schemas || {}).map(([name, s]) => {
-    const c = el("div", null, { class: "schema-col" });
-    const head = el("div", null, { class: "reg-head" });
-    head.append(el("code", name), el("span", s.input_drift ? "input drift" : s.output_drift ? "output drift" : "no drift", { class: "tag " + (s.input_drift || s.output_drift ? "bad" : "good") }));
-    c.append(head,
-      el("small", "Agent input · v1, frozen", { class: "muted" }), el("pre", formatJson(s.agent_input)),
-      el("small", "Wire input · live API", { class: "muted" }), el("pre", formatJson(s.actual_input), { class: s.input_drift ? "drift" : "" }));
-    if (s.output_drift) c.append(el("small", "Wire output · live API", { class: "muted" }), el("pre", formatJson(s.actual_output), { class: "drift" }));
-    return c;
-  }));
-}
-
 const STEP_MS = 420;
 function replay(res) {
-  const run = ++demoRun;
+  const run = ++presetRun;
+  exploreRes = res;
   const tools = CONTROL_TOOLS[res.mutation] || TOOLS;
   const shown = { healing: [], baseline: [] };
-  const healed = new Set();
-  $("demo-results").hidden = false;
-  $("verdict").replaceChildren();
-  $("agent-info").hidden = true;
-  renderRegistry(res.registry, healed);
-  renderSchemaDiff(res.tool_schemas);
-  const steps = (a, done) => renderSteps($("d-steps-" + a), tools, shown[a], {
+  const steps = (a, done) => renderSteps($("steps-" + a), tools, shown[a], {
     healing: a === "healing", details: res[a].correctness_details, done, total: shown[a].length,
     capped: done && res[a].hit_limit,
   });
   for (const a of AGENTS) {
-    $("d-calls-" + a).replaceChildren();
+    $("p-calls-" + a).replaceChildren();
     steps(a, false);
-    $("d-status-" + a).className = "pill warn";
-    $("d-status-" + a).textContent = "running";
+    $("status-" + a).className = "pill warn";
+    $("status-" + a).textContent = "running";
   }
-  $("demo-results").scrollIntoView({ behavior: "smooth", block: "start" });
   const tick = () => {
-    if (run !== demoRun) return;
+    if (run !== presetRun) return;
     let more = false;
     for (const a of AGENTS) {
       const traces = res[a].traces || [];
       const i = shown[a].length;
       if (i >= traces.length) continue;
-      const t = traces[i];
-      shown[a].push(t);
-      const list = $("d-calls-" + a);
-      const card = list.appendChild(callCard(t, a === "healing", i));
-      list.scrollTop = card.offsetTop - 4;  // the new call's header, even when its body is open
-      if (t.heal_event && t.heal_event.outcome === "RECOVERED") { healed.add(t.tool); renderRegistry(res.registry, healed); }
+      shown[a].push(traces[i]);
+      const list = $("p-calls-" + a);
+      const card = list.appendChild(callCard(traces[i], a === "healing", i));
+      list.scrollTop = card.offsetTop - 4;
       steps(a, false);
       more = more || i + 1 < traces.length;
     }
@@ -1117,85 +803,21 @@ function replay(res) {
 function finish(res, steps) {
   for (const a of AGENTS) {
     steps(a, true);
-    if (!(res[a].traces || []).length) $("d-calls-" + a).replaceChildren(el("div", res[a].error || "No tool calls recorded.", { class: "empty" }));
-    const healCard = $("d-calls-" + a).querySelector("details.call[open]");
-    if (healCard) $("d-calls-" + a).scrollTop = healCard.offsetTop - 4;  // end on the heal, the moment that matters
+    $("cap-" + a).hidden = !res[a].hit_limit;
+    if (!(res[a].traces || []).length) $("p-calls-" + a).replaceChildren(el("div", res[a].error || "No tool calls recorded.", { class: "empty" }));
   }
   const h = res.healing, b = res.baseline;
-  const heals = (h.traces || []).map((t) => t.heal_event).filter(Boolean);
   // A refused tool is skipped, not fatal: the run finishes, minus what had no safe value.
-  const skipped = new Set(heals.filter((e) => e.outcome === "ABORTED").map((e) => e.tool));
+  const skipped = new Set((h.traces || []).map((t) => t.heal_event).filter((e) => e && e.outcome === "ABORTED").map((e) => e.tool));
   const hStatus = h.status !== "error" && skipped.size ? "refused" : h.status;
   const hs = { done: ["good", "Task complete"], refused: ["warn", "Finished · " + skipped.size + " tool skipped safely"], error: ["bad", "LLM error"] }[hStatus] || ["bad", "Incomplete"];
-  $("d-status-healing").className = "pill " + hs[0];
-  $("d-status-healing").textContent = hs[1];
+  $("status-healing").className = "pill " + hs[0];
+  $("status-healing").textContent = hs[1];
   const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "False success · data not saved"];
-  $("d-status-baseline").className = "pill " + bs[0];
-  $("d-status-baseline").textContent = bs[1];
-  for (const e of heals) if (e.outcome === "RECOVERED") lastHeal[e.tier] = e.heal_ms ?? e.mttr_ms;
-  for (const t of ["0", "1"]) if (lastHeal[t] !== undefined) $("strip-t" + t).textContent = lastHeal[t] + " ms";
-  renderVerdict(res, heals, hStatus);
-  $("demo-status").className = "pill plain";
-  $("demo-status").textContent = "Done · run again to hit the tier-0 cache";
-}
-function renderVerdict(res, heals, hStatus) {
-  const box = $("verdict");
-  const row = (label, val, good) => { const r = el("div", null, { class: "vrow" }); r.append(el("span", label, { class: "muted" }), el("span", String(val), { class: good === undefined ? "" : good ? "val-good" : "val-bad" })); return r; };
-  const dataRows = (d) => !d ? [row("Data", "no data: the agents did not run", false)] : [
-    row("Email in the database", (d.email.value || "none") + (d.email.ok ? " ✓" : " ✗"), d.email.ok),
-    row("Manager", (d.manager.value || "none") + (d.manager.ok ? " ✓" : " ✗"), d.manager.ok),
-    row("Tickets", d.tickets.count + (d.tickets.ok ? " ✓" : " ✗"), d.tickets.ok),
-  ];
-  const h = res.healing, b = res.baseline;
-  const fixed = heals.filter((e) => e.outcome === "RECOVERED");
-  const refused = heals.filter((e) => e.outcome === "ABORTED");
-  const hTone = { done: "good", refused: "warn" }[hStatus] || "bad";
-  const hc = el("div", null, { class: "card vcard " + hTone });
-  hc.append(el("h3", "Self-healing agent"),
-    row("Tool calls", h.tool_calls),
-    row("Heals", fixed.length ? fixed.map((e) => e.tool + " in " + (e.heal_ms ?? e.mttr_ms) + " ms (tier " + e.tier + ")").join(", ") : "none needed", true),
-    row("Skipped safely", refused.length ? refused.map((e) => e.tool + ": " + e.reason).join(", ") : "none", refused.length ? undefined : true),
-    row("Invented values", "0", true),
-    ...dataRows(h.correctness_details),
-    row("Outcome", hStatus === "done" ? "Correct state" : hStatus === "refused" ? "Rest of the task done, nothing corrupted" : "Did not finish", hTone !== "bad"));
-  const bc = el("div", null, { class: "card vcard " + (b.data_correct && !b.hit_limit ? "good" : "bad") });
-  bc.append(el("h3", "Baseline agent"),
-    row("Tool calls", b.tool_calls + (b.hit_limit ? " · cap hit" : ""), !b.hit_limit),
-    row("Heals", "none: raw errors go back to the LLM"),
-    ...dataRows(b.correctness_details),
-    row("Outcome", b.hit_limit ? "Looped until the iteration cap" : b.data_correct ? "Correct state" : "Reported success, data wrong", b.data_correct && !b.hit_limit));
-  box.replaceChildren(bc, hc);
-  const info = $("agent-info");
-  info.replaceChildren();
-  if (res.agent === "llm") {
-    info.append(el("div", "Live LLM · " + ((h.llm_tokens || 0) + (b.llm_tokens || 0)) + " tokens across both agents"));
-    for (const [label, side] of [["Baseline said", b], ["Self-healing agent said", h]]) {
-      if (side.final_text) info.append(el("div", label + ": " + side.final_text));
-      if (side.error) info.append(el("div", label.split(" ")[0] + " error: " + side.error, { class: "val-bad" }));
-    }
-  }
-  info.hidden = !info.childNodes.length;
-}
-
-function renderReference(info) {
-  $("ref-tools").replaceChildren(...Object.entries(info.mock_info.tools).map(([name, t]) => {
-    const tr = el("tr");
-    tr.append(el("td", name, { class: "mono" }), el("td", t.method + " " + t.path, { class: "mono" }), el("td", (t.postchecks || []).map((p) => p.type + (p.response ? " " + p.response.join(".") : "")).join(", ") || "none"));
-    return tr;
-  }));
-  $("ref-muts").replaceChildren(...info.predefined_queries.filter((p) => p.mutation).map((p) => {
-    const tr = el("tr"), cls = el("td");
-    cls.append(badge(p.error_class));
-    tr.append(el("td", p.mutation, { class: "mono" }), el("td", p.tool_affected || "-", { class: "mono" }), cls, el("td", p.description));
-    return tr;
-  }));
-  $("ref-errors").replaceChildren(...info.error_classes.map((e) => {
-    const d = el("div");
-    const top = el("div", null, { style: "display:flex; gap:6px; align-items:center; margin-bottom:4px" });
-    top.append(badge(e.code), el("b", e.name));
-    d.append(top, el("div", e.description, { class: "muted" }), el("div", "Action: " + e.action));
-    return d;
-  }));
+  $("status-baseline").className = "pill " + bs[0];
+  $("status-baseline").textContent = bs[1];
+  $("preset-status").className = "pill good";
+  $("preset-status").textContent = "Done";
 }
 
 /* ---------- live tab ---------- */
@@ -1252,12 +874,14 @@ function stat(label, value) {
 }
 function renderRun(agent, s) {
   const run = s.runs[agent];
-  const status = $("status-" + agent);
-  status.textContent = run.status;
-  status.className = "pill " + ({ running: "warn", done: "good", error: "bad" }[run.status] || "");
-  $("cap-" + agent).hidden = !run.hit_limit;
-  const heals = agent === "healing" ? Object.fromEntries(s.heals.map((h) => [h.tool, h])) : {};
-  renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, total: counts[agent], capped: run.hit_limit });
+  if (!exploreRes) {
+    const status = $("status-" + agent);
+    status.textContent = run.status;
+    status.className = "pill " + ({ running: "warn", done: "good", error: "bad" }[run.status] || "");
+    $("cap-" + agent).hidden = !run.hit_limit;
+    const heals = agent === "healing" ? Object.fromEntries(s.heals.map((h) => [h.tool, h])) : {};
+    renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, total: counts[agent], capped: run.hit_limit });
+  }
   const data = s.mocks[agent].data, user = data.users["123"];
   const stats = [stat("Tool calls", counts[agent]), stat("Email", user.email), stat("Manager", user.manager_id || "none"), stat("Tickets", data.tickets.length)];
   if (run.llm_tokens) stats.push(stat("Tokens", run.llm_tokens));
@@ -1274,7 +898,7 @@ function renderHeals(heals) {
   const body = $("heals");
   body.replaceChildren();
   if (!heals.length) {
-    body.appendChild(el("tr")).appendChild(el("td", "No heals yet. Run a scenario on the Demo tab, or break the API during a live run.", { colspan: "9", class: "empty" }));
+    body.appendChild(el("tr")).appendChild(el("td", "No heals yet. Run a scenario on the Live tab, or break the API during a live run.", { colspan: "9", class: "empty" }));
     return;
   }
   const cell = (child) => { const td = el("td"); td.append(child); return td; };
@@ -1362,7 +986,7 @@ function loadReport() {
   }).catch(() => {});
 }
 clearView();
-poll().then(() => { loadReport(); initDemo(); });
+poll().then(() => { loadReport(); initPresets(); });
 setInterval(poll, 500);
 </script>
 </body>

@@ -62,7 +62,7 @@ Why deterministic code instead of an LLM for healing:
 | **Mock Drift API** | Four operations, the spec endpoint, the mutation switch (M1–M9 with M6-D/M6-N, controls C1–C3; M10 under S8; a dashboard-only `CUSTOM` drift composed per run), the state endpoint | Agents (through registry or direct), Benchmark, Dashboard |
 | **Healing Agent / Baseline Agent** | Same framework, LLM and prompt. The healing agent's tools call `registry.call`; the baseline's tools call the API directly. A scripted no-LLM agent runs the same task as fixed tool calls for keyless benchmark runs. | Mock API |
 | **Benchmark Runner** | Runs scenarios × agents × N, checks the final state, computes the metrics (FR-15.4), runs the clean runs and the error-only ablation | Mock API admin, agents, Store |
-| **Dashboard** | FastAPI service plus one static HTML page: a Demo view (prompt + scenario or custom drift, side-by-side replay with per-call input / wire / output, registry view), a live view of both agents with mutation buttons, patch log, metrics | Store, Mock API admin |
+| **Dashboard** | FastAPI service plus two static pages: a landing page (`/`) and the dashboard (`/live`): four presets replayed side by side with per-call input / error / registry input / output dropdowns, a live view of both agents with mutation buttons, patch log, metrics | Store, Mock API admin |
 
 ### 3.2 Request and response documents
 
