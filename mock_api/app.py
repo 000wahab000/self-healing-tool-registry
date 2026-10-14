@@ -1,4 +1,4 @@
-"""Mock drift API: four operations, mutations M1-M8 / C1 switchable at runtime.
+"""Mock drift API: four operations (plus a dry-run), mutations switchable at runtime.
 
 No `from __future__ import annotations`: handlers annotate their body with the model
 chosen for the active mutation, and FastAPI needs real objects, not strings.
@@ -15,7 +15,10 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
-MUTATIONS = ("M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "C1")
+MUTATIONS = ("M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9", "C1")
+ALIASES = {"M6": "M6-D"}  # accepted, not listed
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"  # C3
+Email = Annotated[str, Field(pattern=EMAIL_PATTERN)]
 SEED = {
     "users": {
         "123": {"name": "Ada", "email": "ada@example.com", "manager_id": None},
@@ -47,27 +50,36 @@ class TargetRef(Strict):  # M5
 
 class UpdateEmail(Strict):
     user_id: str
-    email: str
+    email: Email
 
 
 class UpdateEmailIntId(Strict):  # M2
     user_id: int
-    email: str
+    email: Email
+
+
+class UpdateEmailWrapped(Strict):  # M9
+    payload: UpdateEmail
 
 
 class UpdateEmailAddress(Strict):  # M7: old `email` is not declared, so it is ignored
     user_id: str
-    email_address: str | None = None
+    email_address: Email | None = None
 
 
 class SetManager(Strict):
-    user_id: str = Field(description="ID of the user")
-    manager_id: str = Field(description="ID of the manager")
+    user_id: str = Field(description="Employee to update")
+    manager_id: str = Field(description="Manager to assign")
 
 
-class SetManagerRenamed(Strict):  # M6
-    subject: str = Field(description="ID of the user whose manager is being set")
-    supervisor: str = Field(description="User ID of the new manager")
+class SetManagerRenamed(Strict):  # M6-D
+    subject: str = Field(description="Employee to update")
+    supervisor: str = Field(description="Manager to assign")
+
+
+class SetManagerBare(Strict):  # M6-N: renamed, nothing to tell the fields apart
+    subject: str
+    supervisor: str
 
 
 class NewTicket(Strict):
@@ -126,8 +138,14 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
             )
 
     lookup_in = {"M1": CustomerRef, "M5": TargetRef}.get(mid, UserRef)
-    email_in = {"M2": UpdateEmailIntId, "M7": UpdateEmailAddress}.get(mid, UpdateEmail)
-    manager_in = SetManagerRenamed if mid == "M6" else SetManager
+    email_in = {
+        "M2": UpdateEmailIntId,
+        "M7": UpdateEmailAddress,
+        "M9": UpdateEmailWrapped,
+    }.get(mid, UpdateEmail)
+    manager_in = {"M6-D": SetManagerRenamed, "M6-N": SetManagerBare}.get(
+        mid, SetManager
+    )
     ticket_in = NewTicketPriority if mid == "M8" else NewTicket
 
     @app.post(
@@ -152,6 +170,8 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
 
     @app.patch("/users/email", operation_id="update_email", response_model=EmailOut)
     async def update_email(body: email_in):
+        if mid == "M9":
+            body = body.payload
         uid = str(body.user_id)
         user = api.user(uid)
         new = body.email_address if mid == "M7" else body.email
@@ -159,16 +179,29 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
             user["email"] = new
         return {"id": uid, "email": user["email"]}
 
-    @app.post("/users/manager", operation_id="set_manager", response_model=ManagerOut)
-    async def set_manager(body: manager_in):
+    def manager_ids(body) -> tuple[str, str]:  # 404 checks shared with the dry run
         uid, manager = (
             (body.subject, body.supervisor)
-            if mid == "M6"
+            if mid in ("M6-D", "M6-N")
             else (body.user_id, body.manager_id)
         )
-        user = api.user(uid)
+        api.user(uid)
         api.user(manager)
-        user["manager_id"] = manager
+        return uid, manager
+
+    @app.post("/users/manager", operation_id="set_manager", response_model=ManagerOut)
+    async def set_manager(body: manager_in):
+        uid, manager = manager_ids(body)
+        api.user(uid)["manager_id"] = manager
+        return {"id": uid, "manager_id": manager}
+
+    @app.post(
+        "/users/manager/validate",
+        operation_id="validate_manager",
+        response_model=ManagerOut,
+    )
+    async def validate_manager(body: manager_in):
+        uid, manager = manager_ids(body)
         return {"id": uid, "manager_id": manager}
 
     @app.post(
@@ -241,11 +274,11 @@ class MockApi:
         self.set_mutation(None)
 
     def set_mutation(self, mid: str | None) -> None:
-        if mid is not None and mid not in MUTATIONS:
+        if mid is not None and mid not in MUTATIONS and mid not in ALIASES:
             raise ValueError(f"unknown mutation {mid!r}")
         self.get_user_calls = 0
         self.mutation = mid
-        self.inner = build(self, mid)
+        self.inner = build(self, ALIASES.get(mid, mid))
 
     def state(self) -> dict:
         return copy.deepcopy(self.data)

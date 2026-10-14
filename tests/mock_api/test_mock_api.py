@@ -12,6 +12,23 @@ LOOKUP, EMAIL, MANAGER, TICKETS = (
     "/users/manager",
     "/tickets",
 )
+VALIDATE = "/users/manager/validate"
+EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+ALL_VARIANTS = [
+    None,
+    "M1",
+    "M2",
+    "M3",
+    "M4",
+    "M5",
+    "M6",
+    "M6-D",
+    "M6-N",
+    "M7",
+    "M8",
+    "M9",
+    "C1",
+]
 SEED = {
     "users": {
         "123": {"name": "Ada", "email": "ada@example.com", "manager_id": None},
@@ -76,15 +93,22 @@ def errors(resp: httpx.Response) -> set[tuple[tuple, str]]:
 async def test_v1_spec(client):
     spec = await get_spec(client)
     ids = {op["operationId"] for item in spec["paths"].values() for op in item.values()}
-    assert ids == {"get_user", "update_email", "set_manager", "create_ticket"}
+    assert ids == {
+        "get_user",
+        "update_email",
+        "set_manager",
+        "validate_manager",
+        "create_ticket",
+    }
     assert operation(spec, "get_user")[:2] == ("POST", LOOKUP)
     assert operation(spec, "update_email")[:2] == ("PATCH", EMAIL)
     assert operation(spec, "set_manager")[:2] == ("POST", MANAGER)
+    assert operation(spec, "validate_manager")[:2] == ("POST", VALIDATE)
     assert operation(spec, "create_ticket")[:2] == ("POST", TICKETS)
     manager = request_schema(spec, "set_manager")["properties"]
     assert {k: v["description"] for k, v in manager.items()} == {
-        "user_id": "ID of the user",
-        "manager_id": "ID of the manager",
+        "user_id": "Employee to update",
+        "manager_id": "Manager to assign",
     }
     assert params(spec, "create_ticket") == [("idempotency-key", "header", False)]
     assert "securitySchemes" not in spec.get("components", {})
@@ -208,12 +232,25 @@ async def test_m5_nested_int_target_and_tenant_header(client, api):
     assert (r.status_code, r.json()["id"]) == (200, "123")
 
 
-async def test_m6_set_manager_fields_renamed(client, api):
-    api.set_mutation("M6")
+async def test_m6n_renamed_without_descriptions(client, api):
+    api.set_mutation("M6-N")
+    schema = request_schema(await get_spec(client), "set_manager")
+    assert set(schema["properties"]) == {"subject", "supervisor"}
+    assert all("description" not in v for v in schema["properties"].values())
+    r = await client.post(MANAGER, json={"user_id": "123", "manager_id": "456"})
+    assert r.status_code == 422
+    r = await client.post(MANAGER, json={"subject": "123", "supervisor": "456"})
+    assert (r.status_code, r.json()) == (200, {"id": "123", "manager_id": "456"})
+    assert api.state()["users"]["123"]["manager_id"] == "456"
+
+
+@pytest.mark.parametrize("mid", ["M6-D", "M6"])
+async def test_m6d_renamed_with_descriptions(client, api, mid):
+    api.set_mutation(mid)
     props = request_schema(await get_spec(client), "set_manager")["properties"]
     assert {k: v["description"] for k, v in props.items()} == {
-        "subject": "ID of the user whose manager is being set",
-        "supervisor": "User ID of the new manager",
+        "subject": "Employee to update",
+        "supervisor": "Manager to assign",
     }
     r = await client.post(MANAGER, json={"user_id": "123", "manager_id": "456"})
     assert r.status_code == 422
@@ -257,6 +294,122 @@ async def test_m8_priority_required_with_no_source(client, api):
     assert len(api.state()["tickets"]) == 1
 
 
+async def test_m9_email_body_wrapped_in_payload(client, api):
+    api.set_mutation("M9")
+    spec = await get_spec(client)
+    schema = request_schema(spec, "update_email")
+    assert set(schema["properties"]) == {"payload"}
+    assert schema["required"] == ["payload"]
+    payload = deref(spec, schema["properties"]["payload"])
+    assert set(payload["properties"]) == {"user_id", "email"}
+    assert sorted(payload["required"]) == ["email", "user_id"]
+    assert payload["properties"]["user_id"]["type"] == "string"
+    flat = {"user_id": "123", "email": "n@example.com"}
+    r = await client.patch(EMAIL, json=flat)
+    assert r.status_code == 422
+    assert errors(r) == {(("body", "payload"), "missing")}
+    assert api.state()["users"]["123"]["email"] == "ada@example.com"
+    r = await client.patch(EMAIL, json={"payload": flat})
+    assert (r.status_code, r.json()) == (200, {"id": "123", "email": "n@example.com"})
+    assert api.state()["users"]["123"]["email"] == "n@example.com"
+    r = await client.patch(EMAIL, json={"payload": {**flat, "user_id": "999"}})
+    assert (r.status_code, r.json()) == (404, {"detail": "User not found"})
+
+
+BAD_EMAIL = "not-an-email"
+
+
+@pytest.mark.parametrize("bad", [BAD_EMAIL, "a@b", "a b@c.de", "@x.com", ""])
+async def test_c3_invalid_email_is_422_with_unchanged_spec(client, api, bad):
+    before = await get_spec(client)
+    r = await client.patch(EMAIL, json={"user_id": "123", "email": bad})
+    assert r.status_code == 422
+    assert errors(r) == {(("body", "email"), "string_pattern_mismatch")}
+    assert api.state() == SEED
+    assert await get_spec(client) == before
+    schema = request_schema(before, "update_email")
+    assert set(schema["properties"]) == {"user_id", "email"}
+    assert schema["required"] == ["user_id", "email"]
+    assert schema["properties"]["email"]["pattern"] == EMAIL_PATTERN
+
+
+@pytest.mark.parametrize(
+    ("mid", "body", "loc"),
+    [
+        ("M2", {"user_id": 123, "email": BAD_EMAIL}, ("body", "email")),
+        (
+            "M7",
+            {"user_id": "123", "email_address": BAD_EMAIL},
+            ("body", "email_address"),
+        ),
+        (
+            "M9",
+            {"payload": {"user_id": "123", "email": BAD_EMAIL}},
+            ("body", "payload", "email"),
+        ),
+    ],
+)
+async def test_c3_invalid_email_in_every_variant_with_an_email_field(
+    client, api, mid, body, loc
+):
+    api.set_mutation(mid)
+    r = await client.patch(EMAIL, json=body)
+    assert r.status_code == 422
+    assert errors(r) == {(loc, "string_pattern_mismatch")}
+    assert api.state() == SEED
+
+
+@pytest.mark.parametrize("mid", ALL_VARIANTS)
+async def test_validate_manager_is_in_every_variant_with_set_managers_body(
+    client, api, mid
+):
+    api.set_mutation(mid)
+    spec = await get_spec(client)
+    assert operation(spec, "validate_manager")[:2] == ("POST", VALIDATE)
+    assert request_schema(spec, "validate_manager") == request_schema(
+        spec, "set_manager"
+    )
+    assert response_schema(spec, "validate_manager") == response_schema(
+        spec, "set_manager"
+    )
+
+
+@pytest.mark.parametrize(
+    ("mid", "body"),
+    [
+        (None, {"user_id": "123", "manager_id": "456"}),
+        ("M6-D", {"subject": "123", "supervisor": "456"}),
+        ("M6", {"subject": "123", "supervisor": "456"}),
+        ("M6-N", {"subject": "123", "supervisor": "456"}),
+    ],
+)
+async def test_validate_manager_returns_result_without_writing(client, api, mid, body):
+    api.set_mutation(mid)
+    before = api.state()
+    r = await client.post(VALIDATE, json=body)
+    assert (r.status_code, r.json()) == (200, {"id": "123", "manager_id": "456"})
+    assert api.state() == before
+
+
+async def test_validate_manager_checks_like_set_manager(client, api):
+    for mid, body in (
+        (None, {"user_id": "123", "manager_id": "999"}),
+        (None, {"user_id": "999", "manager_id": "456"}),
+        ("M6-N", {"subject": "123", "supervisor": "999"}),
+    ):
+        api.set_mutation(mid)
+        r = await client.post(VALIDATE, json=body)
+        assert (r.status_code, r.json()) == (404, {"detail": "User not found"})
+    api.set_mutation("M6-N")  # v1 names are not accepted by the active variant
+    r = await client.post(VALIDATE, json={"user_id": "123", "manager_id": "456"})
+    assert r.status_code == 422
+    assert errors(r) == {
+        (("body", "subject"), "missing"),
+        (("body", "supervisor"), "missing"),
+    }
+    assert api.state() == SEED
+
+
 async def test_c1_two_503_then_ok(client, api):
     base = await get_spec(client)
     api.set_mutation("C1")
@@ -281,7 +434,7 @@ def lookup_args(mid: str | None, user: str) -> dict:
     return {"json": {"user_id": user}}
 
 
-@pytest.mark.parametrize("mid", [None, *(f"M{i}" for i in range(1, 9)), "C1"])
+@pytest.mark.parametrize("mid", ALL_VARIANTS)
 async def test_unknown_user_is_404_in_every_variant(client, api, mid):
     api.set_mutation(mid)
     for _ in range(3):  # C1 answers 503 twice first
@@ -293,6 +446,7 @@ async def test_unknown_user_is_404_on_writes(client):
     for r in (
         await client.patch(EMAIL, json={"user_id": "999", "email": "n@example.com"}),
         await client.post(MANAGER, json={"user_id": "123", "manager_id": "999"}),
+        await client.post(MANAGER, json={"user_id": "999", "manager_id": "456"}),
         await client.post(TICKETS, json={"user_id": "999", "title": "t"}),
     ):
         assert (r.status_code, r.json()) == (404, {"detail": "User not found"})
@@ -346,7 +500,7 @@ async def test_set_mutation_keeps_data_and_log(client, api):
 
 async def test_unknown_mutation_id_is_rejected(api):
     with pytest.raises(ValueError):
-        api.set_mutation("M9")
+        api.set_mutation("M99")
 
 
 async def test_reset_restores_seed_and_v1(client, api):

@@ -10,7 +10,7 @@ import uvicorn
 
 from mock_api.app import create_app
 
-IDS = ["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "C1"]
+IDS = ["M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9", "C1"]
 SEED_USERS = {
     "123": {"name": "Ada", "email": "ada@example.com", "manager_id": None},
     "456": {"name": "Bob", "email": "bob@example.com", "manager_id": None},
@@ -44,6 +44,13 @@ async def test_set_mutation_changes_spec_and_clears(client):
     assert r.status_code == 200
     assert (await client.get("/admin/mutations")).json()["active"] is None
     assert "customer_id" not in (await client.get("/openapi.json")).text
+
+
+async def test_m6_alias_is_accepted_but_not_listed(client):
+    r = await client.post("/admin/mutation", json={"id": "M6"})
+    assert r.status_code == 200
+    assert r.json()["ids"] == IDS
+    assert "supervisor" in (await client.get("/openapi.json")).text
 
 
 async def test_unknown_mutation_is_400_and_keeps_active(client):
