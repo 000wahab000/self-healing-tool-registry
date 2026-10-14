@@ -484,9 +484,12 @@ pre { margin: 0; max-height: 70vh; overflow: auto; font: 12.5px/1.6 ui-monospace
 "use strict";
 const GROUPS = [
   ["Drift", "healable", [["M1", "Rename field", "get_user"], ["M2", "String to int", "update_email"], ["M3", "Nest response", "get_user"],
-    ["M4", "Require bearer", "create_ticket"], ["M5", "Nest + tenant header", "get_user"], ["M7", "Silent ignore", "update_email"]]],
-  ["Judgement", "ambiguous or unsafe", [["M6", "Ambiguous rename", "set_manager"], ["M8", "Unfillable field", "create_ticket"]]],
-  ["Control", "not drift", [["C1", "Transient 503", "get_user"]]],
+    ["M4", "Require bearer", "create_ticket"], ["M5", "Nest + tenant header", "get_user"], ["M7", "Silent ignore", "update_email"],
+    ["M9", "Request wrapping", "update_email"]]],
+  ["Judgement", "ambiguous or unsafe", [["M6-D", "Ambiguous rename, described", "set_manager"], ["M6-N", "Ambiguous rename, bare", "set_manager"],
+    ["M8", "Unfillable field", "create_ticket"]]],
+  ["Control", "not drift", [["C1", "Transient 503", "get_user"], ["C2", "Unknown user 404", "get_user"],
+    ["C3", "Invalid email 422", "update_email"]]],
 ];
 const AGENTS = ["healing", "baseline"];
 const CLASS_NAMES = { OK: "OK", BUSINESS: "Business error", E1: "Transient", E2: "Rejected", E3: "Undecodable", E4: "Soft error", E5: "Shape drift", E6: "Silent ignore" };
@@ -509,9 +512,16 @@ const Demo = (() => {
     M4: ["create_ticket", "E2", 401, [{ op: "header", name: "Authorization", src: { key: "OAUTH_BEARER" } }], []],
     M5: ["get_user", "E2", 422, [{ op: "move", from: ["body", "user_id"], to: ["body", "target", "id"] }, { op: "cast", path: ["body", "target", "id"], to: "int" }, { op: "header", name: "X-Tenant-Id", src: { key: "TENANT_ID" } }], []],
     M6: ["set_manager", "E2", 422, null, [], "LOW_CONFIDENCE"],
+    "M6-D": ["set_manager", "E2", 422, [{ op: "move", from: ["body", "user_id"], to: ["body", "subject"] },
+      { op: "move", from: ["body", "manager_id"], to: ["body", "supervisor"] }], [], null],
+    "M6-N": ["set_manager", "E2", 422, null, [], "LOW_CONFIDENCE"],
+    M9: ["update_email", "E2", 422, [{ op: "move", from: ["body", "user_id"], to: ["body", "payload", "user_id"] },
+      { op: "move", from: ["body", "email"], to: ["body", "payload", "email"] }], [], null],
     M7: ["update_email", "E6", 200, [{ op: "move", from: ["body", "email"], to: ["body", "email_address"] }], []],
     M8: ["create_ticket", "E2", 422, null, [], "NO_SAFE_VALUE"],
     C1: ["get_user", "E1", 503, null, [], null],
+    C2: ["get_user", "BUSINESS", 404, null, [], "NOT_DRIFT"],
+    C3: ["update_email", "BUSINESS", 422, null, [], "NOT_DRIFT"],
   };
   const SEQ = ["get_user", "update_email", "set_manager", "create_ticket"];
   const SAMPLE_REPORT = "Demo mode: simulated data, no backend connected.\n\nRun `python -m bench` to generate bench/report.md and it will appear here.";

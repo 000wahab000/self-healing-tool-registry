@@ -15,7 +15,8 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field
 
-MUTATIONS = ("M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9", "C1")
+# C1 to C3 are controls: they switch the mock but leave the spec unchanged (product.md §7).
+MUTATIONS = ("M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9", "C1", "C2", "C3")
 ALIASES = {"M6": "M6-D"}  # accepted, not listed
 EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"  # C3
 Email = Annotated[str, Field(pattern=EMAIL_PATTERN)]

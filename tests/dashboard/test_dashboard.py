@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
+from pathlib import Path
 
 import httpx
 import pytest
@@ -11,6 +13,7 @@ import pytest
 from dashboard import demo
 from dashboard.app import create_app
 from healer.models import ErrorClass, HealOutcome, Reason
+from mock_api.app import MUTATIONS
 
 M5_OPS = [
     {"op": "move", "from": ["body", "user_id"], "to": ["body", "target", "id"]},
@@ -74,6 +77,16 @@ async def test_index_serves_the_page(client):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
     assert "/api/state" in r.text
+
+
+def test_mutation_buttons_cover_every_scenario_including_m6_m9_and_c3():
+    """Phase 12D: one button per mutation (M6-D, M6-N, M9 and C3 included)."""
+    page = (Path(__file__).parents[2] / "dashboard" / "index.html").read_text(
+        encoding="utf-8"
+    )
+    groups = page.split("const GROUPS = [", 1)[1].split("];", 1)[0]
+    buttons = set(re.findall(r'\["((?:M|C)\d+(?:-[A-Z])?)"', groups))
+    assert buttons == set(MUTATIONS)
 
 
 async def test_idle_state_before_any_run(client):

@@ -317,7 +317,7 @@ Benchmark procedure per scenario:
 3. Run the agent on the demo task.
 4. Record the tool-call events, tokens, outcome and final state.
 
-The demo dashboard instead triggers the mutation mid-run, to show live recovery. The baseline's outcome (error loop, number of calls, tokens, final data correctness) is measured and reported for every scenario, not asserted as pass or fail (FR-15.8, AC-17). In the scripted benchmark run recorded in `bench/report.md` (N = 3), the baseline hit the iteration cap on M1, M2, M4 and M5 and ended incomplete on M7, but completed M3; those are measured facts for that mode, not an expectation for LLM mode.
+The demo dashboard instead triggers the mutation mid-run, to show live recovery. The baseline's outcome (error loop, number of calls, tokens, final data correctness) is measured and reported for every scenario, not asserted as pass or fail (FR-15.8, AC-17). In the scripted benchmark run recorded in `bench/report.md` (N = 3), the baseline hit the iteration cap on M1, M2, M4, M5, M6-D, M6-N, M8, M9, C2 and C3, ended incomplete on M7, and completed M3 and C1; those are measured facts for that mode, not an expectation for LLM mode.
 
 ## 8. Testing and Evaluation
 

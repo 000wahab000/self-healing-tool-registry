@@ -133,11 +133,12 @@ Why this works:
 
 Also reported: an **error-only ablation** (M1 to M9 re-run with the spec endpoint disabled, healed or aborted per mutation with the reason code; no pass threshold, and the False-Patch Rate must stay 0), and the baseline's outcome in every scenario (error loop, calls made, tokens, final data correctness), measured but not asserted.
 
-**Measured so far (scripted mode only).** The only benchmark run recorded in `bench/report.md` used fixed tool calls with no LLM (N = 3 per scenario and agent, 2026-10-13). It predates the current metric definitions, the request-nesting scenario (M9) and the M6-D / M6-N split, and it is local and tiny, so treat it as indicative:
-- The healing agent completed the task with the correct final mock state in 3 of 3 runs for M1, M2, M3, M4, M5 and M7. The baseline did so in 0 of 3 runs for M1, M2, M4, M5 and M7 (it hit its 10-call cap on M1, M2, M4 and M5, and ended incomplete on M7). The baseline also completed M3 in 3 of 3 runs.
-- Registry-internal heal time for tier-1 heals, median / p95 in ms: M1 16 / 17, M2 17 / 18, M3 17 / 18, M4 17 / 24, M5 19 / 44, M7 17 / 17. Repeat heals took 3 to 7 ms.
-- M8 was refused with `NO_SAFE_VALUE` in 3 of 3 runs, and no request carrying `priority` was sent.
-- The ambiguous rename (M6) aborted in that run because Jev gave no usable answer; the deterministic tie-breaker was not yet built. M6-D and M6-N are not yet measured.
+**Measured so far (scripted mode only).** The run recorded in `bench/report.md` uses fixed tool calls with no LLM (N = 3 per scenario and agent, 2026-10-14) under the current metric definitions, including M9 and the M6-D / M6-N split; it is local and tiny, so treat it as indicative:
+- ZTAR over the healable mutations (M1 to M5, M7, M9): the healing agent completed the task with the correct final mock state in 21 of 21 runs, the baseline in 3 of 21. The baseline completed M3 in 3 of 3 runs, hit its 10-call cap on M1, M2, M4, M5, M6-D, M6-N, M8, M9, C2 and C3, and ended incomplete on M7.
+- M6 reported separately: M6-D healed through the deterministic tie-breaker in 3 of 3 runs with no Jev call; M6-N aborted `LOW_CONFIDENCE` without writing in 3 of 3 runs (Jev disabled), which counts as a safe refusal.
+- Registry-internal heal time for tier-1 heals, median / p95 in ms: M1 12 / 13, M2 12 / 12, M3 13 / 17, M4 12 / 12, M5 15 / 17, M6-D 12 / 14, M7 12 / 13, M9 13 / 14. Repeat (tier-0) heals took 1 to 4 ms.
+- Safe-Refusal Rate: 6 of 6 (M8 refused `NO_SAFE_VALUE` in 3 of 3 runs with no request carrying `priority`; M6-N as above). False-Patch Rate: 0 of the 24 healed runs ended with a wrong final state.
+- Error-only ablation (reported without a pass threshold): M1 to M4 healed on the error clue alone; M5 and M7 aborted `NO_CANDIDATE`; M6-D, M6-N, M8 and M9 aborted `NO_SAFE_VALUE`; no false patches.
 - Scripted mode records 0 LLM tokens, so Token Overhead is not yet measured. It needs a run with a real LLM.
 
 **Live demo (about 30 s).**

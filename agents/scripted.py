@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Sequence
 
 from agents.common import MAX_ITERATIONS, Execute, RunResult
 from healer.models import ErrorClass
@@ -30,9 +31,10 @@ async def run(
     store=None,
     run_id: str = "",
     step_delay: float = 0.0,
+    steps: Sequence[tuple[str, dict]] = STEPS,
 ) -> RunResult:
     calls = 0
-    for name, args in STEPS:
+    for name, args in steps:
         while True:
             if calls == MAX_ITERATIONS:
                 return RunResult("iteration cap reached", calls, 0, True, None)

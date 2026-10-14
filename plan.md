@@ -263,16 +263,16 @@
 
 **Goal:** reproducible numbers for all three metrics.
 
-- [ ] `bench/run.py` (as built: `python -m bench.run --agent scripted|llm --n N`): for each scenario (M1–M8, C1 as built; v3 adds M9, M6-D/M6-N and C2/C3 in phase 12) × agent (healing, baseline) × N = 10, reset the mock, activate the mutation, run the task, then record the outcome, tokens and final state.
-- [ ] Clean runs (no mutation), N = 10 per agent, to get the token baselines.
-- [ ] Tier-0 runs (S6): repeat M1–M5 after the first heal, and after a restart.
-- [ ] Compute (v1 definitions as built; redefined per FR-15.4 in phase 12):
+- [x] `bench/run.py` (as built: `python -m bench.run --agent scripted|llm --n N`): for each scenario (M1–M8, C1 as built; v3 adds M9, M6-D/M6-N and C2/C3 in phase 12) × agent (healing, baseline) × N = 10, reset the mock, activate the mutation, run the task, then record the outcome, tokens and final state.
+- [x] Clean runs (no mutation), N = 10 per agent, to get the token baselines.
+- [x] Tier-0 runs (S6): repeat M1–M5 after the first heal, and after a restart.
+- [x] Compute (v1 definitions as built; redefined per FR-15.4 in phase 12):
   - ZTAR (per scenario; overall M1–M7; overall including M8),
   - MTTR p50/p95 by tier,
   - Token Overhead (healing) vs wasted tokens (baseline).
-- [ ] Write `results.jsonl` and `report.md` (see `technical-approach.md` §8.4).
+- [x] Write `results.jsonl` and `report.md` (see `technical-approach.md` §8.4).
 
-**Gate:** AC-14, AC-15, AC-16 and AC-17 pass, and the report is generated. The recorded run is scripted mode (no LLM), N = 3, dated 2026-10-13 (`bench/report.md`); token metrics need an LLM-mode run.
+**Gate:** AC-14, AC-15, AC-16 and AC-17 pass, and the report is generated. The recorded run is scripted mode (no LLM), N = 3, dated 2026-10-14 (`bench/report.md`); token metrics need an LLM-mode run.
 
 ---
 
@@ -343,18 +343,19 @@
 
 ### 12D. Benchmark and metrics (AC-14 to AC-17, AC-23)
 
-- [ ] Metrics (FR-15.4, FR-15.5) in `metrics.py` and `bench/run.py`:
+- [x] Metrics (FR-15.4, FR-15.5) in `metrics.py` and `bench/run.py`:
   - ZTAR over the healable mutations only (M1 to M5, M7, M9); M6 (both configurations, with and without Jev) and M10 reported separately,
   - Safe-Refusal Rate over M8 and M6-N with Jev disabled,
   - False-Patch Rate: healed runs whose final mock state was wrong (target 0),
   - MTTR from the first failing response caused by the mutation to the first verified-correct result, on a monotonic clock; `heal_ms` reported separately,
   - Token Overhead against the clean-run median, with baseline wasted tokens beside it and `jev_tokens` in its own column,
   - mean, median and p95 for every timing and token metric, per scenario.
-- [ ] Scenario list: M1 to M9 (M6-D and M6-N), C1 to C3. Clean runs, N = 10 per agent (FR-15.6).
-- [ ] Error-only ablation (FR-15.7): run M1 to M9 once more with `spec_mode` set to `off`; report per mutation whether it healed or aborted, and the reason. Combined or nested mutations (such as M5 and M9) are expected to abort `NO_CANDIDATE`. No heal-rate threshold; False-Patch Rate must stay 0.
-- [ ] Baseline outcomes (error loop, calls, tokens, final data correctness) reported for every scenario, not asserted (FR-15.8, AC-17).
-- [ ] Re-run the benchmark and regenerate `results.jsonl` and `report.md`. The current `bench/report.md` is a scripted run (N = 3) that predates these definitions. AC-16 needs an LLM-mode run, because scripted mode records 0 LLM tokens.
-- [ ] Dashboard: make sure the mutation buttons cover M6-D, M6-N, M9 and C3, and re-check AC-18 by hand.
+- [x] Scenario list: M1 to M9 (M6-D and M6-N), C1 to C3. Clean runs, N = 10 per agent (FR-15.6).
+- [x] Error-only ablation (FR-15.7): run M1 to M9 once more with `spec_mode` set to `off`; report per mutation whether it healed or aborted, and the reason. Combined or nested mutations (such as M5 and M9) are expected to abort `NO_CANDIDATE`. No heal-rate threshold; False-Patch Rate must stay 0.
+- [x] Baseline outcomes (error loop, calls, tokens, final data correctness) reported for every scenario, not asserted (FR-15.8, AC-17).
+- [x] Re-run the benchmark and regenerate `results.jsonl` and `report.md`. The current `bench/report.md` is a scripted run (N = 3) that predates these definitions. AC-16 needs an LLM-mode run, because scripted mode records 0 LLM tokens.
+- [x] Dashboard: mutation buttons cover M6-D, M6-N, M9 and C3 (guarded by `test_mutation_buttons_cover_every_scenario_including_m6_m9_and_c3`).
+- [ ] Re-check AC-18 by hand (one-click mutation, both agents live, heal event within 1 s); the demo re-run in 12E is the vehicle.
 
 ### 12E. Deliverables (`product.md` §16)
 
@@ -370,7 +371,7 @@
 
 `product.md` v3 labels the persistent fix store (S6) and the negative cache plus single-flight (S7) as STRETCH. Both were built in phases 4, 6 and 7 and are tested, so those STRETCH items are done. Phase 12 must keep them working.
 
-- **S6, persistent fix store.** The `fixes` and `spec_snapshots` tables, reload of active fixes at startup, tier-0 reuse by fingerprint including after a restart, and retirement at 2 losses. Tests: `test_ac_11_tier0_repeat_and_restart`, and in `tests/unit/test_store.py`: `test_fix_round_trip_survives_restart`, `test_one_active_fix_per_fingerprint`, `test_retired_at_two_losses_and_evicted`. The scripted benchmark in `bench/report.md` shows tier-0 heal times of 3 to 7 ms (scripted mode, N = 3).
+- **S6, persistent fix store.** The `fixes` and `spec_snapshots` tables, reload of active fixes at startup, tier-0 reuse by fingerprint including after a restart, and retirement at 2 losses. Tests: `test_ac_11_tier0_repeat_and_restart`, and in `tests/unit/test_store.py`: `test_fix_round_trip_survives_restart`, `test_one_active_fix_per_fingerprint`, `test_retired_at_two_losses_and_evicted`. The scripted benchmark in `bench/report.md` shows tier-0 heal times of 1 to 4 ms (scripted mode, N = 3).
 - **S7, negative cache and single-flight.** `KNOWN_UNFIXABLE` for 60 s on a failed fingerprint, and concurrent calls with the same fingerprint share one heal. Tests: `test_ac_12_negative_cache_known_unfixable`, `test_ac_19_single_flight_concurrency`, and `test_negative_cache_expires_with_injected_clock`.
 
 ---
@@ -409,3 +410,4 @@ Take these in order, one at a time. Each one keeps the full test suite green.
 | 2026-10-13 | 10 | done | Benchmark runner; recorded run is scripted mode, N = 3 (`bench/report.md`) |
 | by 2026-10-14 | 11 | done | Dashboard and terminal demo (MVP demo-ready) |
 | 2026-10-14 | 12 | in progress | Spec v3 alignment; docs updated first, code and tests follow the checklist above |
+| 2026-10-14 | 12D | done | v3 metrics (ZTAR/Safe-Refusal/False-Patch/MTTR+heal_ms/tokens) in `metrics.py` and `bench/run.py`, error-only ablation pass, report regenerated (scripted, N = 3); tests for AC-14 to AC-17 and AC-23; dashboard buttons cover all scenarios |

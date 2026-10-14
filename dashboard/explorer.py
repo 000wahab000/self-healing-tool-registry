@@ -443,6 +443,14 @@ def _coerce_args(name: str, args: dict, tool_schemas: dict) -> tuple[dict, list]
     return out, adjusted
 
 
+def _json_or_text(text: str) -> Any:
+    """Parse a JSON payload; keep the raw text when it is not JSON."""
+    try:
+        return json.loads(text)
+    except (TypeError, ValueError):
+        return text
+
+
 def _parse_tool_result(text: str) -> Any:
     """Baseline tools answer with raw `HTTP n: body`; healers answer with JSON."""
     if text.startswith("HTTP "):
@@ -451,15 +459,8 @@ def _parse_tool_result(text: str) -> Any:
             status_code = int(status)
         except ValueError:
             return text
-        try:
-            body = json.loads(body)
-        except Exception:
-            pass
-        return {"status_code": status_code, "body": body}
-    try:
-        return json.loads(text)
-    except Exception:
-        return text
+        return {"status_code": status_code, "body": _json_or_text(body)}
+    return _json_or_text(text)
 
 
 def _heal_info(heals: list, store: Store) -> dict | None:
@@ -690,7 +691,7 @@ async def run_explore(
                     common.make_tools(baseline_reg, base_execute, "baseline", store, run_id),
                     prompt=common.SYSTEM_PROMPT,
                 )
-            except Exception as exc:  # bad key, provider down, free-tier cap, ...
+            except Exception as exc:  # noqa: BLE001  bad key, provider down, cap, ...
                 # Report the failure honestly instead of degrading to canned data.
                 return _llm_bootstrap_error(
                     query, mutation, tool_schemas, healing_traces, baseline_traces, exc
@@ -759,10 +760,8 @@ async def run_explore(
             healing_traces = []
             base_heal_count = len(store.audit_events())
             execute_healing = healing_agent.executor(healing_reg)
-            call_step = 0
 
-            for name, args in scripted.STEPS:
-                call_step += 1
+            for call_step, (name, args) in enumerate(scripted.STEPS, start=1):
                 t0 = time.perf_counter()
                 prev_heals = len(store.audit_events())
                 text, cls = await execute_healing(name, dict(args))
@@ -789,10 +788,7 @@ async def run_explore(
                         } if fix_record else None,
                     }
 
-                try:
-                    parsed_res = json.loads(text)
-                except Exception:
-                    parsed_res = text
+                parsed_res = _json_or_text(text)
 
                 healing_traces.append({
                     "step": call_step,
@@ -837,14 +833,11 @@ async def run_explore(
                             parts = text.split(": ", 1)
                             status_str = parts[0].replace("HTTP ", "")
                             body_str = parts[1] if len(parts) > 1 else ""
-                            try:
-                                parsed_body = json.loads(body_str)
-                            except Exception:
-                                parsed_body = body_str
+                            parsed_body = _json_or_text(body_str)
                             parsed_res = {"status_code": int(status_str), "body": parsed_body}
                         else:
-                            parsed_res = json.loads(text)
-                    except Exception:
+                            parsed_res = _json_or_text(text)
+                    except ValueError:  # a status code that is not a number
                         parsed_res = text
 
                     baseline_traces.append({
