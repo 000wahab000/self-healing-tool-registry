@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from agents import baseline_agent, common, healing_agent, scripted
-from dashboard.explorer import get_explorer_info, run_explore
+from dashboard.explorer import _recording_executor, get_explorer_info, run_explore
 from healer import metrics
 from healer.jev import from_env
 from healer.models import AuditEvent
@@ -89,12 +89,14 @@ class Dashboard:
         self.base_event = 0  # the view starts after the last start / reset
         self.base_heal = 0
         self.runs = {a: dict(IDLE) for a in self.mocks}
+        self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
 
     async def start(self, kind: str, step_delay: float) -> None:
         if kind == "llm" and not os.environ.get("OPENROUTER_API_KEY"):
             raise ValueError("llm agents need OPENROUTER_API_KEY")
         async with self.lock:
             await self._stop()
+            mutation = self.mutation  # a drift picked before Start applies to this run
             self._clear()
             http = {
                 a: httpx.AsyncClient(
@@ -109,18 +111,32 @@ class Dashboard:
             baseline = Registry(http["baseline"], self.tools, self.cfg)  # v1 specs only
             await healing.load()
             await baseline.load()
+            # Registries freeze the clean v1 spec first, then the drift goes live.
+            if mutation is not None:
+                for mock in self.mocks.values():
+                    mock.set_mutation(mutation)
+                self.mutation = mutation
             run_id = uuid.uuid4().hex[:8]
             if kind == "scripted":
+                heal_exec, self.traces["healing"] = _recording_executor(
+                    healing_agent.executor(healing), self.store, {}, self.mocks["healing"]
+                )
+                base_exec, self.traces["baseline"] = _recording_executor(
+                    baseline_agent.executor(http["baseline"], baseline),
+                    self.store,
+                    {},
+                    self.mocks["baseline"],
+                )
                 jobs = {
                     "healing": lambda: self._scripted(
-                        healing_agent.executor(healing),
+                        heal_exec,
                         "healing",
                         False,
                         step_delay,
                         run_id,
                     ),
                     "baseline": lambda: self._scripted(
-                        baseline_agent.executor(http["baseline"], baseline),
+                        base_exec,
                         "baseline",
                         True,
                         step_delay,
@@ -238,6 +254,7 @@ class Dashboard:
         self.base_event = events[-1]["event_id"] if events else 0
         self.base_heal = len(self.store.audit_events())
         self.runs = {a: dict(IDLE) for a in self.mocks}
+        self.traces = {a: [] for a in self.mocks}
 
     def state(self, after: int = 0) -> dict:
         audit = self.store.audit_events()[self.base_heal :]
@@ -245,6 +262,11 @@ class Dashboard:
             "epoch": self.epoch,
             "active_mutation": self.mutation,
             "runs": self.runs,
+            # Both agents share one audit log; only the healing side can heal.
+            "traces": {
+                "healing": self.traces["healing"],
+                "baseline": [{**t, "heal_event": None} for t in self.traces["baseline"]],
+            },
             "events": self.store.call_events(max(after, self.base_event)),
             "heals": [self._heal(e) for e in audit],
             "metrics": {
