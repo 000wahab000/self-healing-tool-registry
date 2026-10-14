@@ -1,6 +1,9 @@
 import os
-
+from pathlib import Path
 import uvicorn
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from dashboard.app import create_app
 
