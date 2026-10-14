@@ -215,8 +215,19 @@ async def test_reset_clears_the_view_and_the_mocks(client):
         assert mock["data"]["users"]["123"]["email"] == "ada@example.com"
 
 
+async def test_mutation_picked_before_start_survives_start(client):
+    assert (await client.post("/api/mutation", json={"id": "M5"})).status_code == 200
+    assert (await client.post("/api/start", json=PACED)).status_code == 200
+    s = await finished(client)
+    assert s["active_mutation"] == "M5"
+    assert s["runs"]["baseline"]["hit_limit"] is True
+    assert {t["error_class"] for t in s["traces"]["baseline"]} == {"E2"}
+    assert s["traces"]["healing"][0]["heal_event"] is not None
+
+
 async def test_start_again_runs_on_clean_mocks(client):
     await run_with(client, "M5")
+    assert (await client.post("/api/mutation", json={"id": None})).status_code == 200
     s = await run_with(client, None)
     assert s["active_mutation"] is None
     assert s["runs"]["baseline"]["hit_limit"] is False

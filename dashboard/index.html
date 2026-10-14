@@ -144,11 +144,13 @@ details[open] > summary .plus::after { transform: rotate(0deg); }
 .stat small { display: block; color: var(--muted); font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
 .stat b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .err { color: var(--bad); font-size: 12.5px; margin: 0 0 8px; overflow-wrap: anywhere; }
-ol.calls-live { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r); }
-ol.calls-live li { display: grid; grid-template-columns: 84px 1fr auto 58px; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-ol.calls-live li:last-child { border-bottom: 0; }
-ol.calls-live li.emptyrow { display: block; }
-ol.calls-live .empty { display: block; color: var(--muted); text-align: center; padding: 28px 12px; }
+div.calls-live { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r); }
+div.calls-live .row { display: grid; grid-template-columns: 84px 1fr auto 58px; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+div.calls-live .row:last-child { border-bottom: 0; }
+div.calls-live[hidden] { display: none; }
+div.calls-live.calls { height: auto; min-height: 280px; max-height: 620px; border: 0; }
+div.calls-live .row.emptyrow { display: block; }
+div.calls-live .empty { display: block; color: var(--muted); text-align: center; padding: 28px 12px; }
 .time, .lat { color: var(--muted); font: 12px var(--mono); }
 .lat { text-align: right; }
 .calls-live .tool { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
@@ -183,8 +185,8 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
   .diff { grid-template-columns: 1fr; }
   .diff .arrow { transform: rotate(90deg); justify-self: center; }
   .steps { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
-  ol.calls-live li { grid-template-columns: 70px 1fr auto; }
-  ol.calls-live .lat { display: none; }
+  div.calls-live .row { grid-template-columns: 70px 1fr auto; }
+  div.calls-live .lat { display: none; }
 }
 </style>
 </head>
@@ -242,7 +244,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <div class="stats" id="stats-baseline"></div>
         <p class="err" id="err-baseline" hidden></p>
         <div class="calls" id="p-calls-baseline"></div>
-        <ol class="calls-live" id="calls-baseline"></ol>
+        <div class="calls-live" id="calls-baseline"></div>
       </section>
       <section class="card pad pane healing" id="col-healing">
         <div class="pane-head"><h2>Self-healing agent</h2><span class="pill bad plain" id="cap-healing" hidden>Iteration cap</span><span class="pill" id="status-healing">idle</span></div>
@@ -250,7 +252,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <div class="stats" id="stats-healing"></div>
         <p class="err" id="err-healing" hidden></p>
         <div class="calls" id="p-calls-healing"></div>
-        <ol class="calls-live" id="calls-healing"></ol>
+        <div class="calls-live" id="calls-healing"></div>
       </section>
     </div>
   </div>
@@ -405,11 +407,13 @@ const Demo = (() => {
   }
   function demoExplore(query, mut) {
     const isClean = !mut;
-    const isM1 = mut === 'M1';
+    const isM5 = mut === 'M5';
+    const isM1 = mut === 'M1' || isM5;  // M5 breaks get_user too: baseline caps out on 422s
     const isM7 = mut === 'M7';
     const isM8 = mut === 'M8';
 
-    const get_user_actual_in = isM1 ? { type: "object", properties: { customer_id: { type: "string", title: "Customer Id" } }, required: ["customer_id"] }
+    const get_user_actual_in = isM5 ? { type: "object", properties: { target: { type: "object", properties: { id: { type: "integer" } }, required: ["id"] } }, required: ["target"] }
+      : isM1 ? { type: "object", properties: { customer_id: { type: "string", title: "Customer Id" } }, required: ["customer_id"] }
       : { type: "object", properties: { user_id: { type: "string", title: "User Id" } }, required: ["user_id"] };
     const email_actual_in = isM7 ? { type: "object", properties: { user_id: { type: "string" }, email_address: { type: "string" } }, required: ["user_id"] }
       : { type: "object", properties: { user_id: { type: "string" }, email: { type: "string", format: "email" } }, required: ["user_id", "email"] };
@@ -449,7 +453,7 @@ const Demo = (() => {
       }
     };
 
-    const healEvent = isM1 ? { tool: "get_user", class: "E2", raw_code: "422", tier: 1, path: "diff", outcome: "RECOVERED", reason: null, mttr_ms: 180, heal_ms: 45, fix: { request_ops: [{ op: "move", from: ["body", "user_id"], to: ["body", "customer_id"] }], response_ops: [] } }
+    const healEvent = isM1 ? { tool: "get_user", class: "E2", raw_code: "422", tier: 1, path: "diff", outcome: "RECOVERED", reason: null, mttr_ms: 180, heal_ms: 45, fix: { request_ops: isM5 ? [{ op: "move", from: ["body", "user_id"], to: ["body", "target", "id"] }, { op: "cast", path: ["body", "target", "id"], to: "integer" }, { op: "header", name: "X-Tenant-Id", src: { key: "tenant_id" } }] : [{ op: "move", from: ["body", "user_id"], to: ["body", "customer_id"] }], response_ops: [] } }
       : (isM7 ? { tool: "update_email", class: "E6", raw_code: "200", tier: 1, path: "diff", outcome: "RECOVERED", reason: null, mttr_ms: 210, heal_ms: 55, fix: { request_ops: [{ op: "move", from: ["body", "email"], to: ["body", "email_address"] }], response_ops: [] } }
       : (isM8 ? { tool: "create_ticket", class: "E2", raw_code: "422", tier: 1, path: "diff", outcome: "ABORTED", reason: "NO_SAFE_VALUE", mttr_ms: 40, heal_ms: 38, fix: null } : null));
 
@@ -463,7 +467,7 @@ const Demo = (() => {
     const bTraces = [];
     if (isM1) {
       for (let i = 1; i <= 10; i++) {
-        bTraces.push({ step: i, tool: "get_user", args: { user_id: "123" }, is_retry: i > 1, retry_count: i - 1, input_schema: schemas.get_user.agent_input, actual_input_schema: schemas.get_user.actual_input, output_schema: schemas.get_user.expected_output, actual_output_schema: schemas.get_user.actual_output, input_drift: true, output_drift: false, error_class: "E2", heal_event: null, result: { status_code: 422, body: { detail: [{ loc: ["body", "customer_id"], msg: "field required", type: "missing" }] } }, latency_ms: 35 });
+        bTraces.push({ step: i, tool: "get_user", args: { user_id: "123" }, is_retry: i > 1, retry_count: i - 1, input_schema: schemas.get_user.agent_input, actual_input_schema: schemas.get_user.actual_input, output_schema: schemas.get_user.expected_output, actual_output_schema: schemas.get_user.actual_output, input_drift: true, output_drift: false, error_class: "E2", heal_event: null, result: { status_code: 422, body: { detail: [{ loc: isM5 ? ["body", "target"] : ["body", "customer_id"], msg: "field required", type: "missing" }] } }, latency_ms: 35 });
       }
     } else if (isM7) {
       bTraces.push({ step: 1, tool: "get_user", args: { user_id: "123" }, is_retry: false, retry_count: 0, input_schema: schemas.get_user.agent_input, actual_input_schema: schemas.get_user.actual_input, output_schema: schemas.get_user.expected_output, actual_output_schema: schemas.get_user.actual_output, input_drift: false, output_drift: false, error_class: "OK", heal_event: null, result: { id: "123", name: "Ada", email: "ada@example.com" }, latency_ms: 40 });
@@ -675,7 +679,7 @@ for (const [id, label, title, sub] of ACTS) {
 // Drop any preset result (Reset, a live run or a live mutation takes over the columns).
 function clearPreset() {
   presetRun++; exploreRes = null;
-  for (const a of AGENTS) $("p-calls-" + a).replaceChildren();
+  for (const a of AGENTS) { $("p-calls-" + a).replaceChildren(); $("calls-" + a).hidden = false; }
   for (const b of Object.values(presetCards)) b.setAttribute("aria-pressed", "false");
   $("preset-status").className = "pill plain";
   $("preset-status").textContent = "Ready";
@@ -770,6 +774,7 @@ const STEP_MS = 420;
 function replay(res) {
   const run = ++presetRun;
   exploreRes = res;
+  for (const a of AGENTS) $("calls-" + a).hidden = true;  // the preset's own list replaces the live one
   const tools = CONTROL_TOOLS[res.mutation] || TOOLS;
   const shown = { healing: [], baseline: [] };
   const steps = (a, done) => renderSteps($("steps-" + a), tools, shown[a], {
@@ -848,25 +853,40 @@ const counts = { healing: 0, baseline: 0 };
 const liveCalls = { healing: [], baseline: [] };
 
 function emptyCalls(agent) {
-  const li = el("li", null, { class: "emptyrow" });
+  const list = $("calls-" + agent);
+  list.classList.remove("calls");
+  const li = el("div", null, { class: "row emptyrow" });
   li.appendChild(el("span", "No tool calls yet. Start a run.", { class: "empty" }));
-  $("calls-" + agent).replaceChildren(li);
+  list.replaceChildren(li);
 }
 function clearView() {
   after = 0; healSig = "";
   for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; emptyCalls(a); }
 }
+// Scripted runs carry full traces, so each call becomes the same dropdown the presets show.
+function syncTraces(traces) {
+  for (const a of AGENTS) {
+    const t = (traces || {})[a] || [];
+    const list = $("calls-" + a);
+    if (!t.length || !list) continue;
+    if (!list.classList.contains("calls")) { list.classList.add("calls"); list.replaceChildren(); }
+    const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 8;
+    for (let i = list.children.length; i < t.length; i++) list.appendChild(callCard(t[i], a === "healing", i));
+    if (stick) list.scrollTop = list.scrollHeight;
+  }
+}
 function addCall(e) {
   const list = $("calls-" + e.agent);
   if (!list) return;
+  counts[e.agent] += 1;
+  liveCalls[e.agent].push({ tool: e.tool, error_class: e.class });
+  if (list.classList.contains("calls")) return;
   if (list.querySelector(".emptyrow")) list.replaceChildren();
   const stick = list.scrollTop + list.clientHeight >= list.scrollHeight - 8;
-  const li = el("li");
+  const li = el("div", null, { class: "row" });
   li.append(el("span", clock(e.ts_ms), { class: "time" }), el("span", e.tool, { class: "tool" }), badge(e.class), el("span", e.latency_ms + " ms", { class: "lat" }));
   list.appendChild(li);
   if (stick) list.scrollTop = list.scrollHeight;
-  counts[e.agent] += 1;
-  liveCalls[e.agent].push({ tool: e.tool, error_class: e.class });
 }
 function stat(label, value) {
   const s = el("div", null, { class: "stat" });
@@ -956,6 +976,7 @@ function render(s) {
   chip.className = "pill " + (s.active_mutation ? "bad" : "plain");
   for (const [id, b] of Object.entries(mutationButtons)) b.setAttribute("aria-pressed", String(id === s.active_mutation));
   if (s.active_mutation !== lastLiveMut) { lastLiveMut = s.active_mutation; renderBanner($("live-banner"), lastLiveMut || "CLEAN"); }
+  syncTraces(s.traces);
   for (const e of s.events) { addCall(e); after = e.event_id; }
   for (const a of AGENTS) renderRun(a, s);
   renderHeals(s.heals);
