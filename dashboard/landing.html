@@ -10,124 +10,137 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Chivo+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif&display=swap">
 <link rel="stylesheet" href="/theme.css">
 <style>
-:root { --px: 40px; --m2: color-mix(in srgb, var(--muted) 60%, var(--ink)); }
+/* type scale: 12 mono labels, 14 code/chips, 15 small, 17 body, 22 h3, 48 h2, 56 stats, 72 h1 (+13 diagram subs) */
+:root { --px: 40px; --pad: clamp(64px, 9vw, 120px); --m2: color-mix(in srgb, var(--muted) 60%, var(--ink)); }
 html { scroll-behavior: smooth; }
 [id] { scroll-margin-top: 72px; }
 nav.tabs a[aria-current] { background: var(--panel); border-color: var(--line-2); color: var(--ink); box-shadow: var(--shadow); }
 nav.tabs { max-width: 100%; }
 
-/* hairline grid: a framed column of stacked cells */
-main.frame, footer.frame { max-width: 1240px; margin: 0 auto; padding: 0; border-inline: 1px solid var(--line); }
-.cell { border-bottom: 1px solid var(--line); }
-.in { padding: 56px var(--px); }
+/* alternating full-width bands, hairline between them */
+main { max-width: none; margin: 0; padding: 0; }
+.band { padding: var(--pad) 0; }
+.band + .band, footer { border-top: 1px solid var(--line); }
+.band.tight { padding: 48px 0; }
 .soft { background: var(--soft); }
-.sp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.sp > * + * { border-left: 1px solid var(--line); }
-.hair { display: grid; gap: 1px; background: var(--line); margin: 0; padding: 0; list-style: none; }
-.hair > * { background: var(--bg); min-width: 0; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 var(--px); }
+.hd { margin-bottom: 44px; }
+.hd.c { text-align: center; }
+.hd.c .lede { margin-inline: auto; text-wrap: balance; }
+.sp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 64px; align-items: center; }
+.sp.end { align-items: end; }
+.sp .hd { margin: 0; }
+.how { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+
+/* rounded hairline grids: 1px gaps on a line-colored background, clipped by a round border */
+.hair, .pipe, .cls, .tbl { border: 1px solid var(--line-2); border-radius: var(--r-lg); overflow: hidden; background: var(--line); }
+.hair, .pipe, .cls { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.hair > *, .pipe li, .cls > div { background: var(--panel); min-width: 0; }
+.tbl { background: var(--panel); }
 .c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .c5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.dashbox { border: 1px dashed var(--dash); border-radius: 12px; }
+.dashbox { border: 1px dashed var(--dash); border-radius: var(--r-lg); }
 
 /* type */
-main h1, main h2, main h3 { font-family: var(--sans); font-weight: 600; letter-spacing: -.03em; }
-main h1 { font-size: clamp(38px, 5vw, 64px); line-height: 1.02; letter-spacing: -.045em; margin: 18px 0 0; }
-main h2 { font-size: clamp(28px, 3.4vw, 42px); line-height: 1.08; margin: 16px 0 0; }
-main h3 { font-size: 19px; line-height: 1.2; letter-spacing: -.02em; }
-main p { margin: 0; }
-.lede { color: var(--ink-2); font-size: 17px; line-height: 1.55; margin-top: 16px; max-width: 48ch; }
-.tagbox { display: inline-block; border: 1px solid var(--line-2); background: var(--panel); padding: 6px 8px; font: 500 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
-.lab { font: 500 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 10px; }
-.lnk { display: inline-block; margin-top: 24px; font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--ink); padding-bottom: 4px; }
+main h1, main h2, main h3 { font-family: var(--sans); font-weight: 600; letter-spacing: -.03em; text-wrap: balance; }
+main h1 { font-size: clamp(40px, 6vw, 72px); line-height: 1.02; letter-spacing: -.04em; margin: 24px auto 0; max-width: 920px; }
+main h2, main .h2 { font-size: clamp(32px, 4.2vw, 48px); line-height: 1.08; margin: 16px 0 0; }
+main h3 { font-size: 22px; line-height: 1.2; letter-spacing: -.02em; }
+main p { margin: 0; text-wrap: pretty; }
+.lede { color: var(--ink-2); font-size: 17px; line-height: 1.55; margin-top: 16px; max-width: 60ch; }
+.tagbox { display: inline-block; border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--r-sm); padding: 6px 10px; font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.lab { font: 500 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 12px; }
+.lnk { display: inline-block; margin-top: 28px; font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--ink); padding-bottom: 4px; }
 .lnk::after { content: " >"; content: " >" / ""; }
 .lnk:hover { border-bottom-color: var(--accent); }
 .btn.lg { padding: 11px 18px; font-size: 15px; }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 32px; }
 .hl { background: linear-gradient(transparent 58%, var(--accent) 58% 90%, transparent 90%); padding: 0 .06em; margin: 0 -.06em; }
-.chip { display: inline-block; font: 500 12px/1.5 var(--mono); padding: 1px 8px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.chip { display: inline-block; font: 500 14px/1.5 var(--mono); padding: 1px 8px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--panel); color: var(--ink); }
 .chip.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
 .chip.bad { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
 .chip.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
 .chip.biz { background: var(--biz-bg); color: var(--biz); border-color: transparent; }
 .chip.acc { background: var(--accent-bg); border-color: transparent; }
+.rm, .add { padding: 0 .3em; border-radius: var(--r-sm); }
 .rm { background: var(--bad-bg); color: var(--bad); }
 .add { background: var(--ok-bg); color: var(--ok); }
 
-/* hero */
-.hero { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
-.hero-l { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 72px var(--px); }
-.hero-r { display: flex; align-items: center; padding: 28px; background: var(--soft); }
-.hero-r .dashbox { width: 100%; padding: 12px; border-radius: 22px; }
-.dark { background: #0e1015; border-radius: 16px; padding: 14px; }
-.stage { display: flex; align-items: flex-start; gap: 12px; margin: 14px 4px 2px; font: 12.5px/1.45 var(--mono); color: var(--ink-2); }
-.stage-dots { display: flex; gap: 6px; padding-top: 5px; }
+/* hero: centered text, then the diagram on a soft band */
+.hero { padding: clamp(56px, 7vw, 96px) 0 48px; text-align: center; }
+.hero .lede { margin: 24px auto 0; text-wrap: balance; }
+.stg { padding: 64px 0; }
+.stg .dashbox { max-width: 960px; margin: 0 auto; padding: 12px; border-radius: var(--r-xl); background: var(--panel); }
+.dark { background: #0e1015; border-radius: var(--r-lg); padding: 14px; }
+.stage { display: flex; justify-content: center; align-items: flex-start; gap: 12px; margin: 16px 4px 4px; font: 15px/1.45 var(--sans); color: var(--ink-2); text-align: left; }
+.stage-dots { display: flex; gap: 6px; padding-top: 7px; }
 .stage-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); transition: background .5s; }
 .stage-dots i.on { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
-#hf-cap { min-height: 2.9em; }
+#hf-cap { min-height: 1.45em; }
 
 /* stats */
-.stats li { padding: 28px 24px; display: flex; flex-direction: column; gap: 14px; }
-.num { align-self: flex-start; font: 600 clamp(34px, 3.6vw, 46px)/1 var(--sans); letter-spacing: -.04em; padding-bottom: 7px; background: linear-gradient(var(--accent), var(--accent)) 0 100% / 100% 3px no-repeat; }
-.st { font-size: 15px; font-weight: 500; line-height: 1.3; }
-.ids { font: 12px/1.45 var(--mono); color: var(--m2); display: block; margin-top: 4px; font-weight: 400; }
-.note { padding: 12px var(--px); font: 12px/1.5 var(--mono); color: var(--m2); }
+.stats li { padding: 32px 24px; display: flex; flex-direction: column; gap: 16px; }
+.num { align-self: flex-start; font: 600 clamp(40px, 4.4vw, 56px)/1 var(--sans); letter-spacing: -.04em; padding-bottom: 8px; background: linear-gradient(var(--accent), var(--accent)) 0 100% / 100% 3px no-repeat; }
+.st { font-size: 15px; font-weight: 500; line-height: 1.35; }
+.ids { font-weight: 400; color: var(--m2); display: block; margin-top: 2px; }
+.note { margin-top: 16px; font-size: 15px; color: var(--m2); }
 
 /* why */
-.why { display: flex; flex-direction: column; gap: 10px; padding: 28px 24px 24px; }
-.why .tg { font: 500 11px/1 var(--mono); letter-spacing: .08em; color: var(--m2); text-transform: uppercase; margin-bottom: 8px; }
-.why p { color: var(--ink-2); font-size: 15px; line-height: 1.5; }
-.vis { margin-top: auto; padding: 10px 12px; border: 1px dashed var(--dash); border-radius: 8px; background: var(--soft); font: 12.5px/1.5 var(--mono); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 46px; }
-.why > p { margin-bottom: 14px; }
+.why { display: flex; flex-direction: column; gap: 12px; padding: 32px 28px 28px; }
+.why .tg { font: 500 12px/1 var(--mono); letter-spacing: .08em; color: var(--m2); text-transform: uppercase; margin-bottom: 4px; }
+.why p { color: var(--ink-2); font-size: 15px; line-height: 1.55; margin-bottom: 12px; }
+.vis { margin-top: auto; padding: 12px 14px; border: 1px dashed var(--dash); border-radius: var(--r-sm); background: var(--soft); font: 14px/1.5 var(--mono); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 48px; }
 .dots { width: 120px; height: 8px; background: radial-gradient(circle, var(--bad) 2.2px, transparent 2.8px) 0 0 / 10px 8px; }
 .strike { color: var(--bad); text-decoration: line-through; }
+.kv { display: grid; grid-template-columns: auto 1fr; margin: 0; padding: 6px 20px; background: var(--panel); font-size: 15px; line-height: 1.5; }
+.kv dt, .kv dd { margin: 0; padding: 12px 0; border-top: 1px solid var(--line); }
+.kv dt { color: var(--ink-2); padding-right: 16px; }
+.kv dd { text-align: right; font: 500 15px/1.5 var(--mono); }
+.kv dt:first-of-type, .kv dt:first-of-type + dd { border-top: 0; }
 
 /* compare */
 table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-th, td { padding: 18px 24px; text-align: left; vertical-align: top; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.4; }
-th { background: var(--soft); border-top: 0; font: 500 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+th, td { padding: 20px 28px; text-align: left; vertical-align: top; border-top: 1px solid var(--line); font-size: 17px; line-height: 1.4; }
+th { background: var(--soft); border-top: 0; padding-block: 14px; font: 500 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
 th + th, td + td { border-left: 1px solid var(--line); }
 td:first-child { color: var(--ink-2); }
-.v { display: flex; gap: 10px; }
+.v { display: flex; gap: 12px; }
 .v b { flex: none; font-weight: 600; }
 .x { color: var(--bad); }
 .ck { color: var(--ok); }
 th .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: 8px; }
 
 /* detection */
-.how { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
-.pipe { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line-2); border: 1px solid var(--line-2); margin: 0; padding: 0; list-style: none; }
-.pipe li { position: relative; background: var(--panel); padding: 16px 14px 18px; display: grid; gap: 6px; align-content: start; }
-.pipe li + li::before { content: "→"; position: absolute; left: -9px; top: 14px; width: 17px; height: 17px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line-2); font: 10px/15px var(--mono); text-align: center; }
-.pipe small { font: 500 11px/1 var(--mono); color: var(--m2); letter-spacing: .08em; }
-.pipe b { font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
-.pipe span { font-size: 13px; line-height: 1.4; color: var(--ink-2); }
-.cls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--line-2); border: 1px solid var(--line-2); }
-.cls > div { background: var(--panel); padding: 14px; display: grid; gap: 8px; align-content: start; font-size: 13.5px; line-height: 1.4; color: var(--ink-2); }
+.pipe { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.pipe li { position: relative; padding: 20px; display: grid; gap: 8px; align-content: start; }
+.pipe li + li::before { content: "→"; position: absolute; left: -11px; top: 18px; width: 21px; height: 21px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line-2); font: 12px/19px var(--mono); text-align: center; }
+.pipe small { font: 500 12px/1 var(--mono); color: var(--m2); letter-spacing: .08em; }
+.pipe b { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+.pipe span, .cls > div { font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+.cls { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 0; }
+.cls > div { padding: 20px; display: grid; gap: 10px; align-content: start; }
 .cls .chip { justify-self: start; }
+.lab.gap { margin-top: 32px; }
 
 /* patch */
-.ba { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: center; }
-.codec { background: var(--panel); border: 1px solid var(--line-2); border-radius: 8px; align-self: stretch; }
-.codec .h { padding: 8px 12px; border-bottom: 1px solid var(--line); font: 500 11px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
-.codec pre { padding: 12px; font-size: 12.5px; line-height: 1.75; color: var(--ink); }
-.arw { font: 16px var(--mono); color: var(--ink-2); }
-.opsrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 18px var(--px); }
-.opsrow .lab { margin: 0 6px 0 0; }
-.opsrow .chip { font-size: 12.5px; padding: 3px 10px; }
-.refuse { border-left: 4px solid var(--pink); }
-.kv { display: grid; grid-template-columns: auto 1fr; margin: 0; padding: 4px 16px; font: 13px/1.5 var(--mono); }
-.kv dt, .kv dd { margin: 0; padding: 9px 0; border-top: 1px solid var(--line); }
-.kv dt { color: var(--ink-2); padding-right: 16px; }
-.kv dd { text-align: right; font-weight: 500; }
-.kv dt:first-of-type, .kv dt:first-of-type + dd { border-top: 0; }
+.ba { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; align-items: center; }
+.codec { background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r-lg); overflow: hidden; align-self: stretch; }
+.codec .h { padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--soft); font: 500 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.codec pre { margin: 0; padding: 20px; font-size: 14px; line-height: 1.8; color: var(--ink); overflow-x: auto; }
+.arw { font: 17px var(--mono); color: var(--ink-2); }
+.opsrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 24px 0 44px; }
+.opsrow .lab { margin: 0 8px 0 0; }
+.opsrow .chip { padding: 3px 10px; }
+.refuse .txt { position: relative; padding-left: 32px; }
+.refuse .txt::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 4px; background: var(--pink); }
+.refuse .h2 { margin-top: 20px; }
 
 /* cta + footer */
-.cta ol { list-style: none; margin: 0; padding: 0; font: 13.5px/1.4 var(--mono); }
-.cta li { display: flex; gap: 14px; padding: 14px 18px; }
-.cta li + li { border-top: 1px solid var(--line); }
-.cta li b { color: var(--m2); font-weight: 500; }
-footer.frame { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 18px var(--px); border-bottom: 1px solid var(--line); font: 12px/1.5 var(--mono); color: var(--m2); }
+.steps li { display: flex; flex-direction: column; gap: 14px; padding: 28px; font-size: 17px; line-height: 1.4; }
+.steps b { font: 500 12px/1 var(--mono); letter-spacing: .08em; color: var(--m2); }
+footer { background: var(--soft); }
+footer .wrap { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px 16px; padding-block: 32px; font-size: 15px; color: var(--m2); }
 footer .lnk { margin: 0; }
 
 /* animated flow diagram (dark panel) */
@@ -142,9 +155,9 @@ footer .lnk { margin: 0; }
 .hf .w .base { stroke: rgba(255,255,255,.28); } .hf .w .flow { stroke: rgba(255,255,255,.75); }
 .hf .g .base { stroke: rgba(25,231,110,.3); }   .hf .g .flow { stroke: #19e76e; }
 .hf .api .base { stroke: var(--apib); }         .hf .api .flow { stroke: var(--api); }
-.n { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25em; padding: 2px 4px; text-align: center; background: #1a1c24; border: 1px solid rgba(255,255,255,.08); border-radius: var(--r); font-size: clamp(9px, 2.3cqw, 13px); line-height: 1.2; transition: border-color .5s; }
+.n { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25em; padding: 2px 4px; text-align: center; background: #1a1c24; border: 1px solid rgba(255,255,255,.08); border-radius: var(--r); font-size: clamp(9px, 2.3cqw, 15px); line-height: 1.2; transition: border-color .5s; }
 .n b { font-weight: 500; transition: color .5s; }
-.n .subs { font: 400 clamp(7.5px, 1.9cqw, 10.5px)/1.25 var(--mono); color: rgba(255,255,255,.7); }
+.n .subs { font: 400 clamp(7.5px, 1.9cqw, 13px)/1.25 var(--mono); color: rgba(255,255,255,.7); }
 .subs { display: grid; justify-items: center; }
 .subs > span { grid-area: 1 / 1; text-wrap: balance; opacity: 0; transition: opacity .5s, color .5s; }
 .is-healthy [data-on~=healthy], .is-drift [data-on~=drift], .is-healing [data-on~=healing], .is-healed [data-on~=healed] { opacity: 1; }
@@ -152,7 +165,7 @@ footer .lnk { margin: 0; }
 .llm { left: 60.71%; top: 2.5%; width: 36.79%; height: 25%; }
 .llm b { color: rgba(255,255,255,.7); }
 .reg { left: 35.71%; top: 65.63%; width: 29.29%; height: 26.88%; border-color: rgba(25,231,110,.4); }
-.reg b { font: 600 clamp(8.5px, 2.1cqw, 12px)/1.2 var(--mono); color: #19e76e; }
+.reg b { font: 600 clamp(8.5px, 2.1cqw, 15px)/1.2 var(--mono); color: #19e76e; }
 .apin { left: 75%; top: 65.63%; width: 22.5%; height: 26.88%; }
 .is-drift .apin, .is-healing .apin { border-color: #ffa9fd; }
 .is-drift .apin b, .is-healing .apin b, .apin [data-on~=drift] { color: #ffa9fd; }
@@ -163,8 +176,8 @@ footer .lnk { margin: 0; }
 .ic i:nth-child(3) { clip-path: polygon(50% 0, 100% 100%, 0 100%); border-radius: 0; }
 .ic i:nth-child(4) { background: none; border: 1.5px solid rgba(255,255,255,.38); }
 .ic i:nth-child(5) { clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); border-radius: 0; }
-.lbl, .c422 { position: absolute; font: 400 clamp(7px, 1.9cqw, 10.5px)/1.25 var(--mono); color: rgba(255,255,255,.62); white-space: nowrap; }
-.c422 { left: 70%; top: 79%; transform: translate(-50%, -50%); padding: .15em .45em; border-radius: 4px; background: #ffa9fd; color: #0e1015; font-weight: 500; opacity: 0; transition: opacity .5s; }
+.lbl, .c422 { position: absolute; font: 400 clamp(7px, 1.9cqw, 12px)/1.25 var(--mono); color: rgba(255,255,255,.62); white-space: nowrap; }
+.c422 { left: 70%; top: 79%; transform: translate(-50%, -50%); padding: .15em .45em; border-radius: var(--r-sm); background: #ffa9fd; color: #0e1015; font-weight: 500; opacity: 0; transition: opacity .5s; }
 .orbit { --orbit-light: conic-gradient(from var(--angle), transparent 0deg 210deg, #19e76e59 290deg, #19e76e 340deg, transparent 360deg); position: absolute; inset: -1px; padding: 1.5px; border-radius: calc(var(--r) + 1px); background: var(--orbit-light); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); opacity: 0; transition: opacity .5s; animation: orbit 2.4s linear infinite paused; pointer-events: none; }
 .orbit.glow { filter: blur(5px); }
 .is-healing .orbit { opacity: 1; animation-play-state: running; }
@@ -172,9 +185,8 @@ footer .lnk { margin: 0; }
 
 @media (max-width: 1000px) { .c4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 900px) {
-  .sp, .hero, .how { grid-template-columns: minmax(0, 1fr); }
-  .sp > * + * { border-left: 0; border-top: 1px solid var(--line); }
-  .hero-l { padding: 48px var(--px); }
+  .sp, .how { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .sp.end { gap: 32px; }
   .c5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .c5 > :last-child { grid-column: 1 / -1; }
   .c3 { grid-template-columns: minmax(0, 1fr); }
@@ -183,19 +195,21 @@ footer .lnk { margin: 0; }
   :root { --px: 16px; }
   .top .btn { order: 2; }
   .top nav.tabs { order: 3; flex-basis: 100%; }
-  .in { padding: 40px var(--px); }
-  .hero-l { padding: 40px var(--px); }
-  .hero-r { padding: 16px; }
-  .hero-r .dashbox { padding: 8px; border-radius: 16px; }
-  .dark { padding: 10px; }
+  .hero { padding-bottom: 40px; }
+  .stg { padding: 40px 0; }
+  .stg .dashbox { padding: 6px; border-radius: var(--r-lg); }
+  .dark { padding: 8px; border-radius: var(--r); }
+  #hf-cap { min-height: 2.9em; }
   .c4 { grid-template-columns: minmax(0, 1fr); }
   .pipe { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pipe li + li::before { display: none; }
   .cls { grid-template-columns: minmax(0, 1fr); }
   .ba { grid-template-columns: minmax(0, 1fr); }
   .arw { justify-self: center; transform: rotate(90deg); }
-  .stats li { padding: 20px 16px; }
-  th, td { padding: 14px 12px; font-size: 14px; }
+  .stats li { padding: 24px 16px; }
+  .why { padding: 28px 20px 24px; }
+  .kv { padding: 4px 16px; }
+  th, td { padding: 14px 16px; font-size: 15px; }
   .hf path { stroke-width: 2.4; }
   .actions .btn { flex: 1 1 auto; text-align: center; }
 }
@@ -224,11 +238,11 @@ footer .lnk { margin: 0; }
   </div>
 </header>
 
-<main class="frame">
+<main>
 
 <!-- 1. Hero -->
-<section class="cell sp hero" aria-labelledby="hero-h">
-  <div class="hero-l">
+<section class="band hero" aria-labelledby="hero-h">
+  <div class="wrap">
     <span class="tagbox">Tool registry for LLM agents</span>
     <h1 id="hero-h">When the API changes, your agent <span class="hl">doesn't</span> break.</h1>
     <p class="lede">A registry between the agent and its APIs that detects schema drift, patches the tool in memory, and replays the call, without touching the prompt.</p>
@@ -237,7 +251,9 @@ footer .lnk { margin: 0; }
       <a class="btn ghost lg" href="#how">How it works</a>
     </div>
   </div>
-  <div class="hero-r">
+</section>
+<section class="band soft stg" aria-label="Animated flow diagram">
+  <div class="wrap">
     <div class="dashbox">
       <div class="dark">
         <div class="hf is-healed" id="hf" role="img" aria-label="Flow diagram. Your agent talks to the LLM and sends tool calls through the self-healing registry to the external API. When the API drifts from v1 to v2 and answers 422, the registry diffs the live spec, patches the tool and replays the call, while the agent's schema stays unchanged.">
@@ -274,151 +290,162 @@ footer .lnk { margin: 0; }
 </section>
 
 <!-- 2. Stats -->
-<section class="cell" aria-label="Benchmark results">
-  <ul class="hair c5 stats">
-    <li><b class="num">100%</b><span class="st">zero-touch adaptation<span class="ids">healable M1–M5, M7, M9</span></span></li>
-    <li><b class="num">100%</b><span class="st">safe refusal<span class="ids">M8, M6-N</span></span></li>
-    <li><b class="num">0%</b><span class="st">false patches<span class="ids">refuses instead of guessing</span></span></li>
-    <li><b class="num">49 ms</b><span class="st">tier-1 heal, p50<span class="ids">diff · patch · replay</span></span></li>
-    <li><b class="num">4 ms</b><span class="st">tier-0 repeat, p50<span class="ids">stored fix, no diff</span></span></li>
-  </ul>
-  <p class="note" style="border-top:1px solid var(--line)">Scripted benchmark, N = 3.</p>
+<section class="band tight" aria-label="Benchmark results">
+  <div class="wrap">
+    <ul class="hair c5 stats">
+      <li><b class="num">100%</b><span class="st">zero-touch adaptation<span class="ids">healable M1–M5, M7, M9</span></span></li>
+      <li><b class="num">100%</b><span class="st">safe refusal<span class="ids">M8, M6-N</span></span></li>
+      <li><b class="num">0%</b><span class="st">false patches<span class="ids">refuses instead of guessing</span></span></li>
+      <li><b class="num">49 ms</b><span class="st">tier-1 heal, p50<span class="ids">diff · patch · replay</span></span></li>
+      <li><b class="num">4 ms</b><span class="st">tier-0 repeat, p50<span class="ids">stored fix, no diff</span></span></li>
+    </ul>
+    <p class="note">Scripted benchmark, N = 3.</p>
+  </div>
 </section>
 
 <!-- 3. Why it's needed -->
-<section aria-labelledby="need">
-  <div class="cell sp">
-    <div class="in"><span class="tagbox">Why it's needed</span><h2 id="need">Real APIs drift. Agents are frozen.</h2></div>
-    <div class="in" style="display:flex;flex-direction:column;justify-content:flex-end;gap:24px">
-      <p class="lede" style="margin:0">A tool schema is a snapshot. The API behind it keeps moving, and the agent only finds out when a call fails.</p>
-      <dl class="kv dashbox" style="background:var(--soft)"><dt>agent_schema</dt><dd>user_id: string <span class="chip">v1 · frozen</span></dd><dt>live API</dt><dd>target.id: int <span class="chip bad">v2 · drifted</span></dd></dl>
+<section class="band soft" aria-labelledby="need">
+  <div class="wrap">
+    <div class="hd sp end">
+      <div>
+        <span class="tagbox">Why it's needed</span>
+        <h2 id="need">Real APIs drift. Agents are frozen.</h2>
+        <p class="lede">A tool schema is a snapshot. The API behind it keeps moving, and the agent only finds out when a call fails.</p>
+      </div>
+      <dl class="kv dashbox"><dt>agent_schema</dt><dd>user_id: string <span class="chip">v1 · frozen</span></dd><dt>live API</dt><dd>target.id: int <span class="chip bad">v2 · drifted</span></dd></dl>
     </div>
-  </div>
-  <div class="cell hair c4">
-    <article class="why"><span class="tg">01 / Drift</span><h3>APIs drift silently</h3><p>Fields get renamed, types change, headers appear. Nobody tells the agent.</p><div class="vis"><span class="rm">user_id</span>→<span class="add">target.id</span></div></article>
-    <article class="why"><span class="tg">02 / Stuck</span><h3>Agents can't adapt</h3><p>The LLM keeps sending the frozen v1 schema and blind-retries until the iteration cap.</p><div class="vis">same payload <b>×12</b><span class="dots" aria-hidden="true"></span></div></article>
-    <article class="why"><span class="tg">03 / Risk</span><h3>Guessing is dangerous</h3><p>An agent that "fixes" its own payload can invent values. A wrong write is worse than a failed call.</p><div class="vis"><span class="strike">"priority": "medium"</span><span class="chip bad">invented</span></div></article>
-    <article class="why"><span class="tg">04 / Cost</span><h3>Humans fix it later</h3><p>Every drift becomes a redeploy or a prompt rewrite, long after the task has failed.</p><div class="vis"><span class="chip">redeploy</span><span class="chip">prompt rewrite</span></div></article>
+    <div class="hair c4">
+      <article class="why"><span class="tg">01 / Drift</span><h3>APIs drift silently</h3><p>Fields get renamed, types change, headers appear. Nobody tells the agent.</p><div class="vis"><span class="rm">user_id</span>→<span class="add">target.id</span></div></article>
+      <article class="why"><span class="tg">02 / Stuck</span><h3>Agents can't adapt</h3><p>The LLM keeps sending the frozen v1 schema and blind-retries until the iteration cap.</p><div class="vis">same payload <b>×12</b><span class="dots" aria-hidden="true"></span></div></article>
+      <article class="why"><span class="tg">03 / Risk</span><h3>Guessing is dangerous</h3><p>An agent that "fixes" its own payload can invent values. A wrong write is worse than a failed call.</p><div class="vis"><span class="strike">"priority": "medium"</span><span class="chip bad">invented</span></div></article>
+      <article class="why"><span class="tg">04 / Cost</span><h3>Humans fix it later</h3><p>Every drift becomes a redeploy or a prompt rewrite, long after the task has failed.</p><div class="vis"><span class="chip">redeploy</span><span class="chip">prompt rewrite</span></div></article>
+    </div>
   </div>
 </section>
 
 <!-- 4. Why it's better -->
-<section class="cell sp" aria-labelledby="better">
-  <div class="in">
-    <span class="tagbox">Why it's better</span>
-    <h2 id="better">Heal the tool, not the prompt.</h2>
-    <p class="lede">Frameworks retry the same call and hope. The registry treats drift as a tool problem and fixes it once, at the wire, so the agent and its prompt stay exactly as shipped.</p>
-    <a class="lnk" href="/live">See it live</a>
-  </div>
-  <div style="align-self:start">
-    <table>
-      <thead><tr><th scope="col">Standard agent framework</th><th scope="col"><span class="dot"></span>Self-healing registry</th></tr></thead>
-      <tbody>
-        <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>Prompt or tool schema edited by hand</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>Zero prompt changes, agent schema frozen</span></td></tr>
-        <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>Blind retries until the iteration cap</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>One patched replay</span></td></tr>
-        <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>May invent values to get a 200</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>Cannot write a literal value</span></td></tr>
-        <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>Every drift needs a human</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>Heals in ms, and remembers the fix</span></td></tr>
-        <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>Extra reasoning tokens</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>Zero, prompt cache preserved</span></td></tr>
-      </tbody>
-    </table>
+<section class="band" aria-labelledby="better">
+  <div class="wrap">
+    <div class="hd c">
+      <span class="tagbox">Why it's better</span>
+      <h2 id="better">Heal the tool, not the prompt.</h2>
+      <p class="lede">Frameworks retry the same call and hope. The registry treats drift as a tool problem and fixes it once, at the wire, so the agent and its prompt stay exactly as shipped.</p>
+      <a class="lnk" href="/live">See it live</a>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th scope="col">Standard agent framework</th><th scope="col"><span class="dot"></span>Self-healing registry</th></tr></thead>
+        <tbody>
+          <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>Prompt or tool schema edited by hand</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>Zero prompt changes, agent schema frozen</span></td></tr>
+          <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>Blind retries until the iteration cap</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>One patched replay</span></td></tr>
+          <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>May invent values to get a 200</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>Cannot write a literal value</span></td></tr>
+          <tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>Every drift needs a human</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>Heals in ms, and remembers the fix</span></td></tr>
+          <!--<tr><td><span class="v"><b class="x" role="img" aria-label="No">✕</b>Extra reasoning tokens</span></td><td><span class="v"><b class="ck" role="img" aria-label="Yes">✓</b>Zero, prompt cache preserved</span></td></tr>-->
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 
 <!-- 5. Detection & classification -->
-<section class="cell sp how" id="how" aria-labelledby="detect">
-  <div class="in">
-    <span class="tagbox">Detection &amp; classification</span>
-    <h2 id="detect">From a failed call to a diagnosis.</h2>
-    <p class="lede">A call has failed on a 4xx (400, 401, 404, 422), or on a 200 whose body fails the tool's output postcheck. The registry then fetches the live OpenAPI spec and diffs it against the v1 snapshot to name the drift.</p>
-    <p class="lede" style="margin-top:12px">If the spec has not changed, it is not drift: the error goes back to the agent untouched.</p>
-  </div>
-  <div class="in soft">
-    <p class="lab">Pipeline</p>
-    <ol class="pipe">
-      <li><small>01</small><b>Call</b><span>Forward the agent's v1 args, unchanged.</span></li>
-      <li><small>02</small><b>Detect</b><span>4xx, or a 200 that fails the postcheck.</span></li>
-      <li><small>03</small><b>Diagnose</b><span>Diff the live spec against v1.</span></li>
-      <li><small>04</small><b>Classify</b><span>One drift class, or none.</span></li>
-    </ol>
-    <p class="lab" style="margin-top:28px">Drift classes</p>
-    <div class="cls">
-      <div><span class="chip ok">SCHEMA drift</span>Request or response shape changed. Healable.</div>
-      <div><span class="chip warn">AUTH / header drift</span>A header is now required.</div>
-      <div><span class="chip warn">ROUTE drift</span>The path moved.</div>
-      <div><span class="chip biz">BUSINESS error</span>Spec unchanged: handed back to the agent untouched.</div>
+<section class="band soft" id="how" aria-labelledby="detect">
+  <div class="wrap sp how">
+    <div class="hd">
+      <span class="tagbox">Detection &amp; classification</span>
+      <h2 id="detect">From a failed call to a diagnosis.</h2>
+      <p class="lede">A call has failed on a 4xx (400, 401, 404, 422), or on a 200 whose body fails the tool's output postcheck. The registry then fetches the live OpenAPI spec and diffs it against the v1 snapshot to name the drift.</p>
+      <p class="lede" style="margin-top:12px">If the spec has not changed, it is not drift: the error goes back to the agent untouched.</p>
+    </div>
+    <div>
+      <p class="lab">Pipeline</p>
+      <ol class="pipe">
+        <li><small>01</small><b>Call</b><span>Forward the agent's v1 args, unchanged.</span></li>
+        <li><small>02</small><b>Detect</b><span>4xx, or a 200 that fails the postcheck.</span></li>
+        <li><small>03</small><b>Diagnose</b><span>Diff the live spec against v1.</span></li>
+        <li><small>04</small><b>Classify</b><span>One drift class, or none.</span></li>
+      </ol>
+      <p class="lab gap">Drift classes</p>
+      <div class="cls">
+        <div><span class="chip ok">SCHEMA drift</span>Request or response shape changed. Healable.</div>
+        <div><span class="chip warn">AUTH / header drift</span>A header is now required.</div>
+        <div><span class="chip warn">ROUTE drift</span>The path moved.</div>
+        <div><span class="chip biz">BUSINESS error</span>Spec unchanged: handed back to the agent untouched.</div>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- 6. The patch -->
-<section aria-labelledby="patch">
-  <div class="cell sp">
-    <div class="in">
+<section class="band" aria-labelledby="patch">
+  <div class="wrap">
+    <div class="hd">
       <span class="tagbox">The patch</span>
       <h2 id="patch">A small, typed fix. Never a guess.</h2>
       <p class="lede">The registry never edits the prompt. It rewrites the call: the agent sends the v1 shape, the live API receives what it wants.</p>
     </div>
-    <div class="in soft" style="display:flex;align-items:center">
-      <div class="ba" style="width:100%">
-        <div class="codec"><div class="h">Agent sends · v1</div><pre>POST /users/lookup
+    <div class="ba">
+      <div class="codec"><div class="h">Agent sends · v1</div><pre>POST /users/lookup
 { "user_id": <span class="rm">"123"</span> }</pre></div>
-        <span class="arw" aria-hidden="true">→</span>
-        <div class="codec"><div class="h">Live API wants · v2</div><pre>POST /users/lookup
+      <span class="arw" aria-hidden="true">→</span>
+      <div class="codec"><div class="h">Live API wants · v2</div><pre>POST /users/lookup
 X-Tenant-Id: <span class="add">&lt;TENANT_ID&gt;</span>
 { "target": { "id": <span class="add">123</span> } }</pre></div>
-      </div>
     </div>
-  </div>
-  <div class="cell opsrow">
-    <span class="lab">Fix · 3 ops</span>
-    <span class="chip acc">move user_id → target.id</span>
-    <span class="chip acc">cast string → int</span>
-    <span class="chip acc">header X-Tenant-Id ← config TENANT_ID</span>
-  </div>
-  <div class="cell hair c3">
-    <article class="why"><h3>Preverify, replay, commit</h3><p>Check against the API's read-only validate endpoint, replay once, then commit in memory: version +1, wire_schema updated, agent_schema unchanged.</p><div class="vis"><span class="chip ok">preverify ✓</span><span class="chip ok">replay ×1 ✓</span><span class="chip ok">commit v+1</span></div></article>
-    <article class="why"><h3>Stored by fingerprint</h3><p>The fix is stored under the drift's fingerprint, so the next identical drift heals at tier 0, with no spec diff.</p><div class="vis"><span class="chip">fingerprint</span>→<span class="chip acc">stored fix</span>→<span class="chip ok">tier 0</span></div></article>
-    <article class="why"><h3>Values are never invented</h3><p>Values only come from the agent's input or config. The 4-op DSL (move, cast, header, route) cannot write a literal.</p><div class="vis"><span class="chip acc">move</span><span class="chip acc">cast</span><span class="chip acc">header</span><span class="chip acc">route</span><span class="chip bad"><s>literal</s></span></div></article>
-  </div>
-  <div class="cell sp refuse">
-    <div class="in">
-      <span class="tagbox">No safe source</span>
-      <h3 style="font-size:clamp(22px,2.4vw,28px);margin-top:16px">It refuses instead of guessing.</h3>
-      <p class="lede" style="font-size:16px">The live spec adds a required <span class="mono">priority</span>, and nothing in the agent's input or config can supply it. The registry refuses. The agent skips that tool and finishes the rest of the task.</p>
+    <div class="opsrow">
+      <span class="lab">Fix · 3 ops</span>
+      <span class="chip acc">move user_id → target.id</span>
+      <span class="chip acc">cast string → int</span>
+      <span class="chip acc">header X-Tenant-Id ← config TENANT_ID</span>
     </div>
-    <div class="in soft" style="display:flex;align-items:center">
-      <dl class="kv dashbox" style="width:100%;background:var(--panel)">
-        <dt>new required field</dt><dd>priority</dd>
-        <dt>source</dt><dd>none</dd>
-        <dt>result</dt><dd><span class="chip bad">NO_SAFE_VALUE</span></dd>
-        <dt>retry</dt><dd>false</dd>
-        <dt>values invented</dt><dd>0</dd>
-      </dl>
+    <div class="hair c3">
+      <article class="why"><h3>Preverify, replay, commit</h3><p>Check against the API's read-only validate endpoint, replay once, then commit in memory: version +1, wire_schema updated, agent_schema unchanged.</p><div class="vis"><span class="chip ok">preverify ✓</span><span class="chip ok">replay ×1 ✓</span><span class="chip ok">commit v+1</span></div></article>
+      <article class="why"><h3>Stored by fingerprint</h3><p>The fix is stored under the drift's fingerprint, so the next identical drift heals at tier 0, with no spec diff.</p><div class="vis"><span class="chip">fingerprint</span>→<span class="chip acc">stored fix</span>→<span class="chip ok">tier 0</span></div></article>
+      <article class="why"><h3>Values are never invented</h3><p>Values only come from the agent's input or config. The 4-op DSL (move, cast, header, route) cannot write a literal.</p><div class="vis"><span class="chip acc">move</span><span class="chip acc">cast</span><span class="chip acc">header</span><span class="chip acc">route</span><span class="chip bad"><s>literal</s></span></div></article>
     </div>
   </div>
 </section>
 
-<!-- 7. CTA -->
-<section class="cell sp cta soft" aria-labelledby="cta-h">
-  <div class="in">
-    <h2 id="cta-h" style="margin-top:0">Break the API while the agent runs.</h2>
-    <p class="lede">Drift the API mid-task and watch the registry detect, patch and replay while the agent carries on.</p>
-    <div class="actions"><a class="btn primary lg" href="/live">Run the live demo</a></div>
+<!-- 6b. Refusal -->
+<section class="band soft refuse" aria-labelledby="refuse-h">
+  <div class="wrap sp">
+    <div class="txt">
+      <span class="tagbox">No safe source</span>
+      <h3 class="h2" id="refuse-h">It refuses instead of guessing.</h3>
+      <p class="lede">The live spec adds a required <span class="mono">priority</span>, and nothing in the agent's input or config can supply it. The registry refuses. The agent skips that tool and finishes the rest of the task.</p>
+    </div>
+    <dl class="kv dashbox">
+      <dt>new required field</dt><dd>priority</dd>
+      <dt>source</dt><dd>none</dd>
+      <dt>result</dt><dd><span class="chip bad">NO_SAFE_VALUE</span></dd>
+      <dt>retry</dt><dd>false</dd>
+      <dt>values invented</dt><dd>0</dd>
+    </dl>
   </div>
-  <div class="in" style="display:flex;align-items:center">
-    <ol class="dashbox" style="width:100%;background:var(--panel)">
+</section>
+
+<!-- 7. CTA -->
+<section class="band" aria-labelledby="cta-h">
+  <div class="wrap">
+    <div class="hd c">
+      <h2 id="cta-h" style="margin-top:0">Break the API while the agent runs.</h2>
+      <p class="lede">Drift the API mid-task and watch the registry detect, patch and replay while the agent carries on.</p>
+    </div>
+    <ol class="hair c3 steps">
       <li><b>01</b>Pick a preset or one of 13 drifts</li>
       <li><b>02</b>Run the agent against the live API</li>
       <li><b>03</b>Watch it detect, patch and replay</li>
     </ol>
+    <div class="actions"><a class="btn primary lg" href="/live">Run the live demo</a></div>
   </div>
 </section>
 
 </main>
 
-<footer class="frame">
-  <span>Tools that adapt to their APIs, so agents don't have to.</span>
-  <a class="lnk" href="/live">Live demo</a>
+<footer>
+  <div class="wrap">
+    <span>Tools that adapt to their APIs, so agents don't have to.</span>
+    <a class="lnk" href="/live">Live demo</a>
+  </div>
 </footer>
 
 <script>

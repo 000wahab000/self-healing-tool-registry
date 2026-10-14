@@ -1,11 +1,12 @@
 /* Shared by landing.html and index.html: tokens, base, top bar, pills, buttons. */
 [hidden] { display: none !important; }
-/* Palette after baseten.co: white and sage surfaces, black ink, signal green. Light only, shared by every page. */
+/* Palette after baseten.co (sage lines, black ink, signal green) on cofounder.co's warm near-white. Light only, shared by every page. */
 :root {
   color-scheme: light;
-  --bg: #ffffff; --panel: #ffffff; --soft: #f5f8f4; --sage: #e1eadd; --ink: #000000; --ink-2: #3b4237; --muted: #7d8778;
+  --bg: #f5f5f2; --panel: #fbfbf8; --soft: #eceee8; --sage: #e1eadd; --ink: #000000; --ink-2: #3b4237; --muted: #7d8778;
   --line: #e1eadd; --line-2: #b9c6b3; --dash: #cdc8c7; --on-ink: #ffffff;
   --shadow: 0 1px 2px rgba(0,0,0,.04);
+  --r-sm: 6px; --r: 10px; --r-lg: 14px; --r-xl: 20px; /* tags/chips, buttons/inputs, cards, large panels */
   --accent: #19e76e; --accent-ink: #00b86b; --accent-bg: #e8fbef; --pink: #ffa9fd;
   --ok: #00804a; --ok-bg: #e3f9ea; --bad: #b3372d; --bad-bg: #f8e4e0; --warn: #93650a; --warn-bg: #f6ecd2;
   --biz: #2f5b96; --biz-bg: #e3ebf6;
@@ -29,7 +30,7 @@ code, pre, .mono { font-family: var(--mono); }
 .brand { font: 26px/1 var(--serif); letter-spacing: -.01em; white-space: nowrap; }
 .spacer { flex: 1; }
 a.btn { text-decoration: none; color: var(--ink-2); }
-nav.tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); overflow-x: auto; }
+nav.tabs { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: var(--r); background: var(--soft); overflow-x: auto; }
 nav.tabs button, nav.tabs a { background: none; border: 1px solid transparent; border-radius: 7px; padding: 5px 12px; color: var(--ink-2); white-space: nowrap; font-size: 14px; }
 nav.tabs button:hover, nav.tabs a:hover { color: var(--ink); }
 nav.tabs button[aria-selected="true"] { background: var(--panel); border-color: var(--line-2); color: var(--ink); box-shadow: var(--shadow); }
@@ -51,13 +52,13 @@ h2 { font-weight: 450; font-size: 20px; letter-spacing: -.015em; margin: 0; }
 h3 { font-weight: 500; font-size: 17px; letter-spacing: -.01em; margin: 0; }
 .sub { color: var(--ink-2); font-size: 14px; margin: 4px 0 0; }
 .muted { color: var(--muted); }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); }
 .pad { padding: 18px; }
 .head { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
 .section { margin-top: 28px; }
 
 /* buttons */
-.btn { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); font-size: 14px; }
+.btn { padding: 8px 14px; border-radius: var(--r); border: 1px solid var(--line-2); background: var(--panel); font-size: 14px; }
 .btn:hover { border-color: var(--ink-2); }
 .btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .btn.primary:hover { opacity: .88; }
