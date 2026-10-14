@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import copy
 import json
 import os
 import time
 import uuid
-from dataclasses import asdict, dataclass
 from typing import Any
 
 import httpx
@@ -605,8 +603,9 @@ async def run_explore(
     agent: str = "scripted",
 ) -> dict:
     """Run both agents synchronously, capturing full per-call traces, schemas, and verification."""
-    from agents import baseline_agent, common, healing_agent, scripted
     from langgraph.prebuilt import create_react_agent
+
+    from agents import baseline_agent, common, healing_agent, scripted
 
     # Validate agent value
     if agent not in ("scripted", "llm"):
