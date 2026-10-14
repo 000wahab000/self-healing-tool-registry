@@ -43,7 +43,7 @@ Fixes are always computed against the **base schema** (the original v1 spec), ne
 
 ### Persistence (S6/S7, already built)
 
-Beyond the in-memory fix for the current process, the STRETCH persistent store (S6) saves fixes to SQLite and reloads them at startup. A fingerprint hit in the store goes to **tier 0** — skipping diagnosis entirely, with p50/p95 of 1–2/4 ms (scripted, N = 3). The negative cache (S7) blocks a failed fingerprint for 60 s to prevent looping at the registry level.
+Beyond the in-memory fix for the current process, the STRETCH persistent store (S6) saves fixes to SQLite and reloads them at startup. A fingerprint hit in the store goes to **tier 0** — skipping diagnosis entirely, with p50/p95 of 4/8 ms (scripted, N = 3). The negative cache (S7) blocks a failed fingerprint for 60 s to prevent looping at the registry level.
 
 ---
 
@@ -178,7 +178,7 @@ After the fix is applied, the full detection pipeline runs again — class check
 
 **On pass:** the fix is recorded as `active`, the in-memory tool definition is updated (`wire_schema`, `active_fix_id`, `version + 1`), one `heal_events` row is written synchronously to SQLite (before the result is returned to the agent), and the result is returned. Under S6, the fix is also persisted to the `fixes` table.
 
-**On fail:** the fix is discarded, the tool definition is left unchanged, the fingerprint is added to the negative cache (S7) for 60 s, one `heal_events` row is written with the failure reason, and a structured error `{"error":"SCHEMA_DRIFT_UNRECOVERABLE", "tool":..., "class":..., "fingerprint":..., "reason":..., "retry":false}` is returned. The agent's system prompt instructs it to stop calling a tool after `retry: false`.
+**On fail:** the fix is discarded, the tool definition is left unchanged, the fingerprint is added to the negative cache (S7) for 60 s, one `heal_events` row is written with the failure reason, and a structured error `{"error":"SCHEMA_DRIFT_UNRECOVERABLE", "tool":..., "class":..., "fingerprint":..., "reason":..., "retry":false}` is returned. The agent's system prompt tells it not to call that tool again: it reports the tool as skipped and continues with the rest of the task.
 
 ### 4.4 Synchronous Audit and Secret Redaction (FR-5, FR-5.7)
 
@@ -213,7 +213,8 @@ The `heal_events` schema stores only machine-readable data: enumerated codes, ar
 
 - **Mode:** scripted (fixed tool calls, no LLM; the baseline re-sends a failing call with the same arguments until the iteration cap of 10)
 - **N:** 3 runs per scenario per agent
-- **Date (UTC):** 2026-10-14 14:05
+- **Date (UTC):** 2026-10-14 18:29
+- **Timing note:** Timings are wall-clock on a shared laptop and move with machine load: across benchmark runs on 2026-10-14 the tier-1 p50 ranged from 12 to 49 ms. Every run stayed far under the 4 s MTTR budget.
 - **Jev available:** no (M6-N aborts `LOW_CONFIDENCE`, counted as a safe refusal)
 - **Spec mode:** `on` for main and tier-0 passes; `off` for the error-only ablation
 
@@ -222,16 +223,16 @@ The `heal_events` schema stores only machine-readable data: enumerated codes, ar
 | Scenario | Healing ZTAR | Baseline ZTAR | Baseline failure mode | Heal path | MTTR tier 1 (mean/p50/p95 ms) | MTTR tier 0 (mean/p50/p95 ms) |
 |---|---|---|---|---|---|---|
 | CLEAN | n/a, 100% (3/3) | n/a, 100% (3/3) | — | — | — | — |
-| M1 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 11.7/12/13 | 2.3/2/3 |
-| M2 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 11.3/12/12 | 1.7/1/3 |
-| M3 | 100% (3/3) | 100% (3/3) | — | diff ×3 | 13.7/13/17 | 1/1/1 |
-| M4 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 11.7/12/12 | 1/1/1 |
-| M5 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 15/15/17 | 3.7/4/4 |
-| M6-D | 100% (3/3) | 0% (0/3) | hit cap 3/3 | tiebreak ×3 | 12.7/12/14 | — |
+| M1 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 46.3/47/48 | 4/4/5 |
+| M2 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 51.3/45/66 | 4.3/4/5 |
+| M3 | 100% (3/3) | 100% (3/3) | — | diff ×3 | 46/47/49 | 2.7/3/3 |
+| M4 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 51/52/53 | 4.7/5/5 |
+| M5 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 60.3/57/69 | 8/8/8 |
+| M6-D | 100% (3/3) | 0% (0/3) | hit cap 3/3 | tiebreak ×3 | 48/47/51 | — |
 | M6-N | 0% (0/3)† | 0% (0/3) | hit cap 3/3 | — | — | — |
-| M7 | 100% (3/3) | 0% (0/3) | ended incomplete 3/3 | diff ×3 | 12/12/13 | — |
+| M7 | 100% (3/3) | 0% (0/3) | ended incomplete 3/3 | diff ×3 | 50/52/53 | — |
 | M8 | n/a, 100%‡ | n/a, 0% | hit cap 3/3 | — | — | — |
-| M9 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 13.3/13/14 | — |
+| M9 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 52.3/50/58 | — |
 | C1 | n/a, 100% (3/3) | n/a, 100% (3/3) | — | — | — | — |
 | C2 | n/a, 100% (3/3) | n/a, 0% (0/3) | hit cap 3/3 | NOT_DRIFT ×3 | — | — |
 | C3 | n/a, 100% (3/3) | n/a, 0% (0/3) | hit cap 3/3 | NOT_DRIFT ×3 | — | — |
@@ -248,16 +249,16 @@ The `heal_events` schema stores only machine-readable data: enumerated codes, ar
 | **M6-N** (Jev disabled) | 0% by design · 100% Safe-Refusal Rate |
 | **Safe-Refusal Rate** (M8 + M6-N) | **100% (6/6)** |
 | **False-Patch Rate** | **0% (0/24 healed runs)** |
-| **Tier-1 MTTR** (mean / p50 / p95) | **12.7 / 12 / 17 ms** (n=24) |
-| **Tier-0 MTTR** (mean / p50 / p95) | **1.9 / 1 / 4 ms** (n=15) |
+| **Tier-1 MTTR** (mean / p50 / p95) | **50.7 / 49 / 66 ms** (n=24) |
+| **Tier-0 MTTR** (mean / p50 / p95) | **4.7 / 4 / 8 ms** (n=15) |
 | **Token Overhead** | Not measured — scripted mode records 0 LLM tokens; requires `--agent llm` |
 
 ### 5.4 Timings by Tier
 
 | Tier | n | mttr_ms mean/p50/p95 | heal_ms mean/p50/p95 |
 |---|---|---|---|
-| 0 | 15 | 1.9/1/4 | 1.9/1/4 |
-| 1 | 24 | 12.7/12/17 | 12.7/12/17 |
+| 0 | 15 | 4.7/4/8 | 4.7/4/8 |
+| 1 | 24 | 50.7/49/66 | 50.7/49/66 |
 
 ### 5.5 Error-Only Ablation (`spec_mode=off`)
 

@@ -243,7 +243,7 @@
 **Goal:** a healing agent and a baseline agent, identical except for the registry.
 
 - [ ] `agents/shared`:
-  - one system prompt (it includes: "if a tool returns `retry: false`, do not call it again with the same arguments; report the failure"),
+  - one system prompt (it includes: "if a tool returns `retry: false`, do not call it again with the same arguments; report the failure"; as built after 12D: on `SCHEMA_DRIFT_UNRECOVERABLE` the tool is unavailable for the rest of the task, report it as skipped and continue),
   - the demo task text,
   - the LLM config (same model, temperature 0). As built: Claude via OpenRouter's OpenAI-compatible API (`OPENROUTER_API_KEY`), default `anthropic/claude-haiku-5.5`, set with `LLM_MODEL`.
 - [ ] `healing_agent.py`: LangGraph `create_react_agent` with framework tools generated from `registry` exports, executing via `Registry.call`. Structured errors are returned as the tool result.
@@ -411,3 +411,4 @@ Take these in order, one at a time. Each one keeps the full test suite green.
 | by 2026-10-14 | 11 | done | Dashboard and terminal demo (MVP demo-ready) |
 | 2026-10-14 | 12 | in progress | Spec v3 alignment; docs updated first, code and tests follow the checklist above |
 | 2026-10-14 | 12D | done | v3 metrics (ZTAR/Safe-Refusal/False-Patch/MTTR+heal_ms/tokens) in `metrics.py` and `bench/run.py`, error-only ablation pass, report regenerated (scripted, N = 3); tests for AC-14 to AC-17 and AC-23; dashboard buttons cover all scenarios |
+| 2026-10-14 | 12E | done | Dashboard Demo view (cofounder.co style): prompt + scenario or dashboard-only `CUSTOM` drift, side-by-side replay with step trackers, per-call input / wire / output, registry view, readable patch log with `heal_ms`; refused tools are skipped and the task continues (prompt and Demo run); `python-dotenv` declared |

@@ -6,7 +6,7 @@
 
 ## The Pitch (~85 words, ~30 seconds spoken)
 
-When an API renames a field or adds a required header, every LLM agent that calls it breaks — and keeps retrying the same broken call until it hits the iteration cap. We put a self-healing registry between the agent and the API. It detects the drift, diffs the OpenAPI spec, and builds a fix from four operations — `move`, `cast`, `header`, `route` — that cannot write a literal value. When a fix can't be built without guessing, we refuse cleanly. The agent-facing schema never changes; we hot-patch the wire translation in memory. In our scripted benchmark: **100% ZTAR** across seven healable mutations, **0% False-Patch Rate**, heals in **12 ms median**, **tier-0 repeats in 1–2 ms**.
+When an API renames a field or adds a required header, every LLM agent that calls it breaks — and keeps retrying the same broken call until it hits the iteration cap. We put a self-healing registry between the agent and the API. It detects the drift, diffs the OpenAPI spec, and builds a fix from four operations — `move`, `cast`, `header`, `route` — that cannot write a literal value. When a fix can't be built without guessing, we refuse cleanly. The agent-facing schema never changes; we hot-patch the wire translation in memory. In our scripted benchmark: **100% ZTAR** across seven healable mutations, **0% False-Patch Rate**, heals in **49 ms median**, **tier-0 repeats in 4 ms**.
 
 ---
 
@@ -14,7 +14,7 @@ When an API renames a field or adds a required header, every LLM agent that call
 
 ### "What is Safety by Construction?"
 
-Fixes are built from a 4-operation DSL — `move`, `cast`, `header`, `route` — where **literal values cannot be expressed by design**. A `move` copies an existing value from the base document; a `cast` converts it losslessly (e.g., `"123"` → `123`, round-tripped back to confirm); a `header` references a config key, never the secret value; a `route` names a path that already exists in the current spec. When a required field has no source — like M8's `priority` — the system emits `NO_SAFE_VALUE` and returns `retry: false`. It does not guess `"medium"`.
+Fixes are built from a 4-operation DSL — `move`, `cast`, `header`, `route` — where **literal values cannot be expressed by design**. A `move` copies an existing value from the base document; a `cast` converts it losslessly (e.g., `"123"` → `123`, round-tripped back to confirm); a `header` references a config key, never the secret value; a `route` names a path that already exists in the current spec. When a required field has no source — like M8's `priority` — the system emits `NO_SAFE_VALUE` and returns `retry: false`. It does not guess `"medium"`. The agent treats that one tool as unavailable and finishes the rest of its task, so a background agent never stalls on a drifted API.
 
 **Measured:** Safe-Refusal Rate = **100% (6/6)** over M8 and M6-N (scripted, N = 3). False-Patch Rate = **0% (0/24 healed runs)** (scripted, N = 3).
 
@@ -37,7 +37,7 @@ When the healer commits a fix, it writes `wire_schema ← current spec` and `ver
 
 ### "What are your numbers?"
 
-All numbers are from `bench/report.md`, **scripted mode, N = 3**, 2026-10-14.
+All numbers are from `bench/report.md`, **scripted mode, N = 3**, 2026-10-14. Timings are wall-clock on a shared laptop and move with machine load: across benchmark runs on 2026-10-14 the tier-1 p50 ranged from 12 to 49 ms. Every run stayed far under the 4 s MTTR budget.
 
 | Metric | Value |
 |---|---|
@@ -46,12 +46,12 @@ All numbers are from `bench/report.md`, **scripted mode, N = 3**, 2026-10-14.
 | M6-N (Jev disabled, safe refusal) | 0% healing by design; 100% Safe-Refusal Rate |
 | Safe-Refusal Rate (M8 + M6-N) | **100% (6/6)** |
 | False-Patch Rate | **0% (0/24)** |
-| Tier-1 MTTR (mean / p50 / p95) | **12.7 / 12 / 17 ms** over 24 heals |
-| Tier-0 MTTR (mean / p50 / p95) | **1.9 / 1 / 4 ms** over 15 heals |
+| Tier-1 MTTR (mean / p50 / p95) | **50.7 / 49 / 66 ms** over 24 heals |
+| Tier-0 MTTR (mean / p50 / p95) | **4.7 / 4 / 8 ms** over 15 heals |
 | Token Overhead | Not yet measured — scripted mode records 0 LLM tokens; run `--agent llm` for this number |
 | Baseline failure mode | Hit iteration cap (10 calls) on M1, M2, M4, M5, M6-D, M6-N, M8, M9 |
 
-Per-mutation tier-1 MTTR p50 / p95 (ms): M1 12/13 · M2 12/12 · M3 13/17 · M4 12/12 · M5 15/17 · M6-D 12/14 · M7 12/13 · M9 13/14.
+Per-mutation tier-1 MTTR p50 / p95 (ms): M1 47/48 · M2 45/66 · M3 47/49 · M4 52/53 · M5 57/69 · M6-D 47/51 · M7 52/53 · M9 50/58.
 
 ---
 

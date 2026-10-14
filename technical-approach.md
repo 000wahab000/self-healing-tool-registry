@@ -14,7 +14,7 @@ We wrap every tool call in a registry that owns the tool definitions. Agents nev
 4. **Build fixes with deterministic code.** A small operation set (`move`, `cast`, `header`, `route`) expresses the four required mutations. The builder lists every valid fix. With two or more, a deterministic tie-breaker (FR-7.6) picks a unique winner when the evidence allows. Only if it cannot, and only if Jev is configured, **Jev** (optional, F8) chooses among them. Jev never produces operations or values.
 5. **Prove before committing.** Each fix goes through a safety gate, one replay (or a local remap) and full re-verification. Only then is it activated.
 6. **Remember.** After a heal, the tool's in-memory definition carries the fix, so the same break does not recur in this process. Persisting fixes by fingerprint and reusing them across restarts (tier 0) is STRETCH (S6).
-7. **Stop safely.** When no safe fix exists, the agent gets a structured error with `retry: false`. Nothing is invented and nothing loops. Errors that are not drift (value errors with an unchanged spec, missing records) are returned unchanged and never healed.
+7. **Refuse safely, keep going.** When no safe fix exists, the agent gets a structured error with `retry: false`, treats that tool as unavailable for the rest of the task and finishes the other steps. Nothing is invented and nothing loops. Errors that are not drift (value errors with an unchanged spec, missing records) are returned unchanged and never healed.
 
 Why deterministic code instead of an LLM for healing:
 - **Speed:** MTTR must be under 4 s.
@@ -36,6 +36,7 @@ Why deterministic code instead of an LLM for healing:
 | Agents | LangGraph `create_react_agent` + `langchain-openai` | The problem statement requires a baseline on a standard framework. Using the same framework for both agents isolates the registry as the only difference. A scripted, no-LLM agent (the demo task as fixed tool calls) is used for keyless benchmark runs and paced demos. In scripted mode the baseline re-sends a failing call with the same arguments until the iteration cap. |
 | LLM | Claude via OpenRouter's OpenAI-compatible API (`OPENROUTER_API_KEY`), default `anthropic/claude-haiku-5.5`, temperature 0, same for both agents | A fair comparison at low cost; the model is set with `LLM_MODEL` |
 | Dashboard | FastAPI + one static HTML page with vanilla JS polling | No extra dependency; the dashboard runs both agents and two isolated mock instances in one process |
+| Config | `python-dotenv` | Loads `.env` when the dashboard starts (`python -m dashboard`) |
 | Tests | pytest, pytest-asyncio, respx | Async tests; respx mocks the Jev HTTP API |
 | Lint/format | ruff | One tool |
 | STRETCH | Strawberry + graphql-core; grpcio + grpcio-reflection + grpcio-status | GraphQL introspection and gRPC reflection provide the "current spec" for those protocols |
@@ -58,10 +59,10 @@ Why deterministic code instead of an LLM for healing:
 | **Safety Gate** | Checks provenance, casts, operation count, replay safety and the write-tool ambiguity rule (FR-9) | Heal Controller |
 | **Op Interpreter** | Applies an operation list to a request or response document. It is pure and deterministic. | Adapter, Heal Controller |
 | **Store** | SQLite (WAL) for audit events; sanitizes the raw error blob before it is written (FR-5.7). The in-memory active-fix cache is kept in the MVP. Under S6 it also persists fixes and spec snapshots; under S7 it holds the negative cache. | Everything that persists |
-| **Mock Drift API** | Four operations, the spec endpoint, the mutation switch (M1–M9 with M6-D/M6-N, controls C1–C3; M10 under S8), the state endpoint | Agents (through registry or direct), Benchmark, Dashboard |
+| **Mock Drift API** | Four operations, the spec endpoint, the mutation switch (M1–M9 with M6-D/M6-N, controls C1–C3; M10 under S8; a dashboard-only `CUSTOM` drift composed per run), the state endpoint | Agents (through registry or direct), Benchmark, Dashboard |
 | **Healing Agent / Baseline Agent** | Same framework, LLM and prompt. The healing agent's tools call `registry.call`; the baseline's tools call the API directly. A scripted no-LLM agent runs the same task as fixed tool calls for keyless benchmark runs. | Mock API |
 | **Benchmark Runner** | Runs scenarios × agents × N, checks the final state, computes the metrics (FR-15.4), runs the clean runs and the error-only ablation | Mock API admin, agents, Store |
-| **Dashboard** | FastAPI service plus one static HTML page: live view of both agents, mutation buttons, patch log, metrics | Store, Mock API admin |
+| **Dashboard** | FastAPI service plus one static HTML page: a Demo view (prompt + scenario or custom drift, side-by-side replay with per-call input / wire / output, registry view), a live view of both agents with mutation buttons, patch log, metrics | Store, Mock API admin |
 
 ### 3.2 Request and response documents
 
@@ -166,7 +167,7 @@ Every abort ends the same way:
 3. (STRETCH, S7) Add the fingerprint to the negative cache for 60 s. This applies to `VERIFY_FAILED`, `POSTCHECK_FAILED_AFTER_WRITE`, `NO_CANDIDATE`, `NO_SAFE_VALUE`, `LOW_CONFIDENCE`, `UNSAFE_PATCH`, `UNSAFE_REPLAY` and `UNSUPPORTED_CLASS`. The transient reasons are not cached: `DEADLINE`, and a `LOW_CONFIDENCE` that followed a Jev timeout or error (FR-11.3). Also under S7, release the single-flight lock.
 4. Return `{error:"SCHEMA_DRIFT_UNRECOVERABLE", tool, class, fingerprint, reason, retry:false}`.
 
-The agent's prompt tells it to stop calling that tool with the same arguments and to report the failure. Without S7, loop prevention rests on one heal attempt per call, the `retry: false` instruction and the agent's iteration cap. With S7, the next identical call within 60 s fails immediately with `KNOWN_UNFIXABLE`, so there is no loop at the registry level either.
+The agent's prompt tells it not to call that tool again with the same arguments; for `SCHEMA_DRIFT_UNRECOVERABLE` the tool is unavailable for the rest of the task, so the agent reports it as skipped and continues with the remaining steps. Without S7, loop prevention rests on one heal attempt per call, the `retry: false` instruction and the agent's iteration cap. With S7, the next identical call within 60 s fails immediately with `KNOWN_UNFIXABLE`, so there is no loop at the registry level either.
 
 ### 4.6 Transient, business and not-drift errors
 
