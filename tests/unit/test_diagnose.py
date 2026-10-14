@@ -162,10 +162,8 @@ def test_diff_keeps_descriptions_of_the_side_they_come_from() -> None:
     _, new, _ = MUTATIONS["M6"]
     got = diff(SET_MANAGER, new)
     by_path = {tuple(e["path"]): e for e in got}
-    assert by_path[("body", "user_id")]["description"] == "ID of the user"
-    assert by_path[("body", "subject")]["description"].startswith(
-        "ID of the user whose"
-    )
+    assert by_path[("body", "user_id")]["description"] == "Employee to update"
+    assert by_path[("body", "supervisor")]["description"] == "Manager to assign"
 
 
 def test_diff_required_changed_and_route_changed_sort_first() -> None:

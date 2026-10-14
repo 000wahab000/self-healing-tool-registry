@@ -51,8 +51,8 @@ async def test_ac_01_registry_loads_four_tools(registry):
         assert set(params["required"]) == fields
         assert {p["type"] for p in params["properties"].values()} == {"string"}
     manager = tools["set_manager"]["parameters"]["properties"]
-    assert manager["user_id"]["description"] == "ID of the user"
-    assert manager["manager_id"]["description"] == "ID of the manager"
+    assert manager["user_id"]["description"] == "Employee to update"
+    assert manager["manager_id"]["description"] == "Manager to assign"
     assert len(registry.spec_hash) == 64
 
 
@@ -166,3 +166,19 @@ async def test_active_fix_response_ops_reshape_before_contract(api, registry):
     result = await registry.call("get_user", {"user_id": "123"})
     assert {k: result[k] for k in USER} == USER
     assert "error" not in result
+
+
+async def test_fr_3_4_value_rules_are_left_to_the_api(api, registry):
+    # The spec carries an email pattern, but a bad value is the API's 422 to report (BUSINESS
+    # once the heal controller sees an unchanged spec), not an agent-argument error.
+    props = registry.defs["update_email"].agent_schema["properties"]
+    assert "pattern" in props["email"]  # the agent still sees the rule
+    result = await registry.call("update_email", {"user_id": "123", "email": "nope"})
+    assert (result["error"], result["class"], result["status"]) == (
+        "API_ERROR",
+        "E2",
+        "422",
+    )
+    assert len(calls_to(api, "/users/email")) == 1
+    still_typed = await registry.call("update_email", {"user_id": "123", "email": 7})
+    assert still_typed["error"] == "AGENT_ARG_ERROR"

@@ -22,7 +22,7 @@ import httpx
 from agents import baseline_agent, common, healing_agent, scripted
 from healer.jev import JevClient, from_env
 from healer.metrics import mttr_summary
-from healer.models import HealOutcome, Reason, Tier
+from healer.models import DecisionPath, HealOutcome, Tier
 from healer.registry import Registry
 from healer.store import Store
 from mock_api.app import create_app
@@ -223,14 +223,14 @@ def report(
         "with the same arguments until the cap of 10)"
     )
     no_answer = sum(
-        h["reason"] == Reason.JEV_UNAVAILABLE for r in rows for h in r["heals"]
+        h["path"] == DecisionPath.jev_unavailable for r in rows for h in r["heals"]
     )
     if not jev_configured:
         jev_text = (
             "no (M6 cannot heal without Jev: its two candidates need Jev to choose)"
         )
     elif no_answer:
-        jev_text = f"configured, but gave no usable answer in {no_answer} heals (JEV_UNAVAILABLE)"
+        jev_text = f"configured, but gave no usable answer in {no_answer} heals (jev_unavailable)"
     else:
         jev_text = "yes"
     lines = [

@@ -8,6 +8,24 @@ from healer.models import ErrorClass, Outcome, Side, Violation
 
 PROTOCOL = "rest"
 AUTH_STATUSES = (401, 403, 428)
+VALUE_KINDS = frozenset({"format", "range", "pattern", "enum", "length"})
+_VALUE_TYPES = {
+    "string_pattern_mismatch": "pattern",
+    "enum": "enum",
+    "literal_error": "enum",
+    "value_error": "format",
+    "string_too_short": "length",
+    "string_too_long": "length",
+    "too_short": "length",
+    "too_long": "length",
+}
+
+
+def _kind(fastapi_type: str) -> str:
+    """FR-3.4: a 422 type that says the value is bad becomes a value kind; all others stay as sent."""
+    if fastapi_type.startswith(("greater_than", "less_than")):
+        return "range"
+    return _VALUE_TYPES.get(fastapi_type, fastapi_type)
 
 
 def _violations(resp: httpx.Response) -> list[Violation]:
@@ -15,7 +33,7 @@ def _violations(resp: httpx.Response) -> list[Violation]:
     if status == 422:
         try:
             items = [
-                Violation(Side.REQ, list(d["loc"]), d["type"])
+                Violation(Side.REQ, list(d["loc"]), _kind(d["type"]))
                 for d in resp.json()["detail"]
             ]
         except (ValueError, KeyError, TypeError):

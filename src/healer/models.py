@@ -24,7 +24,6 @@ class Reason(StrEnum):
     NO_CANDIDATE = "NO_CANDIDATE"
     NO_SAFE_VALUE = "NO_SAFE_VALUE"
     LOW_CONFIDENCE = "LOW_CONFIDENCE"
-    JEV_UNAVAILABLE = "JEV_UNAVAILABLE"
     UNSAFE_PATCH = "UNSAFE_PATCH"
     UNSAFE_REPLAY = "UNSAFE_REPLAY"
     VERIFY_FAILED = "VERIFY_FAILED"
@@ -32,6 +31,7 @@ class Reason(StrEnum):
     KNOWN_UNFIXABLE = "KNOWN_UNFIXABLE"
     DEADLINE = "DEADLINE"
     NOT_DRIFT = "NOT_DRIFT"
+    UNSUPPORTED_CLASS = "UNSUPPORTED_CLASS"
 
 
 class HealOutcome(StrEnum):
@@ -69,7 +69,9 @@ class DecisionPath(StrEnum):
     cache = "cache"
     diff = "diff"
     clue = "clue"
+    tiebreak = "tiebreak"
     jev = "jev"
+    jev_unavailable = "jev_unavailable"
 
 
 class Tier(IntEnum):
@@ -126,7 +128,8 @@ class AuditEvent:
     fix_id: int | None
     outcome: HealOutcome
     reason: Reason | None
-    mttr_ms: int
+    mttr_ms: int  # first failing response for this fingerprint -> verified result
+    heal_ms: int = 0  # this heal's failure detection -> result
     jev_tokens: int = 0
     llm_tokens: int = 0
     raw_error: str = ""

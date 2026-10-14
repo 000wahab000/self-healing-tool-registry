@@ -5,6 +5,7 @@ import json
 import sqlite3
 
 import httpx
+import pytest
 
 from healer import canonical
 from healer.fingerprint import fingerprint
@@ -19,7 +20,8 @@ from healer.models import (
     Tier,
     Violation,
 )
-from healer.store import Store
+from healer.registry import Registry
+from healer.store import RAW_ERROR_MAX, Store
 
 JEV_URL = "https://api.typesafe.ai/v1/systemone"
 RIGHT = "body.user_id -> body.subject"  # M6: the pairing that sets the right manager
@@ -148,14 +150,42 @@ async def test_tier0_repeat_break_uses_stored_fix_without_spec_fetch(
     restarted.close()
 
 
-async def test_ac_07_m6_jev_correct_recovers(
+async def test_ac_07_m6_d_heals_through_the_tiebreaker_without_jev(
+    api, store, jev, respx_mock, make_registry
+):
+    route = respx_mock.post(JEV_URL).mock(
+        side_effect=jev_reply(lambda text: RIGHT in text, 0.95)
+    )
+    reg = await make_registry(jev=jev)  # configured, and still not asked
+    api.set_mutation("M6-D")
+
+    result = await reg.call("set_manager", SET_MANAGER)
+
+    assert result == {"id": "123", "manager_id": "456"}
+    users = api.state()["users"]
+    assert (users["123"]["manager_id"], users["456"]["manager_id"]) == ("456", None)
+    assert route.call_count == 0
+    assert (
+        calls_to(api, "/users/manager/validate") == []
+    )  # a tie-break needs no dry run
+    (event,) = store.audit_events()
+    assert (event.outcome, event.path, event.tier, event.jev_tokens) == (
+        HealOutcome.RECOVERED,
+        DecisionPath.tiebreak,
+        Tier.T1,
+        0,
+    )
+    assert store.get_active(event.fingerprint).source is DecisionPath.tiebreak
+
+
+async def test_ac_07_m6_n_jev_at_write_threshold_and_confirming_preverify_recovers(
     api, store, jev, respx_mock, make_registry
 ):
     route = respx_mock.post(JEV_URL).mock(
         side_effect=jev_reply(lambda text: RIGHT in text, 0.95)
     )
     reg = await make_registry(jev=jev)
-    api.set_mutation("M6")
+    api.set_mutation("M6-N")
 
     result = await reg.call("set_manager", SET_MANAGER)
 
@@ -170,23 +200,34 @@ async def test_ac_07_m6_jev_correct_recovers(
     )
     assert event.jev_tokens > 0
     assert route.call_count == 1
+    # the failing call, one dry run with the chosen request, then the write
+    sent = [
+        (r["path"], r["body"])
+        for r in api.requests
+        if r["path"].startswith("/users/manager")
+    ]
+    chosen = {"subject": "123", "supervisor": "456"}
+    assert sent == [
+        ("/users/manager", SET_MANAGER),
+        ("/users/manager/validate", chosen),
+        ("/users/manager", chosen),
+    ]
 
 
-async def test_ac_07_m6_low_confidence_no_write(
+async def test_ac_07_m6_n_low_confidence_no_write(
     api, store, jev, respx_mock, make_registry
 ):
     respx_mock.post(JEV_URL).mock(
         side_effect=jev_reply(lambda text: RIGHT in text, 0.6)
     )
     reg = await make_registry(jev=jev)
-    api.set_mutation("M6")
+    api.set_mutation("M6-N")
 
     result = await reg.call("set_manager", SET_MANAGER)
 
     unrecoverable(result, Reason.LOW_CONFIDENCE)
-    assert (
-        len(calls_to(api, "/users/manager")) == 1
-    )  # only the original failing request
+    assert len(calls_to(api, "/users/manager")) == 1  # only the failing request
+    assert calls_to(api, "/users/manager/validate") == []
     assert api.state()["users"]["123"]["manager_id"] is None
     (event,) = store.audit_events()
     assert (event.outcome, event.reason, event.path) == (
@@ -197,14 +238,66 @@ async def test_ac_07_m6_low_confidence_no_write(
     assert event.jev_tokens > 0 and event.fingerprint == result["fingerprint"]
 
 
-async def test_m6_confident_wrong_pick_is_caught_by_postcheck(
+async def test_ac_07_m6_n_without_preverify_no_write(
+    api, store, tools_config, jev, respx_mock, make_registry
+):
+    del tools_config["tools"]["set_manager"]["preverify"]
+    respx_mock.post(JEV_URL).mock(
+        side_effect=jev_reply(lambda text: RIGHT in text, 0.95)
+    )
+    reg = await make_registry(jev=jev)
+    api.set_mutation("M6-N")
+
+    unrecoverable(await reg.call("set_manager", SET_MANAGER), Reason.LOW_CONFIDENCE)
+
+    assert len(calls_to(api, "/users/manager")) == 1
+    assert calls_to(api, "/users/manager/validate") == []
+    assert api.state()["users"]["123"]["manager_id"] is None
+    (event,) = store.audit_events()
+    assert (event.reason, event.path) == (Reason.LOW_CONFIDENCE, DecisionPath.jev)
+
+
+async def test_fr_8_6_preverify_that_refuses_the_pick_stops_the_write(
     api, store, jev, respx_mock, make_registry
 ):
     respx_mock.post(JEV_URL).mock(
         side_effect=jev_reply(lambda text: RIGHT not in text, 0.95)
     )
     reg = await make_registry(jev=jev)
-    api.set_mutation("M6")
+    api.set_mutation("M6-N")
+
+    result = await reg.call("set_manager", SET_MANAGER)
+
+    unrecoverable(result, Reason.LOW_CONFIDENCE)
+    assert len(calls_to(api, "/users/manager/validate")) == 1
+    assert len(calls_to(api, "/users/manager")) == 1  # the wrong pairing never written
+    assert api.state()["users"]["123"]["manager_id"] is None
+    assert api.state()["users"]["456"]["manager_id"] is None
+    assert reg.defs["set_manager"].active_fix is None
+    (event,) = store.audit_events()
+    assert (event.outcome, event.reason) == (HealOutcome.ABORTED, Reason.LOW_CONFIDENCE)
+    unrecoverable(  # a refused pick is a verdict on this break: negative-cached
+        await reg.call("set_manager", SET_MANAGER), Reason.KNOWN_UNFIXABLE
+    )
+
+
+async def test_m6_n_wrong_pick_a_preverify_cannot_tell_apart_is_caught_by_postcheck(
+    api, store, wire, jev, respx_mock, make_registry
+):
+    # The residual risk of FR-8.6: a dry run that confirms every pairing.
+    inner = wire.handle_async_request
+
+    async def lenient(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/users/manager/validate":
+            return httpx.Response(200, json={"id": "123", "manager_id": "456"})
+        return await inner(request)
+
+    wire.handle_async_request = lenient
+    respx_mock.post(JEV_URL).mock(
+        side_effect=jev_reply(lambda text: RIGHT not in text, 0.95)
+    )
+    reg = await make_registry(jev=jev)
+    api.set_mutation("M6-N")
 
     result = await reg.call("set_manager", SET_MANAGER)
 
@@ -216,8 +309,67 @@ async def test_m6_confident_wrong_pick_is_caught_by_postcheck(
     )
     assert reg.defs["set_manager"].active_fix is None
     assert store.get_active(event.fingerprint) is None
-    again = await reg.call("set_manager", SET_MANAGER)
-    unrecoverable(again, Reason.KNOWN_UNFIXABLE)
+    unrecoverable(await reg.call("set_manager", SET_MANAGER), Reason.KNOWN_UNFIXABLE)
+
+
+async def test_fr_7_6_read_tool_parameter_order_breaks_a_description_tie(
+    api, store, tools_config, make_registry
+):
+    # Same M6-N break on a read tool: no descriptions, but the removed fields keep their
+    # declaration order among the added ones for exactly one pairing (and that one is right).
+    tools_config["tools"]["set_manager"]["write"] = False
+    reg = await make_registry()
+    api.set_mutation("M6-N")
+
+    result = await reg.call("set_manager", SET_MANAGER)
+
+    assert result == {"id": "123", "manager_id": "456"}
+    (event,) = store.audit_events()
+    assert (event.outcome, event.path) == (HealOutcome.RECOVERED, DecisionPath.tiebreak)
+    assert calls_to(api, "/users/manager/validate") == []
+
+
+async def test_ac_13_jev_unavailable_m6_n_aborts_low_confidence_without_a_write(
+    api, store, jev, respx_mock, make_registry
+):
+    route = respx_mock.post(JEV_URL).mock(side_effect=httpx.ReadTimeout("slow"))
+    reg = await make_registry(jev=jev)
+    api.set_mutation("M6-N")
+
+    for _ in range(2):
+        down = await reg.call("set_manager", SET_MANAGER)
+        unrecoverable(down, Reason.LOW_CONFIDENCE)
+    assert route.call_count == 2  # not negative-cached: Jev is asked again
+
+    assert [(e.reason, e.path) for e in store.audit_events()] == [
+        (Reason.LOW_CONFIDENCE, DecisionPath.jev_unavailable)
+    ] * 2
+    assert len(calls_to(api, "/users/manager")) == 2  # the two failing requests only
+    assert calls_to(api, "/users/manager/validate") == []
+    assert api.state()["users"]["123"]["manager_id"] is None
+
+
+async def test_ac_13_jev_unconfigured_m6_n_aborts_low_confidence_m6_d_still_heals(
+    api, store, make_registry
+):
+    reg = await make_registry()  # no Jev at all
+    api.set_mutation("M6-N")
+
+    unrecoverable(await reg.call("set_manager", SET_MANAGER), Reason.LOW_CONFIDENCE)
+    unrecoverable(await reg.call("set_manager", SET_MANAGER), Reason.LOW_CONFIDENCE)
+
+    assert [(e.reason, e.path) for e in store.audit_events()] == [
+        (Reason.LOW_CONFIDENCE, DecisionPath.jev_unavailable)
+    ] * 2  # the second call got a fresh attempt, not KNOWN_UNFIXABLE
+    assert len(calls_to(api, "/users/manager")) == 2
+    assert api.state()["users"]["123"]["manager_id"] is None
+
+    api.set_mutation("M6-D")
+    assert await reg.call("set_manager", SET_MANAGER) == {
+        "id": "123",
+        "manager_id": "456",
+    }
+    assert store.audit_events()[-1].path is DecisionPath.tiebreak
 
 
 async def test_ac_12_negative_cache_known_unfixable(api, store, make_registry):
@@ -239,31 +391,6 @@ async def test_ac_12_negative_cache_known_unfixable(api, store, make_registry):
         Reason.KNOWN_UNFIXABLE,
     ]
     assert len(calls_to(api, "/tickets")) == 2 and api.state()["tickets"] == []
-
-
-async def test_ac_13_jev_down_m6_aborts_others_heal(
-    api, store, jev, respx_mock, make_registry
-):
-    route = respx_mock.post(JEV_URL).mock(side_effect=httpx.ReadTimeout("slow"))
-    reg = await make_registry(jev=jev)
-    api.set_mutation("M6")
-
-    for _ in range(2):
-        down = await reg.call("set_manager", SET_MANAGER)
-        unrecoverable(down, Reason.JEV_UNAVAILABLE)
-    assert (
-        route.call_count == 2
-    )  # the second attempt was not short-circuited by the cache
-
-    api.set_mutation("M1")
-    assert await reg.call("get_user", GET_USER) == USER
-    assert route.call_count == 2  # one candidate: Jev not consulted
-    assert [e.reason for e in store.audit_events()] == [
-        Reason.JEV_UNAVAILABLE,
-        Reason.JEV_UNAVAILABLE,
-        None,
-    ]
-    assert api.state()["users"]["123"]["manager_id"] is None
 
 
 async def test_ac_19_single_flight_concurrency(api, store, wire, make_registry):
@@ -476,3 +603,318 @@ async def test_transient_replay_failure_is_not_negative_cached(
     unrecoverable(await reg.call("get_user", GET_USER), Reason.VERIFY_FAILED)
     assert not store.is_negative(store.audit_events()[0].fingerprint)
     assert await reg.call("get_user", GET_USER) == USER
+
+
+# ---- spec v3 (C11): value errors, E3, E4/E6 replay, timing, spec mode, redaction ----
+
+
+def override(wire, path: str, make) -> list[httpx.Request]:
+    """Answer requests to `path` with `make(request)` (None passes through); returns those seen."""
+    inner, seen = wire.handle_async_request, []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == path and (response := make(request)) is not None:
+            seen.append(request)
+            return response
+        return await inner(request)
+
+    wire.handle_async_request = handler
+    return seen
+
+
+def unprocessable(*items: tuple[str, list[str]]):
+    detail = [{"type": t, "loc": loc, "msg": "x"} for t, loc in items]
+    return lambda request: httpx.Response(422, json={"detail": detail})
+
+
+class ManualClock:
+    def __init__(self) -> None:
+        self.t = 0.0
+
+    def __call__(self) -> float:
+        return self.t
+
+
+async def test_ac_21_c3_value_error_is_business_not_drift(
+    api, store, client, make_registry
+):
+    reg = await make_registry()
+    args = {"user_id": "123", "email": "not-an-email"}
+
+    result = await reg.call("update_email", args)
+
+    assert len(calls_to(api, "/users/email")) == 1  # no replay
+    direct = await client.patch("/users/email", json=args)
+    assert direct.status_code == 422
+    assert result == {
+        "error": "API_ERROR",
+        "class": "BUSINESS",
+        "status": "422",
+        "detail": direct.json(),  # the API's own body, unchanged
+    }
+    assert api.state()["users"]["123"]["email"] == "ada@example.com"
+    assert reg.defs["update_email"].active_fix is None
+    (event,) = store.audit_events()
+    assert (event.cls, event.outcome, event.reason, event.fix_id) == (
+        ErrorClass.E2,
+        HealOutcome.NOT_DRIFT,
+        Reason.NOT_DRIFT,
+        None,
+    )
+    assert json.loads(event.raw_error)["violations"] == [
+        ["req", ["body", "email"], "pattern"]
+    ]
+    again = await reg.call("update_email", args)  # NOT_DRIFT is never negative-cached
+    assert again == result and len(store.audit_events()) == 2
+
+
+async def test_fr_3_4_empty_diff_with_a_stale_active_fix_replays_the_base_request(
+    api, store, make_registry
+):
+    reg = await make_registry()
+    api.set_mutation("M1")
+    assert await reg.call("get_user", GET_USER) == USER  # M1 fix is active
+    api.set_mutation(None)  # the API rolls back to v1
+    before = len(calls_to(api, "/users/lookup"))
+
+    assert await reg.call("get_user", GET_USER) == USER
+
+    # the stale fix is rejected, then the unchanged base request goes out once
+    sent = [r["body"] for r in calls_to(api, "/users/lookup")[before:]]
+    assert sent == [{"customer_id": "123"}, {"user_id": "123"}]
+    event = store.audit_events()[-1]
+    assert (event.outcome, event.tier, event.path) == (
+        HealOutcome.RECOVERED,
+        Tier.T1,
+        DecisionPath.diff,
+    )
+    assert reg.defs["get_user"].active_fix.request_ops == []
+    assert await reg.call("get_user", GET_USER) == USER
+    assert len(store.audit_events()) == 2  # the empty fix serves the next call
+
+
+async def test_fr_3_4_empty_diff_without_an_active_fix_is_no_candidate(
+    api, store, wire, make_registry
+):
+    reg = await make_registry()
+    seen = override(
+        wire, "/users/lookup", unprocessable(("missing", ["body", "user_id"]))
+    )
+
+    result = await reg.call("get_user", GET_USER)
+
+    unrecoverable(result, Reason.NO_CANDIDATE)
+    assert len(seen) == 1  # the spec explains nothing, so nothing is replayed
+    assert reg.defs["get_user"].active_fix is None
+    (event,) = store.audit_events()
+    assert (event.outcome, event.reason) == (HealOutcome.ABORTED, Reason.NO_CANDIDATE)
+
+
+async def test_fr_3_4_mixed_value_and_structural_violations_are_structural(
+    api, store, wire, make_registry
+):
+    reg = await make_registry()
+    seen = override(
+        wire,
+        "/users/email",
+        unprocessable(
+            ("string_pattern_mismatch", ["body", "email"]),
+            ("missing", ["body", "nonce"]),
+        ),
+    )
+
+    result = await reg.call("update_email", {"user_id": "123", "email": "a@b.co"})
+
+    unrecoverable(result, Reason.NO_CANDIDATE)  # not NOT_DRIFT
+    assert len(seen) == 1
+    assert store.audit_events()[0].outcome is HealOutcome.ABORTED
+
+
+async def test_ac_25_e3_undecodable_body_is_unsupported_class(
+    api, store, wire, make_registry
+):
+    reg = await make_registry()
+
+    def html(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=b"<html>down for maintenance</html>",
+            headers={"content-type": "text/html"},
+        )
+
+    seen = override(wire, "/users/lookup", html)
+
+    result = await reg.call("get_user", GET_USER)
+
+    unrecoverable(result, Reason.UNSUPPORTED_CLASS, cls="E3")
+    assert len(seen) == 1  # nothing replayed
+    assert len(calls_to(api, "/openapi.json")) == 1  # nor diagnosed: the load only
+    (event,) = store.audit_events()
+    assert (event.cls, event.outcome, event.reason, event.fix_id) == (
+        ErrorClass.E3,
+        HealOutcome.ABORTED,
+        Reason.UNSUPPORTED_CLASS,
+        None,
+    )
+    assert reg.defs["get_user"].active_fix is None
+    # FR-11.3: an unsupported class is remembered like any other unfixable break
+    unrecoverable(
+        await reg.call("get_user", GET_USER), Reason.KNOWN_UNFIXABLE, cls="E3"
+    )
+    assert len(seen) == 2  # only the original send
+
+
+def soft_error_for_old_shape(request: httpx.Request) -> httpx.Response | None:
+    """E4: the API answers 200 with an error body to the v1 request, and works for the new one."""
+    if b"customer_id" in request.content:
+        return None
+    return httpx.Response(200, json={"success": False, "error": "unknown field"})
+
+
+async def test_ac_20_e4_on_non_idempotent_tool_without_key_is_unsafe_replay(
+    api, store, wire, tools_config, make_registry
+):
+    tools_config["tools"]["get_user"]["idempotent"] = False
+    reg = await make_registry()
+    api.set_mutation("M1")
+    seen = override(wire, "/users/lookup", soft_error_for_old_shape)
+
+    result = await reg.call("get_user", GET_USER)
+
+    unrecoverable(result, Reason.UNSAFE_REPLAY, cls="E4")
+    assert len(seen) == 1 and calls_to(api, "/users/lookup") == []  # never replayed
+    (event,) = store.audit_events()
+    assert (event.cls, event.outcome, event.reason) == (
+        ErrorClass.E4,
+        HealOutcome.ABORTED,
+        Reason.UNSAFE_REPLAY,
+    )
+
+
+async def test_ac_20_e4_on_idempotent_tool_is_replayed(api, store, wire, make_registry):
+    reg = await make_registry()
+    api.set_mutation("M1")
+    seen = override(wire, "/users/lookup", soft_error_for_old_shape)
+
+    assert await reg.call("get_user", GET_USER) == USER
+
+    assert len(seen) == 1
+    assert [r["body"] for r in calls_to(api, "/users/lookup")] == [
+        {"customer_id": "123"}
+    ]
+    (event,) = store.audit_events()
+    assert (event.cls, event.outcome) == (ErrorClass.E4, HealOutcome.RECOVERED)
+
+
+async def test_fr_5_3_mttr_runs_from_the_first_failure_and_heal_ms_from_this_heal(
+    api, store, wire, make_registry
+):
+    clock = ManualClock()
+    reg = await make_registry(clock=clock)
+    api.set_mutation("M1")
+    lookups, slow_spec = [], []
+    inner = wire.handle_async_request
+
+    async def timed(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/users/lookup":
+            lookups.append(request)
+            if len(lookups) == 2:  # call 1's replay: the connection drops after 2 s
+                clock.t += 2.0
+                raise httpx.ConnectError("blip", request=request)
+        if request.url.path == "/openapi.json" and slow_spec:
+            clock.t += 0.3
+        return await inner(request)
+
+    wire.handle_async_request = timed
+
+    unrecoverable(await reg.call("get_user", GET_USER), Reason.VERIFY_FAILED)
+    clock.t = 10.0
+    slow_spec.append(True)
+    assert await reg.call("get_user", GET_USER) == USER
+
+    failed, healed = store.audit_events()
+    assert (failed.mttr_ms, failed.heal_ms) == (2000, 2000)
+    assert healed.fingerprint == failed.fingerprint
+    assert healed.heal_ms == 300  # this heal: detected at 10.0, done at 10.3
+    assert healed.mttr_ms == 10300  # the break was first seen at 0.0
+
+    # once recovered the fingerprint starts over: no stale first-seen time
+    clock.t = 20.0
+    reg.defs["get_user"].active_fix = None
+    assert await reg.call("get_user", GET_USER) == USER
+    again = store.audit_events()[-1]
+    assert (again.tier, again.mttr_ms, again.heal_ms) == (Tier.T0, 0, 0)
+
+
+async def test_fr_6_4_spec_mode_off_diagnoses_from_the_error_alone(
+    api, store, make_registry
+):
+    reg = await make_registry(spec_mode="off")
+    api.set_mutation("M1")
+    fetches = len(calls_to(api, "/openapi.json"))
+
+    assert await reg.call("get_user", GET_USER) == USER
+
+    assert len(calls_to(api, "/openapi.json")) == fetches
+    (event,) = store.audit_events()
+    assert (event.outcome, event.path) == (HealOutcome.RECOVERED, DecisionPath.clue)
+
+
+async def test_fr_6_4_spec_mode_off_aborts_a_combined_change(api, store, make_registry):
+    reg = await make_registry(spec_mode="off")
+    api.set_mutation("M5")  # nested field plus a header: only the spec explains it
+
+    unrecoverable(await reg.call("get_user", GET_USER), Reason.NO_CANDIDATE)
+
+    assert len(calls_to(api, "/users/lookup")) == 1
+    assert store.audit_events()[0].path is DecisionPath.clue
+
+
+async def test_fr_6_4_spec_mode_must_be_on_or_off(client, tools_config):
+    with pytest.raises(ValueError):
+        Registry(client, tools_config, {}, spec_mode="OFF")
+
+
+JWT = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+)
+
+
+async def test_ac_24_audit_raw_error_is_redacted(api, store, wire, make_registry):
+    # An API that echoes the caller's credentials back in its 422 body.
+    echo = {
+        "detail": [
+            {
+                "type": "missing",
+                "loc": ["body", "customer_id"],
+                "msg": "Field required",
+                "input": {"auth": "Bearer test-token", "tenant": "t-1"},
+                "jwt": JWT,
+                "access_token": "opaque-token-value",
+            }
+        ]
+    }
+
+    def old_shape(request: httpx.Request):
+        if b"customer_id" in request.content:
+            return None
+        return httpx.Response(422, json=echo)
+
+    reg = await make_registry()
+    assert set(reg.cfg.values()) == {
+        "Bearer test-token",
+        "t-1",
+    }  # what the echo carries
+    api.set_mutation("M1")
+    override(wire, "/users/lookup", old_shape)
+
+    assert await reg.call("get_user", GET_USER) == USER
+
+    (event,) = store.audit_events()
+    leaks = [*reg.cfg.values(), "test-token", JWT, "opaque-token-value"]
+    assert [leak for leak in leaks if leak in event.raw_error] == []
+    blob = json.loads(event.raw_error)
+    assert blob["code"] == "422"
+    assert blob["violations"] == [["req", ["body", "customer_id"], "missing"]]
+    assert len(event.raw_error) <= RAW_ERROR_MAX

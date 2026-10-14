@@ -14,15 +14,17 @@ from fixtures_ops import (
     obj,
 )
 
-from healer.candidates import build, from_violations
+from healer.candidates import build, from_violations, tiebreak
 from healer.diagnose import diff
 from healer.models import Reason, Side, Violation
 from healer.settings import MAX_CANDIDATES
 
 
-def mutation_build(mid: str) -> tuple[list[dict], Reason | None]:
+def mutation_build(
+    mid: str, failing: frozenset = frozenset()
+) -> tuple[list[dict], Reason | None]:
     old, new, base = MUTATIONS[mid]
-    return build(diff(old, new), base, HEADER_SOURCES, CFG_KEYS)
+    return build(diff(old, new), base, HEADER_SOURCES, CFG_KEYS, failing)
 
 
 def move(src: list[str], dst: list[str]) -> dict:
@@ -60,8 +62,13 @@ def e(
     }
 
 
-def run(entries: list[dict], base: dict, cfg_keys: set[str] = CFG_KEYS):
-    return build(entries, base, HEADER_SOURCES, cfg_keys)
+def run(
+    entries: list[dict],
+    base: dict,
+    cfg_keys: set[str] = CFG_KEYS,
+    failing: frozenset = frozenset(),
+):
+    return build(entries, base, HEADER_SOURCES, cfg_keys, failing)
 
 
 # ---- plan phase 5 table: one test per mutation ----------------------------
@@ -136,9 +143,19 @@ def test_m6_ambiguous_rename_gives_both_assignments() -> None:
 
 
 def test_m7_silent_ignore_fills_optional_field_from_removed_one() -> None:
-    assert mutation_build("M7") == (
+    # the E6 postcheck failed on body.email, so the removed field is the failing one
+    assert mutation_build("M7", frozenset({("body", "email")})) == (
         [cand([move(["body", "email"], ["body", "email_address"])])],
         None,
+    )
+
+
+def test_fr_7_2_optional_field_needs_the_removed_field_to_be_failing() -> None:
+    # an added optional field is often a harmless addition, not a rename
+    assert mutation_build("M7") == ([], Reason.NO_CANDIDATE)
+    assert mutation_build("M7", frozenset({("body", "user_id")})) == (
+        [],
+        Reason.NO_CANDIDATE,
     )
 
 
@@ -254,7 +271,8 @@ def test_optional_leaf_without_name_evidence_is_left_alone() -> None:
         e("added", ["body", "gamma"], required=False),
     ]
     base = doc("POST", "/x", {"alpha": "1", "beta": "2"})
-    assert run(entries, base) == ([], Reason.NO_CANDIDATE)
+    failing = frozenset({("body", "alpha"), ("body", "beta")})
+    assert run(entries, base, failing=failing) == ([], Reason.NO_CANDIDATE)
 
 
 def test_optional_leaf_with_two_evidence_sources_gives_two_candidates() -> None:
@@ -264,11 +282,17 @@ def test_optional_leaf_with_two_evidence_sources_gives_two_candidates() -> None:
         e("added", ["body", "email_address"], required=False),
     ]
     base = doc("POST", "/x", {"home_email": "h@x.y", "work_email": "w@x.y"})
-    assert run(entries, base) == (
+    both = frozenset({("body", "home_email"), ("body", "work_email")})
+    assert run(entries, base, failing=both) == (
         [
             cand([move(["body", "home_email"], ["body", "email_address"])]),
             cand([move(["body", "work_email"], ["body", "email_address"])]),
         ],
+        None,
+    )
+    only_work = frozenset({("body", "work_email")})
+    assert run(entries, base, failing=only_work) == (
+        [cand([move(["body", "work_email"], ["body", "email_address"])])],
         None,
     )
 
@@ -359,6 +383,107 @@ def test_input_is_not_mutated_and_ops_do_not_alias_entries() -> None:
     cands, _ = build(entries, base, HEADER_SOURCES, CFG_KEYS)
     cands[0]["request_ops"][0]["to"].append("zzz")
     assert entries == snapshot
+
+
+# ---- FR-7.6 deterministic tie-breaker (AC-27) --------------------------------
+
+
+def described(change: str, name: str, desc: str = "", type_: str = "str") -> dict:
+    return {**e(change, ["body", name], type_), "description": desc}
+
+
+def pairing(*pairs: tuple[str, str]) -> dict:
+    return cand([move(["body", a], ["body", b]) for a, b in pairs])
+
+
+def m6_candidates(mid: str) -> tuple[list[dict], list[dict]]:
+    old, new, base = MUTATIONS[mid]
+    entries = diff(old, new)
+    cands, reason = build(entries, base, HEADER_SOURCES, CFG_KEYS)
+    assert reason is None
+    return cands, entries
+
+
+def test_ac_27_tiebreak_m6_d_has_exactly_one_winner() -> None:
+    cands, entries = m6_candidates("M6-D")
+    right = pairing(("user_id", "subject"), ("manager_id", "supervisor"))
+    assert len(cands) == 2 and right in cands
+    for write in (True, False):
+        assert tiebreak(cands, entries, write=write) == cands.index(right)
+
+
+def test_ac_27_tiebreak_m6_n_has_no_winner_on_a_write_tool() -> None:
+    cands, entries = m6_candidates("M6-N")
+    assert len(cands) == 2
+    assert tiebreak(cands, entries, write=True) is None
+
+
+# schema-declaration order (as heal passes it): removed a, b; added c, d
+ORDERED = [described("removed", "a"), described("removed", "b")] + [
+    described("added", "c"),
+    described("added", "d"),
+]
+STRAIGHT, CROSSED = pairing(("a", "c"), ("b", "d")), pairing(("a", "d"), ("b", "c"))
+
+
+def test_ac_27_tiebreak_write_tool_order_only_advantage_is_not_a_win() -> None:
+    assert tiebreak([CROSSED, STRAIGHT], ORDERED, write=False) == 1  # read: order wins
+    assert tiebreak([CROSSED, STRAIGHT], ORDERED, write=True) is None
+
+
+def test_ac_27_tiebreak_write_tool_type_only_advantage_is_not_a_win() -> None:
+    entries = [
+        described("removed", "a"),
+        described("added", "x"),
+        described("added", "y", type_="int"),
+    ]
+    cands = [pairing(("a", "y")), pairing(("a", "x"))]
+    assert tiebreak(cands, entries, write=False) == 1  # read: identical type wins
+    assert tiebreak(cands, entries, write=True) is None
+
+
+def test_tiebreak_description_evidence_beats_order_and_type_on_any_tool() -> None:
+    entries = [
+        described("removed", "a", "Employee to update"),
+        described("removed", "b", "Manager to assign"),
+        described("added", "c", "Manager to assign"),
+        described("added", "d", "Employee to update"),
+    ]
+    # CROSSED matches both descriptions although STRAIGHT keeps the parameter order
+    for write in (True, False):
+        assert tiebreak([STRAIGHT, CROSSED], entries, write=write) == 1
+
+
+def test_tiebreak_a_tie_on_description_is_no_win_on_a_write_tool() -> None:
+    entries = [
+        described("removed", "a", "shared token"),
+        described("removed", "b", "shared token"),
+        described("added", "c", "shared token"),
+        described("added", "d", "shared token"),
+    ]
+    assert tiebreak([STRAIGHT, CROSSED], entries, write=True) is None
+    assert tiebreak([CROSSED, STRAIGHT], entries, write=False) == 1  # read: order
+
+
+def test_tiebreak_stopwords_and_case_are_not_description_evidence() -> None:
+    stop = [
+        described("removed", "a", "The ID of a new"),
+        described("removed", "b", "ID for the old"),
+        described("added", "c", "id of the NEW"),
+        described("added", "d", "The ID and or"),
+    ]
+    assert tiebreak([STRAIGHT, CROSSED], stop, write=True) is None
+    real = [
+        described("removed", "a", "User Email"),
+        described("removed", "b", "Other"),
+        described("added", "c", "email, please"),
+        described("added", "d", "Else"),
+    ]
+    assert tiebreak([STRAIGHT, CROSSED], real, write=True) == 0
+
+
+def test_tiebreak_identical_candidates_never_win() -> None:
+    assert tiebreak([STRAIGHT, STRAIGHT], ORDERED, write=False) is None
 
 
 # ---- error-clue mode (C7b) -------------------------------------------------

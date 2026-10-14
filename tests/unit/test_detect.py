@@ -192,3 +192,35 @@ def test_data_carries_decoded_body(resp, cls, data):
 def test_e1_carries_numeric_retry_after(headers, data):
     out = detect.classify(r(503, headers=headers))
     assert (out.cls, out.data) == (C.E1, data)
+
+
+@pytest.mark.parametrize(
+    ("fastapi_type", "kind"),
+    [
+        ("string_pattern_mismatch", "pattern"),
+        ("greater_than", "range"),
+        ("greater_than_equal", "range"),
+        ("less_than", "range"),
+        ("less_than_equal", "range"),
+        ("enum", "enum"),
+        ("literal_error", "enum"),
+        ("value_error", "format"),
+        ("string_too_short", "length"),
+        ("string_too_long", "length"),
+        ("too_short", "length"),
+        ("too_long", "length"),
+        # structural kinds and anything unknown pass through
+        ("missing", "missing"),
+        ("int_type", "int_type"),
+        ("extra_forbidden", "extra_forbidden"),
+    ],
+)
+def test_fr_3_4_422_types_are_normalised_to_value_kinds(fastapi_type, kind):
+    body = {"detail": [{"type": fastapi_type, "loc": ["body", "email"], "msg": "x"}]}
+    out = detect.classify(r(422, body))
+    assert [(v.side, v.path, v.kind) for v in out.violations] == [
+        req(["body", "email"], kind)
+    ]
+    assert (kind in detect.VALUE_KINDS) == (
+        kind not in {"missing", "int_type", "extra_forbidden"}
+    )

@@ -10,7 +10,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, replace
 
 import httpx
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, validators
 
 from healer import contract, detect, retry
 from healer.adapters import rest
@@ -21,6 +21,25 @@ from healer.openapi_loader import fetch_spec, operations
 from healer.ops import apply_ops
 from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S
 from healer.store import Store
+
+# FR-3.4: value rules are the API's to enforce, so a rejected value reaches it and comes back
+# as BUSINESS. Argument pre-validation (FR-2.1) checks structure and types only.
+_VALUE_RULES = {
+    "pattern",
+    "enum",
+    "const",
+    "minLength",
+    "maxLength",
+    "minimum",
+    "maximum",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    "minItems",
+    "maxItems",
+}
+ArgumentValidator = validators.extend(
+    Draft202012Validator, dict.fromkeys(_VALUE_RULES, lambda *_: ())
+)
 
 
 @dataclass
@@ -62,7 +81,13 @@ class Registry:
         clock: Callable[[], float] = time.perf_counter,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         jitter: Callable[[], float] = retry.random_jitter,
+        spec_mode: str = "on",
     ) -> None:
+        if spec_mode not in (
+            "on",
+            "off",
+        ):  # a typo must not silently run the wrong ablation arm
+            raise ValueError(f"spec_mode must be 'on' or 'off', not {spec_mode!r}")
         self.client = client
         self.tools_config = tools_config
         self.cfg = cfg
@@ -80,6 +105,7 @@ class Registry:
                 header_sources=tools_config.get("header_sources", {}),
                 attempt=self._attempt,
                 clock=clock,
+                spec_mode=spec_mode,
             )
             if store
             else None
@@ -133,9 +159,13 @@ class Registry:
         base: dict,
         fix: Fix | None,
         timeout: float = REQUEST_TIMEOUT_S,
+        route: dict | None = None,
     ) -> Outcome:
-        """Send `base` through `fix` (request ops, response ops), classify, check the contract."""
+        """Send `base` through `fix` (request ops, response ops), classify, check the contract.
+        `route` replaces the sent route after the ops (a tool's `preverify` dry run)."""
         doc = apply_ops(fix.request_ops, base, self.cfg) if fix else base
+        if route:
+            doc = {**doc, "route": route}
         resp, exc = await rest.send(self.client, doc, timeout)
         outcome = detect.classify(resp, exc)
         if fix and outcome.cls is ErrorClass.OK:
@@ -153,7 +183,7 @@ class Registry:
         tool = self.defs.get(name)
         if tool is None:
             return {"error": "UNKNOWN_TOOL", "tool": name, "retry": False}
-        if not Draft202012Validator(tool.agent_schema).is_valid(args):
+        if not ArgumentValidator(tool.agent_schema).is_valid(args):
             return {"error": "AGENT_ARG_ERROR", "tool": name, "retry": False}
         t0 = self._clock()
         base = self.base_doc(tool, args)

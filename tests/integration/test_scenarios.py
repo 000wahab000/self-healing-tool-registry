@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 
+import httpx
 import pytest
 
 from healer import canonical
@@ -27,6 +28,7 @@ CLASS = {
     "M3": ErrorClass.E5,
     "M4": ErrorClass.E2,
     "M5": ErrorClass.E2,
+    "M9": ErrorClass.E2,
 }
 
 
@@ -47,6 +49,7 @@ def call_for(mid: str, n: int = 0) -> tuple[str, dict]:
         "M3": ("get_user", GET_USER),
         "M4": ("create_ticket", {"user_id": "123", "title": f"Confirm {n}"}),
         "M5": ("get_user", GET_USER),
+        "M9": ("update_email", {"user_id": "123", "email": f"new{n}@example.com"}),
     }[mid]
 
 
@@ -83,12 +86,20 @@ def check_m5(api, reg, n, args, result) -> None:
     assert sent["headers"]["x-tenant-id"] == reg.cfg["TENANT_ID"]
 
 
+def check_m9(api, reg, n, args, result) -> None:
+    assert result == {"id": "123", "email": args["email"]}
+    assert api.state()["users"]["123"]["email"] == args["email"]
+    sent = calls_to(api, "/users/email")[-1]["body"]
+    assert sent == {"payload": {"user_id": "123", "email": args["email"]}}
+
+
 CHECKS = {
     "M1": check_m1,
     "M2": check_m2,
     "M3": check_m3,
     "M4": check_m4,
     "M5": check_m5,
+    "M9": check_m9,
 }
 
 
@@ -131,6 +142,11 @@ async def test_ac_06_m4_oauth_header(api, store, make_registry):
 
 async def test_ac_06_m5_ps_example(api, store, make_registry):
     await assert_first_heal("M5", api, store, await make_registry())
+
+
+async def test_ac_22_m9_request_nesting(api, store, make_registry):
+    event = await assert_first_heal("M9", api, store, await make_registry())
+    assert event.path is DecisionPath.diff
 
 
 async def test_ac_08_m7_silent_ignore(api, store, make_registry):
@@ -246,13 +262,41 @@ async def test_ac_05_one_audit_event_per_attempt(api, store, make_registry):
         assert re.fullmatch(r"[0-9a-f]{16}", e.fingerprint)
         assert re.fullmatch(r"[A-Za-z0-9]+", e.raw_code)
         assert (e.fix_id is not None) == (e.outcome is HealOutcome.RECOVERED)
-        # raw_error is the violations as canonical JSON: [side, path, kind] triples, no prose.
-        violations = json.loads(e.raw_error)
-        assert canonical.dumps(violations) == e.raw_error
-        for side, path, kind in violations:
+        # raw_error is an opaque blob (FR-5.7), but it is canonical JSON whose violations are
+        # [side, path, kind] triples. The API's own error body is the only free text in it.
+        blob = json.loads(e.raw_error)
+        assert canonical.dumps(blob) == e.raw_error
+        assert blob["code"] == e.raw_code
+        for side, path, kind in blob["violations"]:
             assert side in {s.value for s in Side}
             assert all(isinstance(step, str | int) for step in path)
             assert re.fullmatch(r"[a-z_]+", kind)
+
+
+async def test_ac_13_healable_mutations_heal_with_jev_down(
+    api, store, jev, respx_mock, make_registry
+):
+    route = respx_mock.post("https://api.typesafe.ai/v1/systemone").mock(
+        side_effect=httpx.ReadTimeout("down")
+    )
+    reg = await make_registry(jev=jev)
+
+    for mid in ("M1", "M2", "M3", "M4", "M5", "M9"):
+        api.reset()
+        await reg.load()  # fresh tools against the v1 API, as after a restart
+        api.set_mutation(mid)
+        await run(mid, 0, api, reg)
+
+    api.reset()
+    await reg.load()
+    api.set_mutation("M7")
+    args = {"user_id": "123", "email": "new@example.com"}
+    assert await reg.call("update_email", args) == {"id": "123", "email": args["email"]}
+
+    assert route.call_count == 0  # one candidate each: Jev was never needed
+    events = store.audit_events()
+    assert [e.outcome for e in events] == [HealOutcome.RECOVERED] * 7
+    assert {e.path for e in events} == {DecisionPath.diff}
 
 
 async def test_ac_01_agent_schema_frozen_after_all_heals(api, store, make_registry):
