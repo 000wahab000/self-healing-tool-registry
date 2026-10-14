@@ -359,8 +359,8 @@
 
 ### 12E. Deliverables (`product.md` §16)
 
-- [ ] Short write-up of the diagnosis and patch logic, from `product.md` §4 and §8, `technical-approach.md` §5 and §6, and the measured results. Proposed location: `writeup.md` at the repo root [A: `product.md` leaves the location to this plan; confirm with the team].
-- [ ] 30-second pitch, using only numbers and claims that appear in `report.md`. Proposed location: `pitch.md` at the repo root [A: same].
+- [x] Short write-up of the diagnosis and patch logic, from `product.md` §4 and §8, `technical-approach.md` §5 and §6, and the measured results. Proposed location: `writeup.md` at the repo root [A: `product.md` leaves the location to this plan; confirm with the team].
+- [x] 30-second pitch, using only numbers and claims that appear in `report.md`. Proposed location: `pitch.md` at the repo root [A: same].
 - [ ] Demo script (`dashboard/demo.py`): re-run it twice from a cold start after 12A to 12D, including the M8 refusal, and confirm it also works with Jev not configured.
 
 **Gate:** AC-7, AC-13, AC-15, AC-16, AC-17, AC-20, AC-21, AC-22, AC-23, AC-24, AC-25 and AC-27 pass. AC-14 and AC-18 are re-checked against the new definitions. AC-1 to AC-6 and AC-8 to AC-10 still pass, and so do the built STRETCH criteria AC-11, AC-12 and AC-19. `pytest -q` and `ruff check .` are clean, and the benchmark report is regenerated.
