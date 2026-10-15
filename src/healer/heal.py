@@ -24,12 +24,12 @@ from healer.models import (
     Outcome,
     Reason,
     Side,
+    SpecSource,
     Tier,
 )
-from healer.openapi_loader import fetch_spec, operations
 from healer.ops import OpError, apply_ops
 from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S, SPEC_MODE
-from healer.store import Store, sanitize
+from healer.store import FixStore, sanitize
 
 if TYPE_CHECKING:
     from healer.registry import ToolDefinition
@@ -96,16 +96,16 @@ class Healer:
     def __init__(
         self,
         *,
-        store: Store,
+        store: FixStore,
         jev: JevClient | None,
-        client: httpx.AsyncClient,
+        spec_source: SpecSource,
         cfg: Mapping[str, str],
         header_sources: Mapping[str, str],
         attempt: Callable[..., Awaitable[Outcome]],
         clock: Callable[[], float],
         spec_mode: str = SPEC_MODE,
     ) -> None:
-        self._store, self._jev, self._client = store, jev, client
+        self._store, self._jev, self._spec_source = store, jev, spec_source
         self._spec_mode = spec_mode
         self._cfg, self._header_sources = cfg, header_sources
         self._attempt, self._clock = attempt, clock
@@ -194,13 +194,13 @@ class Healer:
         if self._spec_mode == "off":
             return
         try:
-            spec, spec_hash = await fetch_spec(self._client)
+            spec = await self._spec_source()
         except (httpx.HTTPError, ValueError):
             return
-        if spec_hash not in self._saved_specs:
-            self._store.save_spec(spec_hash, spec)
-            self._saved_specs.add(spec_hash)
-        h.ops, h.schema_hash = operations(spec), spec_hash
+        if spec.spec_hash not in self._saved_specs:
+            self._store.save_spec(spec.spec_hash, spec.raw)
+            self._saved_specs.add(spec.spec_hash)
+        h.ops, h.schema_hash = spec.ops, spec.spec_hash
         route = h.base["route"]
         if any(v.path == ["route"] for v in h.outcome.violations) and (
             diagnose.route_exists(h.ops, route["method"], route["path"])

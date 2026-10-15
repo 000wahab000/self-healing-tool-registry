@@ -16,11 +16,11 @@ from healer import contract, detect, retry
 from healer.adapters import rest
 from healer.heal import Healer, api_error
 from healer.jev import JevClient
-from healer.models import ErrorClass, Fix, Outcome
-from healer.openapi_loader import fetch_spec, operations
+from healer.models import ErrorClass, Fix, Outcome, SpecSource
+from healer.openapi_loader import openapi_source
 from healer.ops import apply_ops
 from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S, SPEC_MODE
-from healer.store import Store
+from healer.store import FixStore
 
 # FR-3.4: value rules are the API's to enforce, so a rejected value reaches it and comes back
 # as BUSINESS. Argument pre-validation (FR-2.1) checks structure and types only.
@@ -75,13 +75,14 @@ class Registry:
         client: httpx.AsyncClient,
         tools_config: dict,
         cfg: Mapping[str, str],
-        store: Store | None = None,
+        store: FixStore | None = None,
         jev: JevClient | None = None,
         *,
         clock: Callable[[], float] = time.perf_counter,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         jitter: Callable[[], float] = retry.random_jitter,
         spec_mode: str = SPEC_MODE,
+        spec_source: SpecSource | None = None,
     ) -> None:
         if spec_mode not in (
             "on",
@@ -92,6 +93,7 @@ class Registry:
         self.tools_config = tools_config
         self.cfg = cfg
         self.store = store
+        self.spec_source = spec_source or openapi_source(client)
         self.defs: dict[str, ToolDefinition] = {}
         self.spec_hash = ""
         self._clock, self._sleep, self._jitter = clock, sleep, jitter
@@ -100,7 +102,7 @@ class Registry:
             Healer(
                 store=store,
                 jev=jev,
-                client=client,
+                spec_source=self.spec_source,
                 cfg=cfg,
                 header_sources=tools_config.get("header_sources", {}),
                 attempt=self._attempt,
@@ -112,8 +114,8 @@ class Registry:
         )
 
     async def load(self) -> None:
-        spec, self.spec_hash = await fetch_spec(self.client)
-        ops = operations(spec)
+        spec = await self.spec_source()
+        ops, self.spec_hash = spec.ops, spec.spec_hash
         self.defs = {
             name: ToolDefinition(
                 name=name,
@@ -126,7 +128,7 @@ class Registry:
             for name, config in self.tools_config["tools"].items()
         }
         if self.store:
-            self.store.save_spec(self.spec_hash, spec)
+            self.store.save_spec(self.spec_hash, spec.raw)
 
     def tools(self) -> list[dict]:
         return [
