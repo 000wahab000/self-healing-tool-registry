@@ -614,3 +614,9 @@ Beyond the code, the problem statement requires the items below. This section on
 - **AC-35 (P1-2, pending):** Streamable HTTP has stdio-equivalent behavior, localhost default binding, and bearer-token protection for remote access.
 - **AC-36 (P1-2, pending):** Five concurrent equivalent MCP calls produce only one heal.
 - **AC-37 (P1-3, pending):** Client configuration hand-off is opt-in.
+
+### P1-2 HTTP amendment
+
+Implementation clarification: **FR-X8.5 and AC-35** are implemented with a stateful Streamable HTTP server sharing the existing registry. It binds to loopback by default; bearer-token checks cover every HTTP method and session continuation when configured. Remote binds require a bearer token and explicit allowed request hosts; wildcard origins are rejected. **FR-X8.6 and AC-36** use the same registry instance for concurrent sessions, preserving the registry's single-flight healing behavior.
+
+Remote deployments must terminate TLS at a trusted reverse proxy; bearer authentication does not encrypt traffic. Configure concrete request hostnames and only the required exact origins (no wildcard origins). `0.0.0.0` is a bind address, not an allowed request hostname.

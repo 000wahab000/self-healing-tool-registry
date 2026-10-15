@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hmac
 import json
 import logging
 import os
@@ -16,7 +17,12 @@ from dotenv import load_dotenv
 from mcp import MCPError
 from mcp.server import stdio
 from mcp.server.lowlevel import Server
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
+from starlette.applications import Starlette
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from healer import canonical
 from healer.openapi_loader import openapi_source
@@ -63,6 +69,76 @@ def create_server(registry: Registry) -> Server:
     )
 
 
+def create_http_app(
+    registry: Registry,
+    *,
+    host: str = "127.0.0.1",
+    bearer_token: str | None = None,
+    allowed_hosts: list[str] | None = None,
+    allowed_origins: list[str] | None = None,
+) -> Starlette:
+    local = host in ("127.0.0.1", "localhost", "::1")
+    if bearer_token is not None and not bearer_token:
+        raise ValueError("bearer token must not be empty")
+    if not local and (not bearer_token or not allowed_hosts):
+        raise ValueError("remote HTTP binding requires a bearer token and allowed hosts")
+    hosts = (
+        allowed_hosts
+        if allowed_hosts is not None
+        else [
+            "127.0.0.1",
+            "127.0.0.1:*",
+            "localhost",
+            "localhost:*",
+            "[::1]",
+            "[::1]:*",
+        ]
+        if local
+        else []
+    )
+    origins = (
+        allowed_origins
+        if allowed_origins is not None
+        else ["http://127.0.0.1", "http://localhost", "http://[::1]"]
+        if local
+        else []
+    )
+    hosts = [
+        host.removesuffix(":*") if host.endswith(":*") else host for host in hosts
+    ] + hosts
+    if any("*" in origin for origin in origins):
+        raise ValueError("wildcard origins are not allowed")
+    if any(
+        "*" in allowed_host.removesuffix(":*")
+        for allowed_host in hosts
+    ):
+        raise ValueError("allowed hosts may only wildcard the port")
+    if any(allowed_host.startswith(("0.0.0.0", "[::]")) for allowed_host in hosts):
+        raise ValueError("allowed hosts must name request hosts, not wildcard bind addresses")
+
+    app = create_server(registry).streamable_http_app(
+        json_response=True,
+        host=host,
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=hosts,
+            allowed_origins=origins,
+        ),
+    )
+    if bearer_token is not None:
+        expected = f"Bearer {bearer_token}".encode()
+
+        async def require_bearer(request: Request, call_next: Any) -> Response:
+            authorization = request.headers.get("authorization", "").encode("utf-8")
+            if not hmac.compare_digest(authorization, expected):
+                return Response(status_code=401)
+            return await call_next(request)
+
+        app.add_middleware(BaseHTTPMiddleware, dispatch=require_bearer)
+
+    return app
+
+
 def _arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Serve a healer registry over MCP stdio"
@@ -71,6 +147,12 @@ def _arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--spec-path", default="/openapi.json")
     parser.add_argument("--tools", default="config/tools.json")
     parser.add_argument("--db", default=":memory:")
+    parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8001)
+    parser.add_argument("--token-env")
+    parser.add_argument("--allowed-host", action="append")
+    parser.add_argument("--allowed-origin", action="append")
     return parser.parse_args(argv)
 
 
@@ -94,13 +176,35 @@ async def _serve(args: argparse.Namespace) -> None:
                 spec_source=openapi_source(client, args.spec_path),
             )
             await registry.load()
-            server = create_server(registry)
-            async with stdio.stdio_server() as (read_stream, write_stream):
-                await server.run(
-                    read_stream,
-                    write_stream,
-                    server.create_initialization_options(),
+            if getattr(args, "transport", "stdio") == "http":
+                import uvicorn
+
+                token_name = getattr(args, "token_env", None)
+                token = os.environ.get(token_name) if token_name else None
+                if token_name and not token:
+                    raise ValueError("configured bearer-token environment variable is empty")
+                app = create_http_app(
+                    registry,
+                    host=args.host,
+                    bearer_token=token,
+                    allowed_hosts=getattr(args, "allowed_host", None),
+                    allowed_origins=getattr(args, "allowed_origin", None),
                 )
+                config = uvicorn.Config(
+                    app,
+                    host=args.host,
+                    port=args.port,
+                    access_log=False,
+                )
+                await uvicorn.Server(config).serve()
+            else:
+                server = create_server(registry)
+                async with stdio.stdio_server() as (read_stream, write_stream):
+                    await server.run(
+                        read_stream,
+                        write_stream,
+                        server.create_initialization_options(),
+                    )
         finally:
             store.close()
     finally:
