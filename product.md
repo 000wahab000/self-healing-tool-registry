@@ -591,3 +591,26 @@ Beyond the code, the problem statement requires the items below. This section on
 | Metrics: ZTAR, MTTR, Token Overhead, plus Safe-Refusal Rate and False-Patch Rate | F15, definitions in FR-15.4 | Benchmark runner |
 | Short write-up of the diagnosis and patch logic | §4 and §8 of this spec, `technical-approach.md` §5 and §6, and the measured results | Team, after the benchmark (phase 10) [A: file location to confirm in `plan.md`] |
 | 30-second pitch | Measured numbers from `report.md`; claims limited to what the benchmark shows | Team, after the benchmark (phase 10) [A: file location to confirm in `plan.md`] |
+
+## P1: MCP Registry Interface (X8)
+
+### Functional requirements
+
+- **FR-X8.1:** The MCP stdio server exposes `Registry.tools()` without changing the frozen tool definitions; each tool's `agent_schema` is its MCP `inputSchema`.
+- **FR-X8.2:** Tool calls invoke only `Registry.call()`. Registry error dictionaries, including heal refusals, are returned as structured content with `isError: true`; successful data is returned with `isError: false`.
+- **FR-X8.3:** The server never sends `tools/list_changed`; protocol traffic alone uses stdout and diagnostics use stderr.
+- **FR-X8.4:** `python -m healer.mcp_server` accepts `--base-url`, `--spec-path`, `--tools`, and `--db`; startup configuration is read from the environment, the injected HTTP client and custom spec path are used for both initial spec load and healing, and owned resources are closed on shutdown. A named `healer-mcp` console command is blocked pending P2 approval.
+- **FR-X8.5 (P1-2, pending):** Streamable HTTP reuses a shared registry, binds to localhost by default, and requires an optional bearer token for remote access.
+- **FR-X8.6 (P1-2, pending):** Concurrent MCP calls preserve single-flight healing, so five equivalent concurrent requests trigger one heal.
+- **FR-X8.7 (P1-3, pending):** Client hand-off configuration is opt-in.
+
+### Acceptance criteria
+
+- **AC-30:** MCP `tools/list` matches the registry's tools and schemas exactly.
+- **AC-31:** A healthy `get_user` MCP call returns the registry result.
+- **AC-32:** After an M1 mutation in the same session, the tool schema remains unchanged and no `tools/list_changed` notification is sent.
+- **AC-33:** An M8 refusal is returned as structured content with `isError: true` and its reason.
+- **AC-34:** The module CLI uses a custom spec path for startup and healing, cleans up its resources, and keeps protocol stdout free of diagnostics; a named console command remains blocked pending P2 approval.
+- **AC-35 (P1-2, pending):** Streamable HTTP has stdio-equivalent behavior, localhost default binding, and bearer-token protection for remote access.
+- **AC-36 (P1-2, pending):** Five concurrent equivalent MCP calls produce only one heal.
+- **AC-37 (P1-3, pending):** Client configuration hand-off is opt-in.
