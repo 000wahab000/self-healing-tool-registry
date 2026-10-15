@@ -526,7 +526,7 @@ const Demo = (() => {
     if (path === "/api/explorer/info") return fetch("/api/explorer/info").then(r => r.json()).catch(() => ({ predefined_queries: [], error_classes: [], mock_info: { tools: {} } }));
     if (path === "/api/explore") {
       // The simulator cannot call an LLM; saying so beats inventing a result.
-      if (body.agent === "llm") return Promise.reject(new Error("Live LLM mode needs the dashboard backend (python3 -m dashboard) and an OPENROUTER_API_KEY"));
+      if (body.agent === "llm") return Promise.reject(new Error("Live LLM mode needs the dashboard backend (python3 -m dashboard) and NVIDIA_API_KEY set"));
       return Promise.resolve(demoExplore(body.query, body.mutation));
     }
     return Promise.reject(new Error("unknown " + path));
@@ -696,8 +696,8 @@ async function initPresets() {
   if (expInfo.llm_available) $("llm-status").textContent = "LLM: " + expInfo.llm_model;
   else {
     document.querySelector("input[name=mode][value=llm]").disabled = true;
-    $("llm-label").title = "Set OPENROUTER_API_KEY to enable the live LLM";
-    $("llm-status").textContent = "No OPENROUTER_API_KEY: scripted agents only";
+    $("llm-label").title = "Set NVIDIA_API_KEY to enable the live LLM";
+    $("llm-status").textContent = "No NVIDIA_API_KEY: scripted agents only";
   }
   if (lastLiveMut !== undefined) renderBanner($("live-banner"), lastLiveMut || "CLEAN");
 }

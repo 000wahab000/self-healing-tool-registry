@@ -33,9 +33,9 @@ Execute = Callable[[str, dict], Awaitable[tuple[str, ErrorClass]]]
 
 def make_llm() -> ChatOpenAI:
     return ChatOpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=os.environ["OPENROUTER_API_KEY"],
-        model=os.environ.get("LLM_MODEL", "anthropic/claude-haiku-5.5"),
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key=os.environ["NVIDIA_API_KEY"],
+        model=os.environ.get("LLM_MODEL", "openai/gpt-oss-20b"),
         temperature=0,
     )
 

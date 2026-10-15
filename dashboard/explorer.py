@@ -367,8 +367,8 @@ def get_explorer_info() -> dict:
         "predefined_queries": PREDEFINED_QUERIES,
         "error_classes": ERROR_CLASSES,
         "mutations": list(MUTATIONS),
-        "llm_available": bool(os.environ.get("OPENROUTER_API_KEY")),
-        "llm_model": os.environ.get("LLM_MODEL", "anthropic/claude-haiku-5.5"),
+        "llm_available": bool(os.environ.get("NVIDIA_API_KEY")),
+        "llm_model": os.environ.get("LLM_MODEL", "openai/gpt-oss-20b"),
     }
 
 
@@ -753,9 +753,9 @@ async def run_explore(
 
         # Determine which mode to run
         if agent == "llm":
-            # Live mode: the real OpenRouter model decides which tools to call.
-            if not os.environ.get("OPENROUTER_API_KEY"):
-                raise ValueError("llm agents need OPENROUTER_API_KEY")
+            # Live mode: the real NVIDIA NIM model decides which tools to call.
+            if not os.environ.get("NVIDIA_API_KEY"):
+                raise ValueError("llm agents need NVIDIA_API_KEY")
 
             run_id = uuid.uuid4().hex[:8]
             task = query or CONTROL_TASK.get(mutation, common.TASK)

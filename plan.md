@@ -19,7 +19,7 @@
   - dev dependencies: pytest, pytest-asyncio, respx, ruff,
   - optional `agents` extra: langgraph, langchain-openai.
 - [ ] The directory layout from `agent.md` §3 (empty modules with docstrings).
-- [ ] `.env.example` listing every variable. As built: `OPENROUTER_API_KEY` (one key covers the LLM agents and Jev through OpenRouter), `LLM_MODEL` (default `anthropic/claude-haiku-5.5`), optional `JEV_API_KEY`, `JEV_URL`, `JEV_MODEL` (Jev on TypeSafe directly), `OAUTH_BEARER`, `TENANT_ID`, `DB_PATH`, `MOCK_PORT`, `DASHBOARD_PORT`, `RUN_E2E`.
+- [ ] `.env.example` listing every variable. Current live agents use `NVIDIA_API_KEY` and `LLM_MODEL` (default `openai/gpt-oss-20b`); Jev is optional and independent, using direct `JEV_API_KEY`, `JEV_URL`, `JEV_MODEL` or the Jev-only `OPENROUTER_API_KEY` fallback. Other variables: `OAUTH_BEARER`, `TENANT_ID`, `DB_PATH`, `MOCK_PORT`, `DASHBOARD_PORT`, `RUN_E2E`.
 - [ ] `config/tools.json` skeleton containing `header_sources` (`Authorization` → `OAUTH_BEARER`, `X-Tenant-Id` → `TENANT_ID`) and an empty `tools` object.
 - [ ] A settings module with every threshold and timeout from `product.md`:
   - heal deadline 3.5 s,
@@ -170,7 +170,7 @@
   - make one Choice request with a 1.5 s timeout,
   - parse the selected index, confidence and token usage (estimate tokens if usage is not returned).
 
-  As built: `POST /v1/systemone` on TypeSafe (`JEV_API_KEY`), or `https://openrouter.ai/api/v1/systemone` with model `~typesafe/jev-latest` (`OPENROUTER_API_KEY`). Confirm the exact request and response fields against TypeSafe's docs [A]. Keep the client behind an interface.
+  As built: `POST /v1/systemone` on TypeSafe (`JEV_API_KEY`), or `https://openrouter.ai/api/v1/systemone` with model `~typesafe/jev-latest` (`OPENROUTER_API_KEY`, Jev-only fallback). The NVIDIA agent key is separate. Confirm the exact request and response fields against TypeSafe's docs [A]. Keep the client behind an interface.
 - [ ] `heal.py`, implementing FR-10 and FR-11:
   - fingerprint, single-flight lock (S7), negative cache (S7),
   - tier 0 lookup (S6), otherwise diagnose and build candidates; Jev only for 2+ candidates (phase 12 puts the deterministic tie-breaker before Jev and makes Jev optional),
@@ -245,7 +245,7 @@
 - [ ] `agents/shared`:
   - one system prompt (it includes: "if a tool returns `retry: false`, do not call it again with the same arguments; report the failure"; as built after 12D: on `SCHEMA_DRIFT_UNRECOVERABLE` the tool is unavailable for the rest of the task, report it as skipped and continue),
   - the demo task text,
-  - the LLM config (same model, temperature 0). As built: Claude via OpenRouter's OpenAI-compatible API (`OPENROUTER_API_KEY`), default `anthropic/claude-haiku-5.5`, set with `LLM_MODEL`.
+  - the LLM config (same model, temperature 0). Current config: NVIDIA NIM's OpenAI-compatible API (`https://integrate.api.nvidia.com/v1`, `NVIDIA_API_KEY`), default `openai/gpt-oss-20b`, overridable with `LLM_MODEL`. [Model source](https://build.nvidia.com/openai/gpt-oss-20b).
 - [ ] `healing_agent.py`: LangGraph `create_react_agent` with framework tools generated from `registry` exports, executing via `Registry.call`. Structured errors are returned as the tool result.
 - [ ] `baseline_agent.py`: the same framework and tools generated from the v1 spec, executing as direct HTTP calls. The raw error JSON is returned as the tool result. Iteration cap 10.
 - [ ] `scripted.py`: a scripted no-LLM agent that runs the demo task as fixed tool calls through either path (the baseline re-sends a failing call with the same arguments until the cap). It allows keyless benchmark runs and paced demos.

@@ -28,7 +28,7 @@ SCENARIOS = bench_run.DEFAULT_SCENARIOS  # CLEAN, M1-M9 (M6 split), C1-C3 (FR-15
 def out(tmp_path_factory):
     out = tmp_path_factory.mktemp("bench")
     with pytest.MonkeyPatch.context() as env:  # offline: no Jev, no LLM
-        for key in ("JEV_API_KEY", "OPENROUTER_API_KEY"):
+        for key in ("JEV_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY"):
             env.delenv(key, raising=False)
         bench_run.main(["--agent", "scripted", "--n", "1", "--out", str(out)])
     return out

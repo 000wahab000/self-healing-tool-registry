@@ -12,7 +12,7 @@ from dashboard.app import create_app
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
-    for key in ("JEV_API_KEY", "OPENROUTER_API_KEY", "DB_PATH"):
+    for key in ("JEV_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "DB_PATH"):
         monkeypatch.delenv(key, raising=False)
 
 
@@ -89,7 +89,7 @@ async def test_explore_llm_surfaces_llm_failure_instead_of_scripted_fallback(
     client, monkeypatch
 ):
     """The LLM path must never quietly return a canned scripted result."""
-    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+    monkeypatch.setenv("NVIDIA_API_KEY", "k")
 
     def boom():
         raise RuntimeError("provider exploded: free-models-per-day cap reached")
@@ -134,7 +134,7 @@ async def test_explore_rejects_unknown_agent(client):
 async def test_explore_llm_without_key_is_a_clear_400(client):
     r = await client.post("/api/explore", json={"query": "x", "mutation": None, "agent": "llm"})
     assert r.status_code == 400
-    assert "OPENROUTER_API_KEY" in r.json()["detail"]
+    assert "NVIDIA_API_KEY" in r.json()["detail"]
 
 
 async def test_explorer_info_advertises_llm_state(client, monkeypatch):
@@ -143,7 +143,7 @@ async def test_explorer_info_advertises_llm_state(client, monkeypatch):
     assert data["llm_available"] is False
     assert data["llm_model"]
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+    monkeypatch.setenv("NVIDIA_API_KEY", "k")
     monkeypatch.setenv("LLM_MODEL", "openai/some-model")
     data = (await client.get("/api/explorer/info")).json()
     assert data["llm_available"] is True

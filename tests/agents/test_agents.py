@@ -198,10 +198,23 @@ async def test_healing_agent_logs_class_of_structured_error(
     assert call_rows(db_path) == [("healing", "r1", "get_user", "BUSINESS")]
 
 
-def test_make_llm_uses_openrouter_defaults(monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+def test_make_llm_uses_nvidia_nim_defaults(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "k")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
     model = common.make_llm()
-    assert model.openai_api_base == "https://openrouter.ai/api/v1"
-    assert model.model_name == "anthropic/claude-haiku-5.5"
+    assert model.openai_api_base == "https://integrate.api.nvidia.com/v1"
+    assert model.openai_api_key.get_secret_value() == "k"
+    assert model.model_name == "openai/gpt-oss-20b"
     assert model.temperature == 0
+
+
+def test_make_llm_uses_nvidia_key_and_model_override(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvidia-test-key")
+    monkeypatch.setenv("LLM_MODEL", "test/model-override")
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+
+    model = common.make_llm()
+
+    assert model.openai_api_key.get_secret_value() == "nvidia-test-key"
+    assert model.model_name == "test/model-override"

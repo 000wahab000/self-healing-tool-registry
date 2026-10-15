@@ -32,7 +32,7 @@ PACED = {"agent": "scripted", "step_delay": 0.1}
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch):
-    for key in ("JEV_API_KEY", "OPENROUTER_API_KEY", "DB_PATH"):
+    for key in ("JEV_API_KEY", "OPENROUTER_API_KEY", "NVIDIA_API_KEY", "DB_PATH"):
         monkeypatch.delenv(key, raising=False)
 
 

@@ -644,8 +644,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--scenarios", default=DEFAULT_SCENARIOS)
     parser.add_argument("--out", type=Path, default=Path(__file__).parent)
     args = parser.parse_args(argv)
-    if args.agent == "llm" and not os.environ.get("OPENROUTER_API_KEY"):
-        raise SystemExit("--agent llm needs OPENROUTER_API_KEY in the environment")
+    if args.agent == "llm" and not os.environ.get("NVIDIA_API_KEY"):
+        raise SystemExit("--agent llm needs NVIDIA_API_KEY in the environment")
     asyncio.run(_amain(args))
 
 

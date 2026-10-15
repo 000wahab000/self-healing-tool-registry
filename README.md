@@ -326,7 +326,7 @@ The dashboard's `POST /api/explore` endpoint also accepts a **custom drift** (re
    pip install -e ".[dev,agents]"
    ```
 
-2. Copy the example settings (add `OPENROUTER_API_KEY` only if you want real LLM agents):
+2. Copy the example settings. The dashboard loads `.env` at startup; put `NVIDIA_API_KEY` there to run live agents from the dashboard. Jev is optional and uses separate direct `JEV_API_KEY` / `JEV_URL` / `JEV_MODEL` settings, or its own optional `OPENROUTER_API_KEY` fallback.
 
    ```bash
    cp .env.example .env
@@ -347,7 +347,15 @@ The dashboard's `POST /api/explore` endpoint also accepts a **custom drift** (re
 - `/` landing page: the problem, where the registry sits, how drift is detected and patched.
 - `/live` both agents side by side. Four one-click presets (Clean, M5, M8, M3), mutation buttons you can press mid-run, a patch log, metrics and the benchmark report. Every tool call opens to show: what the agent sent → the error → what the registry sent instead (header names only) → the final output.
 
-**Using real LLM agents:** set `OPENROUTER_API_KEY` in `.env` (default model `anthropic/claude-haiku-5.5`, change with `LLM_MODEL`), then choose the LLM agent in the dashboard or run `python -m bench.run --agent llm`. Live end-to-end tests run only with `RUN_E2E=1`.
+**Using real LLM agents:** agents use NVIDIA NIM's OpenAI-compatible endpoint (`https://integrate.api.nvidia.com/v1`) with the default model [`openai/gpt-oss-20b`](https://build.nvidia.com/openai/gpt-oss-20b), temperature 0; `LLM_MODEL` overrides the model. NVIDIA credentials are independent of optional Jev credentials, so `NVIDIA_API_KEY` alone is enough for live agents. The dashboard loads `.env`; benchmark and pytest processes do not, so export the key in the shell for those commands:
+
+```bash
+export NVIDIA_API_KEY='<your NIM key>'
+RUN_E2E=1 .venv/bin/python -m pytest tests/e2e -q
+.venv/bin/python -m bench.run --agent llm --n 10
+```
+
+The dashboard can instead read its key from local `.env`. Jev remains optional; configure direct TypeSafe `JEV_API_KEY` / `JEV_URL` / `JEV_MODEL`, or the existing Jev-only `OPENROUTER_API_KEY` fallback. Neither is needed for the live agents.
 
 **Deploying the dashboard:** one long-running process, so use a host that runs a server (not serverless). The repo ships everything a host looks for:
 

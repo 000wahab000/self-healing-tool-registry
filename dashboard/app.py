@@ -92,8 +92,8 @@ class Dashboard:
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
 
     async def start(self, kind: str, step_delay: float) -> None:
-        if kind == "llm" and not os.environ.get("OPENROUTER_API_KEY"):
-            raise ValueError("llm agents need OPENROUTER_API_KEY")
+        if kind == "llm" and not os.environ.get("NVIDIA_API_KEY"):
+            raise ValueError("llm agents need NVIDIA_API_KEY")
         async with self.lock:
             await self._stop()
             mutation = self.mutation  # a drift picked before Start applies to this run

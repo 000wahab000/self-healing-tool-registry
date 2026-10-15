@@ -1,6 +1,6 @@
-"""Live agent runs: real LLM through OpenRouter, so they cost money.
+"""Live agent runs: real LLM through NVIDIA NIM, consuming API credits.
 
-Skipped unless RUN_E2E=1 and OPENROUTER_API_KEY are set.
+Skipped unless RUN_E2E=1 and NVIDIA_API_KEY are set.
 """
 
 from __future__ import annotations
@@ -18,10 +18,14 @@ from healer.registry import Registry
 from healer.store import Store
 from mock_api.app import create_app
 
-pytestmark = pytest.mark.skipif(
-    not (os.environ.get("RUN_E2E") == "1" and os.environ.get("OPENROUTER_API_KEY")),
-    reason="live LLM run: set RUN_E2E=1 and OPENROUTER_API_KEY",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not (os.environ.get("RUN_E2E") == "1" and os.environ.get("NVIDIA_API_KEY")),
+        reason="live LLM run: set RUN_E2E=1 and NVIDIA_API_KEY",
+    ),
+    # Keep model HTTP clients on one loop; their async clients may outlive an individual test loop.
+    pytest.mark.asyncio(loop_scope="module"),
+]
 
 CFG = {"OAUTH_BEARER": "Bearer test-token", "TENANT_ID": "t-1"}
 TOOLS_JSON = Path(__file__).parents[2] / "config" / "tools.json"
@@ -77,6 +81,8 @@ async def test_m5_healing_agent_completes(tmp_path):
 
 async def test_m5_baseline_agent_does_not_complete(tmp_path):
     result, api, rows = await run_live("baseline", tmp_path, "M5")
+    assert result.error is None, result
+    assert result.tool_calls > 0 and rows, result
     assert not completed(api, rows), result
 
 
