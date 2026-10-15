@@ -57,6 +57,7 @@ Never break these. Any change that would break one is wrong, even if a test pass
 ├── agents/                      # healing_agent.py, baseline_agent.py, shared prompt/tools
 ├── bench/                       # scenario runner, report writer
 ├── dashboard/                   # FastAPI + static HTML live demo
+├── docs/                        # user guides (MCP client setup)
 └── tests/
     ├── unit/
     ├── integration/             # registry + in-process mock API
