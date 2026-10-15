@@ -620,3 +620,13 @@ Beyond the code, the problem statement requires the items below. This section on
 Implementation clarification: **FR-X8.5 and AC-35** are implemented with a stateful Streamable HTTP server sharing the existing registry. It binds to loopback by default; bearer-token checks cover every HTTP method and session continuation when configured. Remote binds require a bearer token and explicit allowed request hosts; wildcard origins are rejected. **FR-X8.6 and AC-36** use the same registry instance for concurrent sessions, preserving the registry's single-flight healing behavior.
 
 Remote deployments must terminate TLS at a trusted reverse proxy; bearer authentication does not encrypt traffic. Configure concrete request hostnames and only the required exact origins (no wildcard origins). `0.0.0.0` is a bind address, not an allowed request hostname.
+
+### P1-3 client hand-off amendment
+
+**FR-X8.7 clarification:** `tests/mcp/client-handoff.md` contains client-specific Claude Desktop, Cursor, and Windsurf stdio setup plus Cursor/Windsurf HTTP setup. It documents Claude remote setup through Connectors/custom connector UI (not an invented `mcpServers.url`), local-versus-hosted networking limits, token handling, installation and launch commands, and the pending P2 approval for a named console command. The document is a hand-off for P4 to copy to `docs/mcp-clients.md`; it does not claim manual UI verification.
+
+**AC-37 clarification:** Evidence consists of those setup snippets and the opt-in `test_ac_37_live_client_config` using `RUN_MCP_CLIENT_E2E=1`, `MCP_CLIENT_CONFIG`, and optional `MCP_CLIENT_NAME` (default `healer`). It supports stdio `command`/`args`/`env`, Cursor HTTP `url`, and Windsurf HTTP `serverUrl`/`headers`; it makes only the known `get_user` request (`user_id: 123`) and no paid LLM calls. Configured commands execute, so only trusted config files may be selected. The test-lane implementation and P4's fresh-client manual checks remain outstanding; normal tests remain offline.
+
+### P1-3 status amendment
+
+The opt-in test implementation now exists in `tests/mcp/test_client_config.py`; the live config run and P4 fresh-client/UI checks remain outstanding. Default tests use a temporary config to launch the repository's offline stdio harness but do not read operator-supplied configs or contact external endpoints. The smoke helper's temporary log suppression and child-stderr discard are unverified at the user's request. Correction to the AC-37 clarification above: the known `get_user` argument is the string `"123"`, not the number `123`.
