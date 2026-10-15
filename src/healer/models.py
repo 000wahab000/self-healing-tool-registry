@@ -2,11 +2,46 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import IntEnum, StrEnum
-from typing import Any
+from typing import Any, TypedDict
 
 Path = list[str | int]
+
+
+# Functional syntax: "in" is a keyword, so it cannot be a class-syntax field name.
+ParamSpec = TypedDict(
+    "ParamSpec",
+    {"name": str, "in": str, "required": bool, "schema": dict, "description": str},
+)
+
+# The one operation shape every spec loader returns (OpenAPI 3, Swagger 2.0, GraphQL, gRPC).
+# Diagnosis and candidate building read only this, so a new protocol needs no healing changes.
+OperationSpec = TypedDict(
+    "OperationSpec",
+    {
+        "operation_id": str,
+        "method": str,
+        "path": str,
+        "body_schema": dict | None,
+        "params": list[ParamSpec],
+        "security": list[str],
+        "response_schema": dict | None,
+        "description": str,
+    },
+)
+
+
+@dataclass(frozen=True)
+class LoadedSpec:
+    raw: dict  # the resolved spec document, stored as a snapshot
+    ops: dict[str, OperationSpec]  # keyed by tool name
+    spec_hash: str
+
+
+# Returns the API's current spec. Raises httpx.HTTPError or ValueError when it is unavailable.
+SpecSource = Callable[[], Awaitable[LoadedSpec]]
 
 
 class ErrorClass(StrEnum):

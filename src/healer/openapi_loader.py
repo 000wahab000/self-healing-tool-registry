@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 
 from healer.canonical import sha256
+from healer.models import LoadedSpec, OperationSpec, SpecSource
 from healer.settings import SPEC_FETCH_TIMEOUT_S
 
 _METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
@@ -79,8 +80,8 @@ def _response_schema(op: dict) -> dict | None:
     return None
 
 
-def operations(resolved_spec: dict) -> dict[str, dict]:
-    out: dict[str, dict] = {}
+def operations(resolved_spec: dict) -> dict[str, OperationSpec]:
+    out: dict[str, OperationSpec] = {}
     for path, item in resolved_spec.get("paths", {}).items():
         for method in _METHODS:
             op = item.get(method)
@@ -106,3 +107,15 @@ def operations(resolved_spec: dict) -> dict[str, dict]:
                 "description": op.get("description") or op.get("summary", ""),
             }
     return out
+
+
+def openapi_source(
+    client: httpx.AsyncClient, path: str = "/openapi.json"
+) -> SpecSource:
+    """The default `SpecSource`: the API's OpenAPI 3 document at `path`."""
+
+    async def load() -> LoadedSpec:
+        spec, spec_hash = await fetch_spec(client, path)
+        return LoadedSpec(spec, operations(spec), spec_hash)
+
+    return load

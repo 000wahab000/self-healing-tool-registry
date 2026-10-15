@@ -378,7 +378,7 @@
 
 ## Phase 13+: STRETCH (only after phase 12)
 
-Take these in order, one at a time. Each one keeps the full test suite green.
+The order column below was the original single-person plan. The work now runs as the two parallel tracks in the next section; this table keeps the task details and "done when" conditions for the S items.
 
 | Order | Item | Key tasks | Done when |
 |---|---|---|---|
@@ -390,6 +390,53 @@ Take these in order, one at a time. Each one keeps the full test suite green.
 | 16 | S4 GraphQL | Strawberry mock with introspection; a GraphQL adapter producing the same Outcome model; selection and argument fixes | M1, M2 and M3 equivalents heal over GraphQL |
 | 17 | S5 gRPC (unary) | grpcio mock with reflection and rich error details; an adapter producing the same Outcome model | M1 and M2 equivalents heal over gRPC |
 | 18 | S8 injection resistance (M10) | Mock M10: M1's rename with injected instructions in the `422` `msg` and in the new field's OpenAPI description (FR-12.8); an integration test and a benchmark scenario. The property itself is already enforced by the provenance rules (FR-5.4, FR-8.8); M10 only demonstrates it. | AC-26 passes: same operations as M1, correct final state, nothing derived from the injected text, same decision path as M1 |
+
+---
+
+## Phase 13+: two parallel tracks
+
+Two people build the STRETCH items and the `product.md` §14 future scope at the same time. File ownership, reserved AC numbers, branch names and the contracts between the tracks are in `AGENTS.md` ("Two-person ownership"). Each track runs its items in order, one PR per item, and keeps `pytest -q` and `ruff check .` clean.
+
+The §14 items have no requirements yet. Each one starts by adding its FR and AC to `product.md` (owner writes, other person reviews), as `agent.md` invariant 10 requires. IDs for them: X1 Swagger 2.0, X2 `E3` healing, X3 new operations, X4 drift watcher, X5 Jev drift-vs-business without a spec, X6 Postgres, X7 streaming.
+
+MVP close-out is still open and runs alongside: the real-LLM benchmark at N = 10 (AC-14, AC-16), the live E2E tests, the AC-18 browser check and the healthy-call overhead measurement (`product.md` §11).
+
+### Step 0: shared contracts (P2, before both tracks)
+
+- [x] `OperationSpec`, `ParamSpec`, `LoadedSpec` and `SpecSource` in `models.py`; `openapi_loader.openapi_source(client)` as the default source.
+- [x] `Registry` and `Healer` take a `spec_source` instead of calling `fetch_spec` directly.
+- [x] `FixStore` protocol in `store.py`; `Registry` and `Healer` are typed against it.
+- [x] Contract tests: OpenAPI operations match `OperationSpec`; `Store` implements `FixStore`; an injected spec source is used by both load and heal.
+
+### Track P1: Protocols and infrastructure (teammate, GPT with oh-my-opencode-slim)
+
+| Order | Item | Key tasks | Done when |
+|---|---|---|---|
+| P1-1 | X1 Swagger 2.0 input | `swagger2.py` converts a 2.0 document to the OpenAPI 3 shape `operations()` reads (`definitions`, `parameters` with `in: body`, `consumes`/`produces`); a `swagger2_source`; a 2.0 fixture of the mock spec | The M1 to M5 integration tests pass with the spec served as Swagger 2.0 |
+| P1-2 | S4 GraphQL | Strawberry mock (`mock_api/graphql_app.py`) with introspection and admin mutations; `graphql_loader.py` emitting `OperationSpec`; `adapters/graphql.py` sending and classifying into `Outcome`; registry dispatch by protocol | M1, M2 and M3 equivalents heal over GraphQL (any missing operation is requested from P2) |
+| P1-3 | S5 gRPC (unary) | grpcio mock with reflection and rich error details; `grpc_loader.py`; `adapters/grpc.py` mapping status codes to `ErrorClass` | M1 and M2 equivalents heal over gRPC |
+| P1-4 | X4 drift watcher (watch side) | `spec_watcher.py`: poll each source on an interval (ETag or hash), store new snapshots, call `Healer.precompute(old, new)` once it exists; injected clock, bounded backoff, never blocks a call | A spec change is detected and snapshotted within one interval; no extra requests on an unchanged spec |
+| P1-5 | X6 Postgres fix sharing | `store_pg.py` implementing `FixStore`; the store tests run on both backends; two registries sharing one database see each other's committed fixes; one active fix per fingerprint enforced by the database | The store test suite passes on Postgres, and a fix committed by instance A is reused at tier 0 by instance B |
+| P1-6 | X7 streaming gRPC and GraphQL subscriptions | Write the FR/AC first: what drift means mid-stream, where a fix applies (per message), when a stream is refused | Defined in `product.md`, then built to its own AC |
+
+### Track P2: Healing core (Wahab, Claude Code)
+
+| Order | Item | Key tasks | Done when |
+|---|---|---|---|
+| P2-1 | S8 injection resistance (M10) | As in the table above | AC-26 passes |
+| P2-2 | S1 sibling propagation | As in the table above | A second tool hit by the same rename heals at tier 0 speed on first occurrence |
+| P2-3 | X3 new operations | `enum_map`, `encoding` (for `415`), lossless value transforms with an explicit round-trip check; operations schema, `ops.py`, candidate rules, safety gate; new mock mutations | Each new operation heals its mutation, and a lossy transform is refused |
+| P2-4 | S3 tier-2 repair agent | As in the table above; adds the `proposals` table and its `FixStore` methods | A scenario tier 1 cannot build is healed or yields a proposal; no code is executed |
+| P2-5 | S2 rule mining | As in the table above; adds the `rules` table and its `FixStore` methods | A repeated ambiguous pattern heals without a Jev call |
+| P2-6 | X2 `E3` healing | Load the current spec and re-send with a defined operation set, replacing today's `UNSUPPORTED_CLASS` refusal where the new content type is declared | An undecodable body with a changed declared content type heals; anything else still refuses |
+| P2-7 | X5 Jev drift-vs-business without a spec | Jev yes/no check when `spec_mode` is off or the spec is unavailable; abort when Jev is absent | A business error is never healed; drift heals only on a confident yes |
+| P2-8 | X4 fix precomputation (heal side) | `Healer.precompute(old, new)`: build and dry-run candidate fixes from the diff, store them as `candidate`, never send a request | After P1-4 detects a change, the first failing call heals at tier 0 speed |
+
+### Hand-offs between the tracks
+
+- P1-2 and P1-3 depend on step 0 (`OperationSpec`, `SpecSource`).
+- P1-5 tracks `FixStore`; it must catch up after P2-4 and P2-5 add tables.
+- P2-8 needs P1-4's watcher; P1-4 ships first with the hook call guarded until P2-8 lands.
 
 ---
 
@@ -412,3 +459,4 @@ Take these in order, one at a time. Each one keeps the full test suite green.
 | 2026-10-14 | 12 | in progress | Spec v3 alignment; docs updated first, code and tests follow the checklist above |
 | 2026-10-14 | 12D | done | v3 metrics (ZTAR/Safe-Refusal/False-Patch/MTTR+heal_ms/tokens) in `metrics.py` and `bench/run.py`, error-only ablation pass, report regenerated (scripted, N = 3); tests for AC-14 to AC-17 and AC-23; dashboard buttons cover all scenarios |
 | 2026-10-14 | 12E | done | Dashboard Demo view (cofounder.co style): prompt + scenario or dashboard-only `CUSTOM` drift, side-by-side replay with step trackers, per-call input / wire / output, registry view, readable patch log with `heal_ms`; refused tools are skipped and the task continues (prompt and Demo run); `python-dotenv` declared |
+| 2026-10-15 | 13 step 0 | done | Two-person tracks and ownership (`AGENTS.md`); `OperationSpec`, `SpecSource`, `FixStore` contracts with `tests/integration/test_contracts.py` |
