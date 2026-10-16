@@ -14,10 +14,10 @@ flowchart LR
     R --> U2[OpenAPI / Swagger 2.0 / GraphQL APIs]
     R --> S[(SQLite: fixes + audit log)]
     W[Spec watcher] -.->|precompute fixes| R
-    T2[Tier-2 repair LLM<br/>--repair, ops only] -.->|when tiers 0/1 refuse| R
+    T2[Tier-2 repair LLM<br/>on by default, ops only] -.->|when tiers 0/1 refuse| R
 ```
 
-Tier 0 replays a stored fix; tier 1 builds one with code; tier 2 (opt-in `--repair`, gpt-oss-20b on NVIDIA NIM) asks an LLM for DSL operations only, which pass the same safety gate and live verification. Details: [`writeup.md`](writeup.md).
+Tier 0 replays a stored fix; tier 1 builds one with code; tier 2 (on by default when `NVIDIA_API_KEY` is set, same model as the agents: `LLM_MODEL`, default gpt-oss-20b on NVIDIA NIM; `--no-repair` turns it off) asks an LLM for DSL operations only, which pass the same safety gate and live verification. Details: [`writeup.md`](writeup.md).
 
 ## Measured
 
@@ -52,7 +52,7 @@ Scripted mode (fixed calls, no LLM), N = 3, from [`bench/report.md`](bench/repor
    | Re-run the benchmark | `python -m bench.run --agent scripted --n 3` |
    | Run the mock API on its own | `python -m mock_api` → http://127.0.0.1:8000/docs |
    | Serve the gateway over MCP (needs `pip install -e ".[mcp]"`) | `python -m healer.mcp_server`, see [`docs/mcp-clients.md`](docs/mcp-clients.md) |
-   | Front your own upstreams (MCP servers and APIs) | `python -m healer.mcp_server --mcp-servers config/mcp_servers.json` (add `--repair` for tier 2, needs `NVIDIA_API_KEY`) |
+   | Front your own upstreams (MCP servers and APIs) | `python -m healer.mcp_server --mcp-servers config/mcp_servers.json` (tier 2 is on when `NVIDIA_API_KEY` is set; `--no-repair` to turn it off) |
    | Run the MCP demo agent (no key; `--llm` for a live agent) | `python -m demo.mcp_agent` |
    | Run the tests | `pytest -q` |
 

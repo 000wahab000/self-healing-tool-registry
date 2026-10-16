@@ -25,7 +25,7 @@ The product is a **self-healing gateway**. The agent calls one MCP front door (`
 | 0 | Replays a stored fix whose fingerprint matches; skips diagnosis | A repeat of a known break |
 | 1 | Code diffs the spec, builds candidates, picks by a deterministic tie-breaker | A new break |
 | Jev triage | Optional classifier. In tier 1 it picks among tied candidates; after a tier-1 refusal it decides between repair and pass-through | Only when Jev is configured |
-| 2 | LLM repair agent (`repair.py`, gpt-oss-20b on NVIDIA NIM). Opt-in with `--repair`, upstream MCP tools only | A refusal of kind `NO_CANDIDATE`, `LOW_CONFIDENCE`, `UNSAFE_PATCH` or `VERIFY_FAILED` that triage lets through |
+| 2 | LLM repair agent (`repair.py`, gpt-oss-20b on NVIDIA NIM). On by default when `NVIDIA_API_KEY` is set (same key and `LLM_MODEL` as the agents), for REST, MCP and API tools; `--no-repair` turns it off | A refusal of kind `NO_CANDIDATE`, `LOW_CONFIDENCE`, `UNSAFE_PATCH` or `VERIFY_FAILED` that triage lets through |
 
 Triage (`Healer._triage`): without Jev only `NO_CANDIDATE` goes to tier 2; with Jev, Jev decides. A refusal for a missing value (`NO_SAFE_VALUE`) never reaches tier 2, and neither does a `VERIFY_FAILED` on a write tool or after a transient failure, because the replay may have reached the API. The model sees argument types (plus enum values), not argument values, and proposes only DSL operations and a target operation. A proposal naming an unknown operation or an enum value absent from the new schema is rejected; the rest passes the same safety gate, dry run and live verification as tier 1. A wrong or manipulated model ends in a refusal.
 

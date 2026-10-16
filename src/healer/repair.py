@@ -55,9 +55,12 @@ def nim_llm(
     client: httpx.AsyncClient | None = None,
 ) -> Llm:
     """An OpenAI-compatible chat endpoint (NVIDIA NIM by default)."""
-    http = client or httpx.AsyncClient()
+    http = client
 
     async def complete(system: str, user: str) -> tuple[str, int]:
+        nonlocal http
+        if http is None:  # created on first use: no idle client when nothing ever breaks
+            http = httpx.AsyncClient()
         try:
             resp = await http.post(
                 url,
