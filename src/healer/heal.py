@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import copy
 import logging
-import re
 import sqlite3
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
@@ -45,7 +44,7 @@ from healer.models import (
 )
 from healer.ops import OpError, apply_ops
 from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S, SPEC_MODE
-from healer.store import FixStore, redact_value, sanitize
+from healer.store import FixStore, credential_values, redact_value, sanitize
 from healer.verify import Verifier
 
 if TYPE_CHECKING:
@@ -89,7 +88,7 @@ AUDIT_OUTCOME = {
 
 
 def _layer_reason(detail: str) -> Reason:
-    if detail == Reason.UNSAFE_REPLAY.value:
+    if detail in (Reason.UNSAFE_REPLAY.value, "unsafe_replay"):
         return Reason.UNSAFE_REPLAY
     return Reason.UNSAFE_PATCH
 
@@ -152,19 +151,11 @@ class Healer:
         self._store, self._jev, self._spec_source = store, jev, spec_source
         self._spec_mode = spec_mode
         self._cfg, self._header_sources = cfg, header_sources
-        inferred_secrets = tuple(
-            value
-            for key, value in cfg.items()
-            if re.search(
-                r"authorization|token|secret|password|"
-                r"(?:api|client|access|auth|refresh)[-_]?key|cookie|credential",
-                key,
-                re.IGNORECASE,
-            )
-        )
         self._secrets = (
-            tuple(secret_values) if secret_values is not None else inferred_secrets
+            tuple(secret_values) if secret_values is not None else credential_values(cfg)
         )
+        # Audit rows, stored specs, logs and prompts drop every config value as well.
+        self._stored = (*self._secrets, *(v for v in cfg.values() if v))
         self._attempt, self._clock = attempt, clock
         self._client = getattr(getattr(attempt, "__self__", None), "client", None)
         self._tools = tools
@@ -198,7 +189,7 @@ class Healer:
             reason = e.reason
         except Exception as e:  # noqa: BLE001 - every failed heal still gets one audit row
             logging.getLogger(__name__).error(
-                "heal failed for %s: %s", tool.name, sanitize(str(e), self._secrets)
+                "heal failed for %s: %s", tool.name, sanitize(str(e), self._stored)
             )
             reason = Reason.VERIFY_FAILED
         return self._abort(h, reason)
@@ -285,7 +276,7 @@ class Healer:
             fix={"request_ops": fix.request_ops, "response_ops": fix.response_ops},
             original_failure=h.outcome.cls, cfg=self._cfg, tool_cfg=h.tool.config,
             original_status=h.outcome.raw_code,
-            no_side_effect=h.outcome.raw_code in {"400", "422"},
+            no_side_effect=h.outcome.raw_code in {"400", "422", "-32602", "-32601", "isError"},
         )
         failed = next((row for row in h.layers if row["status"] == "fail"), None)
         if failed:
@@ -484,11 +475,11 @@ class Healer:
         self._extend(h)
         state = repair_agent.render(
             h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg),
-            self._secrets,
+            self._stored,
         )
         try:
             choice = await self._jev.choose(
-                sanitize(f"{state}\nTIER-1 RESULT: refused ({reason.value})", self._secrets),
+                sanitize(f"{state}\nTIER-1 RESULT: refused ({reason.value})", self._stored),
                 TRIAGE_QUESTION,
                 list(TRIAGE_OPTIONS),
             )
@@ -508,7 +499,7 @@ class Healer:
         h.tier, h.path = Tier.T2, DecisionPath.repair
         prompt = repair_agent.render(
             h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg),
-            self._secrets,
+            self._stored,
         )
         try:
             proposal, h.llm_tokens = await self._repair.propose(prompt)
@@ -556,9 +547,9 @@ class Healer:
             if self._jev is None:
                 raise JevUnavailable
             choice = await self._jev.choose(
-                sanitize(render_state(h.entries, h.base), self._secrets),
+                sanitize(render_state(h.entries, h.base), self._stored),
                 QUESTION,
-                [sanitize(render_option(f), self._secrets) for f in found],
+                [sanitize(render_option(f), self._stored) for f in found],
             )
         except JevUnavailable:
             h.path = DecisionPath.jev_unavailable
@@ -594,7 +585,7 @@ class Healer:
             raise _Abort(Reason.LOW_CONFIDENCE)
 
     def _gate(self, h: _Heal, fix: Fix) -> None:
-        spec_paths = spec_routes = None
+        spec_paths = spec_routes = spec_enums = None
         if h.new_op is not None:
             # Response ops write into the agent's (base) response shape, so its leaves count too.
             spec_paths = (
@@ -603,6 +594,11 @@ class Healer:
                 | set(diagnose.flatten_response(h.tool.base_op))
             )
             spec_routes = {(o["method"], o["path"]) for o in h.ops.values()}
+            spec_enums = {
+                p: set(leaf["enum"])
+                for p, leaf in diagnose.flatten_request(h.new_op).items()
+                if leaf.get("enum") is not None
+            }
         reason = safety.check(
             {"request_ops": fix.request_ops, "response_ops": fix.response_ops},
             base_doc=h.base,
@@ -613,6 +609,7 @@ class Healer:
             n_evidence=max(len(h.entries), len(h.outcome.violations)),
             spec_paths=spec_paths,
             spec_routes=spec_routes,
+            spec_enums=spec_enums,
         )
         if reason is not None:
             raise _Abort(reason)
@@ -921,7 +918,7 @@ class Healer:
 
     def _safe_api_error(self, outcome: Outcome) -> dict:
         error = api_error(outcome)
-        error["detail"] = redact_value(error["detail"], self._secrets)
+        error["detail"] = redact_value(error["detail"], self._secrets, generic=False)
         return error
 
     def sanitize_spec(self, raw: dict) -> dict:
@@ -956,6 +953,6 @@ class Healer:
             heal_ms=int((now - h.detected) * 1000),
             jev_tokens=h.jev_tokens,
             llm_tokens=h.llm_tokens,
-            raw_error=canonical.dumps(redact_value(blob, self._secrets)),
+            raw_error=canonical.dumps(redact_value(blob, self._stored)),
             layers=h.layers,
         )

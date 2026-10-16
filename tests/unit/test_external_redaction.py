@@ -13,7 +13,7 @@ from healer.store import REDACTED, redact_value, sanitize
 from healer.verify import Verifier
 
 
-def test_ac_91_raw_and_derived_credentials_are_redacted() -> None:
+def test_ac_110_raw_and_derived_credentials_are_redacted() -> None:
     bearer = "unit-secret-token"
     basic = base64.b64encode(b"unit-user:unit-password").decode()
     text = (
@@ -28,7 +28,7 @@ def test_ac_91_raw_and_derived_credentials_are_redacted() -> None:
     assert redacted.count(REDACTED) >= 2
 
 
-def test_ac_91_escaped_and_unprefixed_basic_secrets_stay_valid_json() -> None:
+def test_ac_110_escaped_and_unprefixed_basic_secrets_stay_valid_json() -> None:
     secret = 'quote"\\line\n雪'
     basic = base64.b64encode(b"raw-user:raw-password").decode()
     source = {"echo": secret, "basic": basic, "schema": {"description": "x" * 5000}}
@@ -49,7 +49,7 @@ def test_ac_91_escaped_and_unprefixed_basic_secrets_stay_valid_json() -> None:
     assert json.loads(encoded_safe)["basic"] == REDACTED
 
 
-def test_ac_91_repair_prompt_redacts_error_and_spec_echoes() -> None:
+def test_ac_110_repair_prompt_redacts_error_and_spec_echoes() -> None:
     secret = "prompt-secret-token"
     op = {
         "method": "GET", "path": "/records", "description": secret,
@@ -67,7 +67,7 @@ def test_ac_91_repair_prompt_redacts_error_and_spec_echoes() -> None:
     assert REDACTED in prompt
 
 
-def test_ac_91_repair_prompt_is_not_truncated_by_redactor() -> None:
+def test_ac_110_repair_prompt_is_not_truncated_by_redactor() -> None:
     op = {
         "method": "GET", "path": "/records", "description": "",
         "params": [
@@ -90,7 +90,7 @@ def test_ac_91_repair_prompt_is_not_truncated_by_redactor() -> None:
     assert prompt.endswith("CONFIG KEYS: []")
 
 
-def test_ac_91_agent_facing_api_error_redacts_credentials() -> None:
+def test_ac_110_agent_facing_api_error_redacts_credentials() -> None:
     token = "response-secret-token"
     auth = f"Bearer {token}"
     healer = object.__new__(Healer)
@@ -106,7 +106,7 @@ def test_ac_91_agent_facing_api_error_redacts_credentials() -> None:
 @pytest.mark.parametrize(
     ("configured", "status"), [("approved", "pass"), ("wrong", "fail")]
 )
-def test_ac_88_l2_validates_effective_config_header(configured, status) -> None:
+def test_ac_107_l2_validates_effective_config_header(configured, status) -> None:
     healer = object.__new__(Healer)
     healer._cfg = {"X-Mode": configured}
     healer._header_sources = {"X-Mode": "X-Mode"}
@@ -138,7 +138,7 @@ def test_ac_88_l2_validates_effective_config_header(configured, status) -> None:
     assert layers[1]["status"] == status
 
 
-def test_ac_88_l2_checks_path_params_and_accepts_move_to_renamed_param() -> None:
+def test_ac_107_l2_checks_path_params_and_accepts_move_to_renamed_param() -> None:
     base = {
         "route": {"method": "GET", "path": "/records/{old}"},
         "route_params": {"old": "existing-value"},
@@ -170,7 +170,7 @@ def test_ac_88_l2_checks_path_params_and_accepts_move_to_renamed_param() -> None
     assert layers[1]["status"] == "pass"
 
 
-async def test_ac_91_watcher_redacts_snapshot_without_mutating_loaded_spec(tmp_path) -> None:
+async def test_ac_110_watcher_redacts_snapshot_without_mutating_loaded_spec(tmp_path) -> None:
     from healer.store import Store
 
     secret = "watcher-private-token"
@@ -193,3 +193,53 @@ async def test_ac_91_watcher_redacts_snapshot_without_mutating_loaded_spec(tmp_p
         assert spec.raw["token"] == secret
     finally:
         store.close()
+
+
+_RAW = {"paths": {"/items": {"get": {"operationId": "list_items", "responses": {}}}}}
+
+
+async def _registry_for(client, config, cfg, raw=_RAW, **kwargs):
+    from healer.models import LoadedSpec
+    from healer.openapi_loader import operations
+    from healer.registry import Registry
+
+    loaded = LoadedSpec(
+        raw, {f"api__{k}": v for k, v in operations(raw).items()}, "hash"
+    )
+
+    async def source() -> LoadedSpec:
+        return loaded
+
+    registry = Registry(client, config, cfg, spec_source=source, **kwargs)
+    await registry.load()
+    return registry
+
+
+@pytest.mark.asyncio
+async def test_ac_110_plain_config_values_are_not_secrets_for_the_agent() -> None:
+    import httpx
+
+    body = {
+        "id": "t-100",
+        "plan": "Basic plan includes support",
+        "next": "?page_token=abc&limit=5",
+        "echo": "Bearer tok-abcdef",
+    }
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=body))
+    async with httpx.AsyncClient(transport=transport, base_url="https://x.test") as client:
+        registry = await _registry_for(
+            client,
+            {"header_sources": {}, "tools": {"api__list_items": {"postchecks": []}}},
+            {"TENANT_ID": "t-1", "OAUTH_BEARER": "Bearer tok-abcdef"},
+        )
+        assert registry.secret_values == ("Bearer tok-abcdef",)
+        result = await registry.call("api__list_items", {})
+    assert result == {**body, "echo": REDACTED}
+
+
+def test_ac_110_generic_patterns_are_audit_only_and_short_secrets_skip_agent_data() -> None:
+    text = "Basic plan includes ?page_token=abc&limit=5"
+    assert redact_value(text, [], generic=False) == text
+    assert sanitize(text, []) != text  # audit rows and prompts still use the patterns
+    assert redact_value("t-100", ["t-1"], generic=False) == "t-100"
+    assert redact_value("t-100", ["t-1"]) != "t-100"  # stored data redacts every given value

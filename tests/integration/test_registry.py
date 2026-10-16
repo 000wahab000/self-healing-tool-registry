@@ -120,15 +120,11 @@ async def test_healthy_create_ticket_sends_idempotency_key(api, registry):
 
 async def test_base_doc_routes_args_and_key(registry):
     get_user = registry.defs["get_user"]
-    header_refs = {
-        name.casefold(): {"ref": "config", "key": key}
-        for name, key in registry.tools_config["header_sources"].items()
-    }
     assert registry.base_doc(get_user, {"user_id": "123"}) == {
         "route": {"method": "POST", "path": "/users/lookup"},
         "body": {"user_id": "123"},
         "query": {},
-        "header": header_refs,
+        "header": {},
     }
     ticket = registry.defs["create_ticket"]
     args = {"user_id": "123", "title": "t"}

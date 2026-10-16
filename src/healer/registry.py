@@ -21,7 +21,9 @@ from healer.openapi_loader import openapi_source
 from healer.ops import apply_ops
 from healer.repair import RepairAgent
 from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S, SPEC_MODE
-from healer.store import FixStore, redact_value
+from healer.store import FixStore, credential_values, redact_value
+
+_CONNECTION_KEY_PREFIXES = ("connection:", "connection-secret:")
 
 # FR-3.4: value rules are the API's to enforce, so a rejected value reaches it and comes back
 # as BUSINESS. Argument pre-validation (FR-2.1) checks structure and types only.
@@ -54,6 +56,14 @@ class ToolDefinition:
     version: int = 1
     active_fix: Fix | None = None
 
+    @property
+    def strict_args(self) -> dict:
+        """Argument check for REST: unknown names are refused instead of reaching the body or a
+        header. The advertised `agent_schema` stays as frozen."""
+        if self.base_op["method"] in {"MCP", "GRAPHQL", "GRPC"}:
+            return self.agent_schema
+        return {**self.agent_schema, "additionalProperties": False}
+
 
 def _agent_schema(op: dict) -> dict:
     body = op["body_schema"] or {}
@@ -66,10 +76,7 @@ def _agent_schema(op: dict) -> dict:
         props[p["name"]] = {**p["schema"], **desc}
         if p["required"]:
             required.append(p["name"])
-    schema = {"type": "object", "properties": props, "required": required}
-    if op["method"] not in {"MCP", "GRAPHQL", "GRPC"}:
-        schema["additionalProperties"] = False
-    return copy.deepcopy(schema)
+    return copy.deepcopy({"type": "object", "properties": props, "required": required})
 
 
 class Registry:
@@ -99,11 +106,16 @@ class Registry:
         self.tools_config = tools_config
         self.cfg = cfg
         secret_keys = tools_config.get("secret_keys")
-        self.secret_values = tuple(
-            cfg[key]
-            for key in secret_keys
-            if isinstance(key, str) and key in cfg and cfg[key]
-        ) if isinstance(secret_keys, list) else tuple(value for value in cfg.values() if value)
+        # Only real credentials are secret: explicit secret_keys, else credential-named cfg keys.
+        self.secret_values = (
+            tuple(
+                cfg[key]
+                for key in secret_keys
+                if isinstance(key, str) and cfg.get(key)
+            )
+            if isinstance(secret_keys, list)
+            else credential_values(cfg)
+        )
         self.store = store
         self.grpc_channel = grpc_channel
         self.mcp_session = mcp_session
@@ -154,18 +166,37 @@ class Registry:
         }
         if self.store:
             self.store.save_spec(
-                self.spec_hash, redact_value(spec.raw, self.secret_values)
+                self.spec_hash,
+                redact_value(spec.raw, self.secret_values),
             )
 
     def tools(self) -> list[dict]:
-        return redact_value([
+        return self._agent_view([
             {
                 "name": t.name,
                 "description": t.base_op["description"],
                 "parameters": t.agent_schema,
             }
             for t in self.defs.values()
-        ], self.secret_values)
+        ])
+
+    def _agent_view(self, value):
+        """Agent-facing data loses only the exact known secrets; the generic patterns would
+        corrupt ordinary text ("Basic plan", `page_token=...`) and stay audit/prompt-only."""
+        return redact_value(value, self.secret_values, generic=False)
+
+    def _static_headers(self, op: dict) -> dict[str, str]:
+        """Header sources sent on every call: a connection's own credentials/headers (the
+        gateway's `connection:` keys) and any header the operation itself declares. Other
+        sources are only healing candidates (M4 adds Authorization after the fact)."""
+        declared = {p["name"].casefold() for p in op["params"] if p["in"] == "header"}
+        if "bearer" in op.get("security", []):
+            declared.add("authorization")
+        return {
+            name.casefold(): key
+            for name, key in self.tools_config.get("header_sources", {}).items()
+            if name.casefold() in declared or key.startswith(_CONNECTION_KEY_PREFIXES)
+        }
 
     def base_doc(self, tool: ToolDefinition, args: dict) -> dict:
         op = tool.base_op
@@ -176,8 +207,8 @@ class Registry:
             "body": {k: v for k, v in args.items() if k not in query | route},
             "query": {k: v for k, v in args.items() if k in query},
             "header": {
-                name.casefold(): {"ref": "config", "key": key}
-                for name, key in self.tools_config.get("header_sources", {}).items()
+                name: {"ref": "config", "key": key}
+                for name, key in self._static_headers(op).items()
             },
         }
         if route:
@@ -208,7 +239,8 @@ class Registry:
             try:
                 doc = self.materialize_request(tool, base, fix)
             except ValueError as exc:
-                return Outcome(ErrorClass.E1, "rest", str(exc))
+                # Deterministic configuration failure: retrying cannot change it.
+                return Outcome(ErrorClass.BUSINESS, "rest", str(exc), {"reason": str(exc)})
         if route:
             doc = {**doc, "route": route}
         if protocol == "GRAPHQL":
@@ -268,10 +300,7 @@ class Registry:
         operation: dict | None = None,
     ) -> dict:
         """Apply request fix and resolve approved header refs only in this transient wire copy."""
-        sources = {
-            name.casefold(): key
-            for name, key in self.tools_config.get("header_sources", {}).items()
-        }
+        sources = self._static_headers(tool.base_op)
         doc = apply_ops(fix.request_ops, base, self.cfg) if fix else copy.deepcopy(base)
         fixed_headers = {
             op.get("name", "").casefold(): op.get("src", {}).get("key")
@@ -299,9 +328,9 @@ class Registry:
     async def call(self, name: str, args: dict) -> dict:
         tool = self.defs.get(name)
         if tool is None:
-            return redact_value({"error": "UNKNOWN_TOOL", "tool": name, "retry": False}, self.secret_values)
-        if not ArgumentValidator(tool.agent_schema).is_valid(args):
-            return redact_value({"error": "AGENT_ARG_ERROR", "tool": name, "retry": False}, self.secret_values)
+            return {"error": "UNKNOWN_TOOL", "tool": self._agent_view(name), "retry": False}
+        if not ArgumentValidator(tool.strict_args).is_valid(args):
+            return {"error": "AGENT_ARG_ERROR", "tool": name, "retry": False}
         t0 = self._clock()
         base = self.base_doc(tool, args)
         cfg = tool.config
@@ -318,9 +347,7 @@ class Registry:
                 jitter=self._jitter,
             )
         if outcome.cls is ErrorClass.OK:
-            return redact_value(outcome.data, self.secret_values)
+            return self._agent_view(outcome.data)
         if outcome.cls in (ErrorClass.BUSINESS, ErrorClass.E1) or self.healer is None:
-            return redact_value(api_error(outcome), self.secret_values)
-        return redact_value(
-            await self.healer.heal(tool, base, outcome, t0), self.secret_values
-        )
+            return self._agent_view(api_error(outcome))
+        return self._agent_view(await self.healer.heal(tool, base, outcome, t0))

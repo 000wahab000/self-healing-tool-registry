@@ -22,7 +22,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.client.streamable_http import streamable_http_client
 
 from healer.adapters import mcp_upstream
-from healer.connection_discovery import discover
+from healer.connection_discovery import SELECT_ALL, discover
 from healer.connection_security import (
     check_egress,
     has_credentials,
@@ -67,6 +67,15 @@ API_KINDS = {
     "swagger2": ("/swagger.json", swagger2_source),
     "graphql": ("/graphql", graphql_source),
 }
+# Credential env names. Never the healer's own secrets (any caller); dashboard-submitted entries
+# must also use an allowed name: HEALER_CONNECTION_ENV_ALLOW (comma list; an item ending in "_" is
+# a prefix, otherwise an exact name) or, when unset, the default prefixes below.
+FORBIDDEN_ENV = re.compile(
+    r"NVIDIA|OPENROUTER|OPENCODE|OAUTH_BEARER|^(JEV_|DASHBOARD|CONNECTIONS_TOKEN|MCP_TOKEN_ENV)",
+    re.IGNORECASE,
+)
+DEFAULT_ENV_PREFIXES = ("API_", "MCP_", "CONN_")
+ENV_ALLOW_VAR = "HEALER_CONNECTION_ENV_ALLOW"
 PROBE_TIMEOUT_S = 10.0
 API_TIMEOUT_S = 15.0
 _SERVER_KEYS = {
@@ -133,7 +142,45 @@ def _http_url(value: object, field: str) -> str:
     return value
 
 
-def validate_entry(entry: object, *, http_only: bool = False) -> dict:
+def credential_envs(entry: dict) -> set[str]:
+    """Every env var NAME the entry would read a credential from."""
+    names: set[str] = set()
+    for block in (entry.get("auth"), entry.get("spec_auth")):
+        if isinstance(block, dict):
+            names.update(v for k, v in block.items() if k.endswith("_env"))
+    if entry.get("token_env"):
+        names.add(entry["token_env"])
+    if isinstance(entry.get("secret_headers"), dict):
+        names.update(entry["secret_headers"].values())
+    return {n for n in names if isinstance(n, str)}
+
+
+def _check_credential_envs(
+    entry: dict, *, restrict: bool, allowed: set[str] = frozenset()
+) -> None:
+    rules = [
+        x.strip()
+        for x in os.environ.get(ENV_ALLOW_VAR, "").split(",")
+        if x.strip()
+    ] or list(DEFAULT_ENV_PREFIXES)
+    for name in sorted(credential_envs(entry)):
+        if FORBIDDEN_ENV.search(name):
+            raise ValueError(
+                "credential env names must not be one of the healer's own secrets"
+            )
+        if restrict and name not in allowed and not any(
+            name == r or (r.endswith("_") and name.startswith(r)) for r in rules
+        ):
+            raise ValueError(
+                "credential env names added here must start with one of: "
+                + ", ".join(r for r in rules)
+                + f" (set {ENV_ALLOW_VAR} to change the list)"
+            )
+
+
+def validate_entry(
+    entry: object, *, http_only: bool = False, existing: dict | None = None
+) -> dict:
     """Check one config entry (an MCP server, or an API when it has `kind`) and return it.
 
     `http_only` is the dashboard rule: no stdio, no command, http/https URLs only.
@@ -145,6 +192,11 @@ def validate_entry(entry: object, *, http_only: bool = False) -> dict:
     unknown = set(entry) - (_API_KEYS if is_api else _SERVER_KEYS)
     if unknown:
         raise ValueError(f"unknown field: {min(unknown)}")
+    _check_credential_envs(
+        entry,
+        restrict=http_only,
+        allowed=credential_envs(existing) if existing else set(),
+    )
     name = entry.get("name")
     if not isinstance(name, str) or not NAME_RE.match(name):
         raise ValueError("name must match ^[a-z][a-z0-9_-]{0,31}$")
@@ -199,12 +251,14 @@ def validate_entry(entry: object, *, http_only: bool = False) -> dict:
         ):
             raise ValueError("spec_path must not carry secrets in its query string")
         selected = entry.get("selected_operations")
-        if selected is not None and (
+        if selected is not None and selected != SELECT_ALL and (
             not isinstance(selected, list)
             or any(not isinstance(x, str) or not x for x in selected)
             or len(set(selected)) != len(selected)
         ):
-            raise ValueError("selected_operations must be unique non-empty strings")
+            raise ValueError(
+                'selected_operations must be unique non-empty strings, or "*" for every operation'
+            )
         if entry.get("preset") not in (None, "github@1", "notion@1"):
             raise ValueError("unknown preset")
     else:
@@ -463,6 +517,42 @@ def _discovered_source(
     return load
 
 
+def _graphql_selected(
+    api: dict, source: SpecSource, diagnostics: list[dict] | None = None
+) -> SpecSource:
+    """FR-25.3 for GraphQL: explicit names, or "*", else queries only (no mutations)."""
+    prefix = f"{api['name']}{mcp_upstream.SEP}"
+    selected = api.get("selected_operations")
+
+    async def load() -> LoadedSpec:
+        spec = await source()
+        found: list[dict] = []
+        if isinstance(selected, list):
+            keep = set(selected)
+            found = [
+                {"operation": n, "code": "UNKNOWN_OPERATION"}
+                for n in sorted(keep)
+                if prefix + n not in spec.ops
+            ]
+        elif selected == SELECT_ALL:
+            keep = {k.removeprefix(prefix) for k in spec.ops}
+        else:
+            schema = spec.raw.get("data", {}).get("__schema", {})
+            root = (schema.get("queryType") or {}).get("name")
+            keep = {
+                f["name"]
+                for t in schema.get("types", [])
+                if t.get("name") == root
+                for f in t.get("fields") or []
+            }
+        if diagnostics is not None:
+            diagnostics[:] = found
+        ops = {k: v for k, v in spec.ops.items() if k.removeprefix(prefix) in keep}
+        return LoadedSpec(spec.raw, ops, spec.spec_hash)
+
+    return load
+
+
 async def _spec_source(
     api: dict,
     env: Mapping[str, str],
@@ -510,11 +600,9 @@ async def _spec_source(
     location = api.get("spec_url") or api.get("spec_path") or API_KINDS[api["kind"]][0]
     factory = API_KINDS[api["kind"]][1]
     source = namespaced(factory(spec_client, location), api["name"])
-    return (
-        _discovered_source(api, source, env, diagnostics)
-        if api["kind"] != "graphql"
-        else source
-    )
+    if api["kind"] == "graphql":
+        return _graphql_selected(api, source, diagnostics)
+    return _discovered_source(api, source, env, diagnostics)
 
 
 @asynccontextmanager

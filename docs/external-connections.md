@@ -32,12 +32,27 @@ deployment; values below are references, not secrets):
     "base_url": "https://api.example.invalid",
     "spec_url": "https://api.example.invalid/openapi.json",
     "selected_operations": ["getRecord"],
-    "auth": {"type": "bearer", "token_env": "EXAMPLE_API_TOKEN"},
+    "auth": {"type": "bearer", "token_env": "API_EXAMPLE_TOKEN"},
     "headers": {"Accept": "application/json"},
-    "secret_headers": {"X-Client-Key": "EXAMPLE_CLIENT_KEY"}
+    "secret_headers": {"X-Client-Key": "API_EXAMPLE_CLIENT_KEY"}
   }]
 }
 ```
+
+**Operation selection.** With no `selected_operations`, only read-only operations
+are exposed (REST `GET`/`HEAD`; GraphQL queries, never mutations). Writes need an
+explicit list of operation IDs, or the explicit opt-in `"selected_operations": "*"`
+(every compatible operation). This applies to OpenAPI, Swagger 2.0 and GraphQL.
+
+**Credential env-var names.** Entries only ever hold env var names. Two rules:
+no entry (file or dashboard) may reference one of the healer's own secrets
+(`NVIDIA_*`, `OPENROUTER*`, `OPENCODE*`, `JEV_*`, `DASHBOARD*`, `CONNECTIONS_TOKEN`,
+`OAUTH_BEARER`, `MCP_TOKEN_ENV`). Entries added or changed through the dashboard
+must also use a name starting with `API_`, `MCP_` or `CONN_`; set
+`HEALER_CONNECTION_ENV_ALLOW` (comma list; an item ending in `_` is a prefix,
+otherwise an exact name) to replace that list. Violations return HTTP 400 naming
+the rule, never a value. Names already stored in the config file stay valid when
+you edit that connection.
 
 Legacy `token_env` and `spec_path` entries remain runtime-normalized; config is
 not rewritten. Use distinct environment names per account, including multiple

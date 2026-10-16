@@ -8,7 +8,7 @@ import json
 import re
 import sqlite3
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
@@ -33,9 +33,10 @@ SAFE_LAYER_NAMES = {
     "invariants", "replay_safety",
 }
 SAFE_LAYER_DETAILS = {
-    "ok", "spec_unavailable", "schema_invalid", "postcheck_failed",
+    "ok", "spec_unavailable", "protocol_schema", "schema_invalid", "postcheck_failed",
     "not_configured", "invariant_failed", "unsafe_replay", "readback_failed",
-    "deadline",
+    "readback_mismatch", "readback_unavailable", "not_healed_write", "not_reached",
+    "preflight_passed", "replay_failed", "deadline",
 }
 # ponytail: header-shaped `name: value` / `"name": "value"` text, to the end of the line or JSON
 # string. A JSON-escaped multi-header string is redacted whole, never leaked.
@@ -48,7 +49,26 @@ _BASIC = re.compile(r"\bbasic\s+[A-Za-z0-9+/]+=*", re.IGNORECASE)
 _JWT = re.compile(r"\beyJ[\w-]+\.[\w-]+\.[\w-]*")
 
 
-def _secret_forms(secrets: Iterable[str]) -> list[str]:
+# Agent-facing data: a known secret shorter than this is not removed by value ("t-1" would
+# blank "t-100"). Audit rows and prompts redact every value they are given.
+MIN_SECRET_LEN = 6
+_CREDENTIAL_KEY = re.compile(
+    r"authorization|bearer|token|secret|password|"
+    r"(?:api|client|access|auth|refresh)[-_]?key|cookie|credential",
+    re.IGNORECASE,
+)
+
+
+def credential_values(cfg: Mapping[str, str]) -> tuple[str, ...]:
+    """Config values that are credentials by key name; plain settings (tenant ids) are not."""
+    return tuple(
+        value
+        for key, value in cfg.items()
+        if isinstance(value, str) and value and _CREDENTIAL_KEY.search(key)
+    )
+
+
+def _secret_forms(secrets: Iterable[str], min_len: int = 1) -> list[str]:
     forms: set[str] = set()
     for secret in secrets:
         if not isinstance(secret, str) or not secret:
@@ -65,28 +85,44 @@ def _secret_forms(secrets: Iterable[str]) -> list[str]:
                 continue
             forms.add(decoded)
             forms.update(part for part in decoded.split(":") if part)
-    return sorted(forms, key=len, reverse=True)
+    return sorted(
+        (form for form in forms if len(form) >= min_len), key=len, reverse=True
+    )
 
 
-def redact_value(value: object, secrets: Iterable[str] = ()) -> object:
-    """Redact string leaves while preserving the value's JSON structure and size."""
+def redact_value(
+    value: object, secrets: Iterable[str] = (), *, generic: bool = True
+) -> object:
+    """Redact string leaves while preserving the value's JSON structure and size.
+    `generic=False` (agent-facing data) removes only the exact known secrets."""
+    secrets = tuple(secrets)
     if isinstance(value, str):
-        return sanitize(value, secrets, max_chars=None)
+        return sanitize(value, secrets, max_chars=None, generic=generic)
     if isinstance(value, list):
-        return [redact_value(item, secrets) for item in value]
+        return [redact_value(item, secrets, generic=generic) for item in value]
     if isinstance(value, tuple):
-        return tuple(redact_value(item, secrets) for item in value)
+        return tuple(redact_value(item, secrets, generic=generic) for item in value)
     if isinstance(value, dict):
-        return {key: redact_value(item, secrets) for key, item in value.items()}
+        return {
+            key: redact_value(item, secrets, generic=generic)
+            for key, item in value.items()
+        }
     return value
 
 
 def sanitize(
-    text: str, secrets: Iterable[str] = (), *, max_chars: int | None = RAW_ERROR_MAX
+    text: str,
+    secrets: Iterable[str] = (),
+    *,
+    max_chars: int | None = RAW_ERROR_MAX,
+    generic: bool = True,
 ) -> str:
-    """Redact text; truncate only when a caller explicitly supplies a storage limit."""
-    for secret in _secret_forms(secrets):
+    """Redact text; truncate only when a caller explicitly supplies a storage limit.
+    The generic header/bearer/basic/JWT patterns are for audit rows, logs and prompts only."""
+    for secret in _secret_forms(secrets, 1 if generic else MIN_SECRET_LEN):
         text = text.replace(secret, REDACTED)
+    if not generic:
+        return text[:max_chars] if max_chars is not None else text
     text = _HEADER_VALUE.sub(rf"\1\2{REDACTED}", text)
     text = _BEARER.sub(f"Bearer {REDACTED}", text)
     text = _BASIC.sub(f"Basic {REDACTED}", text)

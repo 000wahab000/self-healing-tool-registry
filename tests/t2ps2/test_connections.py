@@ -72,7 +72,7 @@ def test_ac_59_invalid_entries_rejected(entry: dict) -> None:
 
 
 def test_ac_59_valid_entries_accepted() -> None:
-    gateway.validate_entry({**MCP, "token_env": "BILLING_TOKEN"}, http_only=True)
+    gateway.validate_entry({**MCP, "token_env": "API_BILLING_TOKEN"}, http_only=True)
     gateway.validate_entry({**API, "spec_path": "/v1/openapi.json"}, http_only=True)
     gateway.validate_entry(
         {"name": "s", "transport": "stdio", "command": ["python"]}
@@ -107,7 +107,7 @@ def test_ac_59_round_trip(client: TestClient, cfg_file: Path) -> None:
     assert "command" not in first["servers"][0]
 
     assert (
-        client.post("/api/connections", json={**MCP, "token_env": "BILL"}).status_code
+        client.post("/api/connections", json={**MCP, "token_env": "API_BILL"}).status_code
         == 200
     )
     assert (
@@ -118,7 +118,7 @@ def test_ac_59_round_trip(client: TestClient, cfg_file: Path) -> None:
     assert [s["name"] for s in listed["servers"]] == ["users", "billing"]
     assert (
         listed["apis"][0]["name"] == "crm"
-        and listed["servers"][1]["token_env"] == "BILL"
+        and listed["servers"][1]["token_env"] == "API_BILL"
     )
     on_disk = json.loads(cfg_file.read_text())
     assert on_disk["apis"] == [API]  # blank optional fields are not stored
@@ -155,8 +155,8 @@ def test_ac_59_remote_mode_needs_token(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fwd = {"X-Forwarded-For": "203.0.113.9"}  # behind a proxy: never local
-    assert client.get("/api/connections", headers=fwd).json()["auth_required"] is True
     assert client.get("/api/connections").json()["auth_required"] is False
+    assert client.get("/api/connections", headers=fwd).status_code == 403  # list needs the token too
     for call in (
         lambda h: client.post("/api/connections", json=MCP, headers=h),
         lambda h: client.delete("/api/connections/users", headers=h),
@@ -168,6 +168,8 @@ def test_ac_59_remote_mode_needs_token(
     bad = {**fwd, "Authorization": "Bearer nope"}
     assert client.post("/api/connections", json=MCP, headers=bad).status_code == 401
     good = {**fwd, "Authorization": "Bearer s3cret"}
+    assert client.get("/api/connections", headers=fwd).status_code == 401
+    assert client.get("/api/connections", headers=good).json()["auth_required"] is True
     assert client.post("/api/connections", json=MCP, headers=good).status_code == 200
     assert client.delete("/api/connections/billing", headers=good).status_code == 200
 
@@ -192,7 +194,9 @@ def test_ac_59_test_route_calls_probe(
 
 async def test_ac_59_probe_openapi_against_rest_mock() -> None:
     transport = httpx.ASGITransport(app=create_rest_mock())
-    out = await gateway.probe({**API, "base_url": "http://mock"}, {}, transport)
+    out = await gateway.probe(
+        {**API, "base_url": "http://mock", "selected_operations": "*"}, {}, transport
+    )
     assert out["ok"] and out["error"] is None
     assert "crm__get_user" in out["tools"]
 
@@ -203,11 +207,11 @@ async def test_ac_59_probe_reports_short_errors() -> None:
 
     entry = {**API, "base_url": "http://secret-host.invalid", "token_env": "TOK"}
     missing = await gateway.probe(entry, {}, httpx.MockTransport(handler))
-    assert missing == {
-        "ok": False,
-        "tools": [],
-        "error": "environment variable TOK is not set",
-    }
+    assert (missing["ok"], missing["tools"], missing["error"]) == (
+        False,
+        [],
+        "environment variable TOK is not set",
+    )
     out = await gateway.probe(entry, {"TOK": "hunter2"}, httpx.MockTransport(handler))
     assert out["ok"] is False and out["error"] == "HTTP 404"
     assert "hunter2" not in json.dumps(out) and "secret-host" not in json.dumps(out)
@@ -246,7 +250,12 @@ async def test_ac_59_probe_mcp_unreachable() -> None:
 async def test_ac_59_api_registry_namespaces_and_calls(tmp_path: Path) -> None:
     transport = httpx.ASGITransport(app=create_rest_mock())
     store = Store(str(tmp_path / "api.db"))
-    api = {**API, "base_url": "http://mock", "token_env": "CRM_TOKEN"}
+    api = {
+        **API,
+        "base_url": "http://mock",
+        "token_env": "CRM_TOKEN",
+        "selected_operations": "*",
+    }
     cfg = {"TENANT_ID": "t-1"}
     try:
         async with gateway.api_registry(
@@ -261,8 +270,8 @@ async def test_ac_59_api_registry_namespaces_and_calls(tmp_path: Path) -> None:
                 "postchecks": [],
             }
             assert registry.defs["crm__update_email"].config["idempotent"] is False
-            assert registry.defs["crm__create_ticket"].config["write"] is True
-            assert registry.defs["crm__create_ticket"].config["idempotent"] is False
+            assert registry.defs["crm__set_manager"].config["write"] is True
+            assert "crm__create_ticket" not in registry.defs  # UNSUPPORTED_PARAMETER_SCHEMA
             result = await registry.call("crm__get_user", {"user_id": "123"})
             assert "error" not in result, result
             assert result["id"] == "123"

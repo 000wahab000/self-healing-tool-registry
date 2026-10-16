@@ -22,18 +22,21 @@ async def send(
     if not path.startswith("/") or path.startswith("//") or "://" in path:
         return None, ValueError("invalid route")
     try:
-        headers = dict(doc["header"])
-        headers.setdefault("authorization", "")
-        headers.setdefault("cookie", "")
-        resp = await client.request(
+        headers = {name.casefold(): value for name, value in doc["header"].items()}
+        request = client.build_request(
             route["method"],
             path,
             json=doc["body"] or None,
             params=doc["query"],
             headers=headers,
             timeout=timeout,
-            auth=None,
         )
-    except httpx.HTTPError as exc:
+        # Client-level credentials are never inherited; only the document's headers authenticate.
+        for name in ("authorization", "cookie"):
+            if name not in headers:
+                request.headers.pop(name, None)
+        resp = await client.send(request, auth=None)
+    except (httpx.HTTPError, ValueError) as exc:
+        # ValueError: the pinned transport refused the destination (egress, rebinding, DNS).
         return None, exc
     return resp, None

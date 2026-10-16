@@ -180,7 +180,9 @@ function row(name, kind, url, token, readonly) {
 }
 
 async function load() {
-  const d = await api("GET", "/api/connections");
+  let d;
+  try { d = await api("GET", "/api/connections"); }
+  catch (e) { $("auth-box").hidden = false; throw e; }  // remote and not yet authorized: ask for the token
   defaults = d.defaults;
   presets = d.presets || {};
   $("auth-box").hidden = !d.auth_required;

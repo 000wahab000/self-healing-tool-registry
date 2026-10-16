@@ -124,6 +124,7 @@ class Dashboard:
         # later scripted run does not erase a figure an earlier LLM run measured.
         self._llm_tokens: tuple[int, int] | None = None
         self.drifts: list[tuple[int, str | None]] = []  # (ms, mutation) as it went live
+        
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
         self._mcp_info: dict | None = None

@@ -245,6 +245,25 @@ def _allowed_origin(url: str, env: Mapping[str, str]) -> bool:
     return False
 
 
+class DestinationUnresolved(ValueError):
+    """DNS could not answer: transient, unlike a destination that was resolved and refused."""
+
+
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_SITE_LOCAL = ipaddress.ip_network("fec0::/10")
+
+
+def _routable(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return _routable(ip.ipv4_mapped)
+        if ip in _SITE_LOCAL:
+            return False
+        if ip in _NAT64:  # NAT64 reaches whatever IPv4 address is embedded
+            return _routable(ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF))
+    return ip.is_global
+
+
 async def _validated_ip(host: str, port: int, url: str, env: Mapping[str, str]) -> str:
     try:
         ip = ipaddress.ip_address(host)
@@ -256,9 +275,11 @@ async def _validated_ip(host: str, port: int, url: str, env: Mapping[str, str]) 
             )
             addresses = list({ipaddress.ip_address(record[4][0]) for record in records})
         except (OSError, ValueError):
-            raise ValueError("connection destination could not be validated") from None
+            raise DestinationUnresolved(
+                "connection destination could not be validated"
+            ) from None
     if not addresses or (
-        not _allowed_origin(url, env) and any(not ip.is_global for ip in addresses)
+        not _allowed_origin(url, env) and any(not _routable(ip) for ip in addresses)
     ):
         raise ValueError("connection destination is not publicly routable")
     return str(min(addresses, key=lambda ip: (ip.version, int(ip))))

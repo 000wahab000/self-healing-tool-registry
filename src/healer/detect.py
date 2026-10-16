@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 
+from healer.connection_security import DestinationUnresolved
 from healer.models import ErrorClass, Outcome, Side, Violation
 
 PROTOCOL = "rest"
@@ -78,6 +79,9 @@ def _is_soft_error(body: object) -> bool:
 
 
 def classify(response: httpx.Response | None, exc: Exception | None = None) -> Outcome:
+    if isinstance(exc, ValueError) and not isinstance(exc, DestinationUnresolved):
+        # Refused before sending (blocked egress, rebinding, bad route): retrying cannot change it.
+        return Outcome(ErrorClass.BUSINESS, PROTOCOL, "REQUEST_REFUSED", {"reason": str(exc)})
     if exc is not None or response is None:
         return Outcome(ErrorClass.E1, PROTOCOL, type(exc).__name__)
     status = response.status_code

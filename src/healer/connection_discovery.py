@@ -9,6 +9,8 @@ from copy import deepcopy
 from healer.models import LoadedSpec
 
 _METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+_READ_ONLY = {"get", "head"}
+SELECT_ALL = "*"
 _SCALARS = {"string", "integer", "number", "boolean"}
 _PATH_PARAM = re.compile(r"\{([^{}]+)\}")
 
@@ -22,6 +24,7 @@ def discover(
     diagnostics: list[dict] = []
     occurrences: Counter[str] = Counter()
     candidates: dict[str, tuple[str, dict]] = {}
+    methods: dict[str, str] = {}
     for path, path_item in spec.raw.get("paths", {}).items():
         for method, operation in path_item.items():
             if method.lower() not in _METHODS or not isinstance(operation, dict):
@@ -32,15 +35,19 @@ def discover(
                 continue
             occurrences[raw_id] += 1
             candidates[raw_id] = (path, operation)
+            methods[raw_id] = method.lower()
     for raw_id in sorted(occurrences):
         if occurrences[raw_id] > 1:
             diagnostics.append({"operation": raw_id, "code": "DUPLICATE_OPERATION_ID"})
 
-    chosen = sorted(
-        {item for item in selected if isinstance(item, str)}
-        if isinstance(selected, list)
-        else candidates
-    )
+    # FR-25.3: with no selection only read-only methods are exposed; writes need an explicit
+    # list of operation IDs, or the explicit opt-in `selected_operations: "*"` (everything).
+    if isinstance(selected, list):
+        chosen = sorted({item for item in selected if isinstance(item, str)})
+    elif selected == SELECT_ALL:
+        chosen = sorted(candidates)
+    else:
+        chosen = sorted(i for i in candidates if methods[i] in _READ_ONLY)
     if isinstance(selected, list) and any(not isinstance(item, str) for item in selected):
         diagnostics.append({"operation": None, "code": "INVALID_SELECTED_OPERATION"})
     ops = {}

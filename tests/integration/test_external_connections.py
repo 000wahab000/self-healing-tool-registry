@@ -23,7 +23,7 @@ from healer.store import REDACTED, Store, redact_value, sanitize
 from mock_api.mcp_drift_server import create_drift_server
 
 
-def test_ac_91_audit_store_redacts_raw_and_auth_header_echoes(tmp_path) -> None:
+def test_ac_110_audit_store_redacts_raw_and_auth_header_echoes(tmp_path) -> None:
     token = "integration-token-value"
     basic = base64.b64encode(b"integration-user:integration-password").decode()
     store = Store(str(tmp_path / "audit.db"))
@@ -60,7 +60,7 @@ def test_ac_91_audit_store_redacts_raw_and_auth_header_echoes(tmp_path) -> None:
         store.close()
 
 
-def test_ac_91_redacted_spec_snapshot_preserves_large_schema(tmp_path) -> None:
+def test_ac_110_redacted_spec_snapshot_preserves_large_schema(tmp_path) -> None:
     token = 'quoted"\\password\n雪'
     original = {"paths": {"/records": {"description": "x" * 6000, "token": token}}}
     store = Store(str(tmp_path / "spec.db"))
@@ -133,7 +133,7 @@ def _parameter_spec(path: str, name: str, location: str) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_ac_85_two_api_accounts_and_mcp_stay_isolated_through_replay(tmp_path) -> None:
+async def test_ac_104_two_api_accounts_and_mcp_stay_isolated_through_replay(tmp_path) -> None:
     tokens = {"ACCOUNT_A_TOKEN": "account-a-secret", "ACCOUNT_B_TOKEN": "account-b-secret"}
     labels = {"Bearer account-a-secret": "account-a", "Bearer account-b-secret": "account-b"}
     spec_reads = {"account-a": 0, "account-b": 0}
@@ -199,7 +199,7 @@ async def test_ac_85_two_api_accounts_and_mcp_stay_isolated_through_replay(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_ac_92_api_client_closes_when_connection_context_fails(tmp_path) -> None:
+async def test_ac_111_api_client_closes_when_connection_context_fails(tmp_path) -> None:
     spec = _connection_spec("lookup")
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json=spec))
     store = Store(str(tmp_path / "cleanup.db"))
@@ -225,7 +225,7 @@ async def test_ac_92_api_client_closes_when_connection_context_fails(tmp_path) -
 
 
 @pytest.mark.asyncio
-async def test_ac_88_added_required_secret_header_replays_only_with_approved_value(tmp_path) -> None:
+async def test_ac_107_added_required_secret_header_replays_only_with_approved_value(tmp_path) -> None:
     headers: list[str | None] = []
     specs = 0
 
@@ -268,7 +268,7 @@ async def test_ac_88_added_required_secret_header_replays_only_with_approved_val
 
 
 @pytest.mark.asyncio
-async def test_ac_88_required_header_without_reference_refuses_before_replay(tmp_path) -> None:
+async def test_ac_107_required_header_without_reference_refuses_before_replay(tmp_path) -> None:
     headers = 0
     specs = 0
 
@@ -303,7 +303,7 @@ async def test_ac_88_required_header_without_reference_refuses_before_replay(tmp
 
 
 @pytest.mark.asyncio
-async def test_ac_88_renamed_path_parameter_replays_without_changing_agent_schema(tmp_path) -> None:
+async def test_ac_107_renamed_path_parameter_replays_without_changing_agent_schema(tmp_path) -> None:
     specs = 0
     paths: list[str] = []
 

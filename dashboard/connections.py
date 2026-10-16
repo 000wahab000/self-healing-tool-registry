@@ -70,13 +70,13 @@ def _save(data: dict) -> None:
         raise
 
 
-def clean_entry(body: object) -> dict:
+def clean_entry(body: object, existing: dict | None = None) -> dict:
     """Validate a dashboard-submitted entry (http only) and drop blank optional fields."""
     if not isinstance(body, dict):
         raise HTTPException(400, "entry must be an object")
     entry = {k: v for k, v in body.items() if v not in (None, "")}
     try:
-        return gateway.validate_entry(entry, http_only=True)
+        return gateway.validate_entry(entry, http_only=True, existing=existing)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -149,7 +149,7 @@ async def update_connection(name: str, body: dict) -> dict:
                 if isinstance(body.get("secret_headers"), dict):
                     merged["secret_headers"] = {**existing.get("secret_headers", {}), **body["secret_headers"]}
             merged.pop("clear_secret_refs", None)
-            data[collection][index] = clean_entry(merged)
+            data[collection][index] = clean_entry(merged, existing)
             _save(data)
             return {"ok": True, "name": name, "pending_restart": True}
     raise HTTPException(404, "no such connection")
