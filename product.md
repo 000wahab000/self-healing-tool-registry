@@ -612,3 +612,17 @@ Beyond the code, the problem statement requires the items below. This section on
 | AC-40 | (STRETCH, S1) Sibling propagation: a second tool hit by the same rename heals at Tier-0 speed (<500 ms) on its first occurrence | Integration |
 | AC-44 | (STRETCH, S2) Rule mining: after 3 wins of the same pattern, subsequent ambiguous breaks heal without Jev | Integration |
 
+## 18. Track T1-PS2: Mock Drift Server and Benchmark
+
+T1-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-50 to AC-54.
+
+
+## 19. Track T2-PS1: MCP Client, Loader and Front Door
+
+T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-30 to AC-39.
+
+
+## 20. Track T2-PS2: Watcher, Demo, Dashboard and Docs
+
+T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59.
+
