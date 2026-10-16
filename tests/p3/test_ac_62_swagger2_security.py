@@ -1,4 +1,4 @@
-"""AC-52 (FR-18.1): convert maps securityDefinitions to components/securitySchemes."""
+"""AC-62 (FR-22.1): convert maps securityDefinitions to components/securitySchemes."""
 
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ DOC = {
 }
 
 
-def test_ac_52_swagger2_security_definitions() -> None:
+def test_ac_62_swagger2_security_definitions() -> None:
     converted = convert(DOC)
     schemes = converted["components"]["securitySchemes"]
     assert schemes["basicAuth"] == {"type": "http", "scheme": "basic"}

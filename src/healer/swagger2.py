@@ -1,4 +1,4 @@
-"""Convert a Swagger 2.0 document to the OpenAPI 3 shape `operations()` reads (F18, P3-3).
+"""Convert a Swagger 2.0 document to the OpenAPI 3 shape `operations()` reads (F22, P3-3).
 
 The registry and the healer only ever read `operations()`, so an API that publishes
 Swagger 2.0 needs no healing changes: `convert` reshapes its document offline and

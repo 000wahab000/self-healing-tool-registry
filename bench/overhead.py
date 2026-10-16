@@ -1,4 +1,4 @@
-"""AC-28 (FR-17.1): healthy-call overhead of the registry over the raw transport.
+"""AC-28 (FR-21.1): healthy-call overhead of the registry over the raw transport.
 
 Times healthy ``Registry.call()`` calls against the in-process mock and subtracts the
 same request sent straight through the transport the registry wraps. Prints p50 and p95.

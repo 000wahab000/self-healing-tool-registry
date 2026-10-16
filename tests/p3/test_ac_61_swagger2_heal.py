@@ -1,4 +1,4 @@
-"""AC-51 (FR-18.2): the registry heals M1 when its base spec is the Swagger 2.0 fixture."""
+"""AC-61 (FR-22.2): the registry heals M1 when its base spec is the Swagger 2.0 fixture."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ USER = {"id": "123", "name": "Ada", "email": "ada@example.com"}
 GET_USER = {"user_id": "123"}
 
 
-async def test_ac_51_swagger2_fixture_heals_m1(api, client, store, make_registry):
+async def test_ac_61_swagger2_fixture_heals_m1(api, client, store, make_registry):
     doc = json.loads((FIXTURES / "swagger2.json").read_text())
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json=doc))
 

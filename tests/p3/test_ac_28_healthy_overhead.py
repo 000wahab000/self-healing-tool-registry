@@ -1,4 +1,4 @@
-"""AC-28 (FR-17.1): a healthy Registry.call() adds < 10 ms p95 over the raw transport.
+"""AC-28 (FR-21.1): a healthy Registry.call() adds < 10 ms p95 over the raw transport.
 
 The measurement lives in `bench/overhead.py`; this test checks the acceptance criterion.
 """

@@ -112,6 +112,9 @@ def test_unknown_op_is_unsafe_patch() -> None:
         {"op": "move", "from": [], "to": ["body", "b"]},
         {"op": "cast", "path": ["body", "a"], "to": "list"},
         {"op": "route", "method": "GET"},
+        {"op": "enum_map", "path": ["body", "a"], "mapping": {}},
+        {"op": "encoding", "content_type": ""},
+        {"op": "encoding"},
     ],
 )
 def test_malformed_op_is_unsafe_patch(op: dict) -> None:
@@ -186,3 +189,80 @@ def test_apply_ops_does_not_mutate_input() -> None:
     assert doc == before
     assert out is not doc
     assert out["body"]["target"]["id"] == 7
+
+
+def test_enum_map_bijective() -> None:
+    ops = [
+        {
+            "op": "enum_map",
+            "path": ["body", "status"],
+            "mapping": {"active": "ENABLED", "inactive": "DISABLED"},
+        }
+    ]
+    out = apply_ops(ops, {"body": {"status": "active"}}, CFG)
+    assert out["body"]["status"] == "ENABLED"
+
+
+def test_enum_map_lossy_rejected() -> None:
+    # Non-bijective (many-to-one) mapping must be rejected with UNSAFE_PATCH
+    ops = [
+        {
+            "op": "enum_map",
+            "path": ["body", "status"],
+            "mapping": {"active": "ENABLED", "pending": "ENABLED"},
+        }
+    ]
+    assert reason_of(ops, {"body": {"status": "active"}}) == Reason.UNSAFE_PATCH
+
+    # Value not present in bijective mapping must also be rejected
+    valid_ops = [
+        {
+            "op": "enum_map",
+            "path": ["body", "status"],
+            "mapping": {"active": "ENABLED", "inactive": "DISABLED"},
+        }
+    ]
+    assert (
+        reason_of(valid_ops, {"body": {"status": "unknown"}}) == Reason.UNSAFE_PATCH
+    )
+
+
+def test_encoding_sets_header() -> None:
+    ops = [{"op": "encoding", "content_type": "application/json"}]
+    out = apply_ops(ops, {"body": {}}, CFG)
+    assert out["header"]["content-type"] == "application/json"
+
+    out_with_header = apply_ops(ops, {"header": {}}, CFG)
+    assert out_with_header["header"]["content-type"] == "application/json"
+
+
+def test_ac_41_enum_map_bijective_and_lossy() -> None:
+    # AC-41: enum_map heals enum casing/alias; non-bijective mappings abort UNSAFE_PATCH
+    bijective = [
+        {
+            "op": "enum_map",
+            "path": ["body", "role"],
+            "mapping": {"admin": "ADMIN", "member": "MEMBER"},
+        }
+    ]
+    out = apply_ops(bijective, {"body": {"role": "admin"}}, CFG)
+    assert out["body"]["role"] == "ADMIN"
+
+    lossy = [
+        {
+            "op": "enum_map",
+            "path": ["body", "role"],
+            "mapping": {"admin": "USER", "member": "USER"},
+        }
+    ]
+    assert reason_of(lossy, {"body": {"role": "admin"}}) == Reason.UNSAFE_PATCH
+
+
+def test_ac_42_encoding_sets_content_type() -> None:
+    # AC-42: encoding operation adjusts content-type
+    ops = [{"op": "encoding", "content_type": "application/x-www-form-urlencoded"}]
+    out = apply_ops(ops, {"body": {"a": "1"}}, CFG)
+    assert out["header"]["content-type"] == "application/x-www-form-urlencoded"
+
+
+
