@@ -415,6 +415,7 @@ tests/               unit · integration · mock_api · agents · dashboard · e
 | Document | What's in it |
 |---|---|
 | [`product.md`](product.md) | What we build: requirements, mutation catalog, acceptance criteria |
+| [`docs/mcp-clients.md`](docs/mcp-clients.md) | Connect an MCP client (Claude Desktop, Cursor, Windsurf) to the gateway |
 | [`technical-approach.md`](technical-approach.md) | How it's built: components, data model, algorithms |
 | [`writeup.md`](writeup.md) | Design rationale for detection, diagnosis and safe patching |
 | [`bench/report.md`](bench/report.md) | Full benchmark tables, including the error-only ablation |

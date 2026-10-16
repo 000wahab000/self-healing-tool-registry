@@ -705,7 +705,24 @@ The opt-in test implementation now exists in `tests/mcp/test_client_config.py`; 
 
 ## 20. Track T2-PS2: Watcher, Demo, Dashboard and Docs
 
-T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59.
+T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59. AC-56 (T2-8), AC-57 (T2-9) and AC-59 (T2-11) stay reserved for their items.
+
+### Client guides (T2-10)
+
+#### Functional requirements
+
+- **FR-19.1** `docs/mcp-clients.md` is derived from `tests/mcp/client-handoff.md` and covers connecting a client to the healer MCP server: the install command, the stdio server command (`-m healer.mcp_server` with `--base-url`, `--spec-path`, `--tools`, `--db`), Claude Desktop, Cursor and Windsurf stdio configuration, and Cursor and Windsurf Streamable HTTP configuration (`--transport http`, `--host`, `--port`).
+- **FR-19.2** The guide explains how to add an upstream server: upstream servers are listed in `config/mcp_servers.json` (T2-3), each entry names the transport (stdio or Streamable HTTP) and a command or URL, and the file stores only the *name* of the environment variable that holds a token, never the token value. It states that upstream tools appear namespaced as `<server>__<tool>`.
+- **FR-19.3** No secret value appears in the guide. Examples pass an environment variable's name (`--token-env HEALER_MCP_TOKEN`) and never a bearer value.
+- **FR-19.4** The guide states that the `healer-mcp` console command is not available until T1-PS1 approves the `[project.scripts]` addition, and that real-client UI checks are outstanding (as the hand-off states).
+- **FR-19.5** The guide's snippets are valid: every JSON block parses, every stdio block launches `-m healer.mcp_server`, and every documented CLI flag is accepted by `healer.mcp_server`.
+
+#### Acceptance criteria
+
+| ID | Criterion | Verification |
+|---|---|---|
+| AC-58 | `docs/mcp-clients.md` is derived from `tests/mcp/client-handoff.md` and lets a fresh user connect a client: Claude Desktop, Cursor and Windsurf stdio plus Cursor and Windsurf Streamable HTTP, the install/launch commands, upstream-server addition and token handling. Every JSON snippet parses, every stdio snippet launches `-m healer.mcp_server`, every documented flag is accepted by the server, and no token value appears. Real-client UI checks remain outstanding. | Unit (`tests/t2ps2/test_ac_58_mcp_client_docs.py`) |
+
 
 ## 21. P3 additions (built before the re-plan)
 
