@@ -526,3 +526,4 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | Date | Item | Status | Notes |
 |---|---|---|---|
 | 2026-10-16 | T2-7 | done | Spec watcher (FR-18, AC-55): polls a `SpecSource` list on an interval, saves hash changes to `FixStore.save_spec`, calls `Healer.precompute(old, new)` only when the healer provides it (contract 5), injected clock/sleep, bounded per-source backoff, runs as a background task; tests in `tests/t2ps2/` |
+| 2026-10-15 | P4-1 | done | AC-18 browser check: one-click mutation triggers verified (M5, M3, M8), live dual-pane updates confirmed, heal events logged in <1 s (M5 heal_ms=71ms/13ms, M3 heal_ms=13ms/7ms, M8 clean refusal ABORTED/NO_SAFE_VALUE in 12ms/34ms); two cold-start demo rehearsals passed cleanly (default config & without Jev) |
