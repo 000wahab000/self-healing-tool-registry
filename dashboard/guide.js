@@ -42,18 +42,21 @@
 
   const css = document.createElement("style");
   css.textContent = `
-  .g-launch { position: fixed; right: 18px; bottom: 18px; z-index: 60; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--ink, #000); background: var(--panel, #fff); font: 500 12.5px var(--mono, monospace); letter-spacing: .12em; text-transform: uppercase; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
-  .g-launch.in-bar { position: static; box-shadow: none; padding: 5px 12px; }
+  .g-launch { position: fixed; right: 16px; bottom: 16px; z-index: 60; height: 36px; padding: 0 16px; border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--panel); color: var(--ink); font: 500 var(--fs-base)/var(--lh-sm) var(--sans); box-shadow: var(--shadow-float); }
+  .g-launch:hover { background: var(--soft); }
+  .g-launch.in-bar { position: static; box-shadow: none; height: 32px; padding: 0 12px; font-size: var(--fs-sm); }
   .g-shade { position: fixed; inset: 0; z-index: 70; }
-  .g-spot { position: fixed; z-index: 71; border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(10,14,8,.6); outline: 2px solid #fff; transition: all .38s cubic-bezier(.2,.8,.2,1); }
+  .g-spot { position: fixed; z-index: 71; border-radius: var(--r-lg); pointer-events: none; box-shadow: 0 0 0 9999px var(--scrim); outline: 2px solid var(--accent); transition: all .38s cubic-bezier(.2,.8,.2,1); }
   .g-spot.center { left: 50% !important; top: 42% !important; width: 0 !important; height: 0 !important; outline: 0; }
-  .g-card { position: fixed; z-index: 72; width: min(420px, calc(100vw - 32px)); background: var(--panel, #fff); color: var(--ink, #000); border: 2px solid #1d4ed8; border-radius: 6px; padding: 20px 22px 18px; box-shadow: 0 20px 60px rgba(0,0,0,.3); transition: left .38s cubic-bezier(.2,.8,.2,1), top .38s cubic-bezier(.2,.8,.2,1); }
-  .g-card small { font: 14px var(--serif, Georgia, serif); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2, #3b4237); }
-  .g-card h3 { margin: 6px 0 10px; font: 400 28px/1.1 var(--serif, Georgia, serif); letter-spacing: .03em; text-transform: uppercase; }
-  .g-card p { margin: 0 0 18px; color: var(--ink-2, #3b4237); font-size: 15.5px; line-height: 1.55; }
+  .g-card { position: fixed; z-index: 72; width: min(420px, calc(100vw - 32px)); background: var(--panel); color: var(--ink); border: 1px solid var(--accent); border-radius: var(--r-lg); padding: 24px; box-shadow: var(--shadow-float); transition: left .38s cubic-bezier(.2,.8,.2,1), top .38s cubic-bezier(.2,.8,.2,1); }
+  .g-card small { font: 500 var(--fs-xs)/var(--lh-xs) var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-2); }
+  .g-card h3 { margin: 8px 0 12px; font: 600 var(--fs-lg)/var(--lh-lg) var(--sans); letter-spacing: -.01em; }
+  .g-card p { margin: 0 0 16px; color: var(--ink-2); font-size: var(--fs-base); line-height: var(--lh-base); }
   .g-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .g-card button { border-radius: 4px; padding: 10px 18px; border: 1px solid var(--ink, #000); background: var(--panel, #fff); font: 500 13px var(--mono, monospace); letter-spacing: .12em; text-transform: uppercase; }
-  .g-card button.next { background: var(--ink, #000); color: var(--on-ink, #fff); }
+  .g-card button { height: 36px; border-radius: var(--r-sm); padding: 0 16px; border: 1px solid var(--line-2); background: var(--panel); color: var(--ink); font: 500 var(--fs-base)/var(--lh-sm) var(--sans); }
+  .g-card button:hover { background: var(--soft); }
+  .g-card button.next { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .g-card button.next:hover { background: var(--accent); filter: brightness(1.08); }
   .g-in { animation: g-in .3s ease-out; }
   @keyframes g-in { from { opacity: 0; transform: translateY(6px); } }
   @media (prefers-reduced-motion: reduce) { .g-spot, .g-card { transition: none; } .g-in { animation: none; } }`;

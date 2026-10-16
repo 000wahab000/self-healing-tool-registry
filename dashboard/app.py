@@ -436,6 +436,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def guide() -> FileResponse:
         return FileResponse(HERE / "guide.js", headers={"Cache-Control": "no-cache"})
 
+    @app.get("/ui.js", include_in_schema=False)
+    async def ui() -> FileResponse:
+        return FileResponse(HERE / "ui.js", headers={"Cache-Control": "no-cache"})
+
     @app.get("/theme.css", include_in_schema=False)
     async def theme() -> FileResponse:
         return FileResponse(HERE / "theme.css", headers={"Cache-Control": "no-cache"})
