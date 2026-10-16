@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PAGES = {name: (ROOT / "dashboard" / name).read_text() for name in ("landing.html", "index.html", "connections.html")}
+PAGES = {name: (ROOT / "dashboard" / name).read_text(encoding="utf-8") for name in ("landing.html", "index.html", "connections.html")}
 
 
 def nav_labels(source: str) -> list[str]:
@@ -17,8 +17,8 @@ def nav_labels(source: str) -> list[str]:
 def test_ac_56_navbar_items_order_active_and_report_stability() -> None:
     expected = ["Home", "Live stream", "Patch log", "Metrics", "MCP", "Report", "Connections"]
     assert [nav_labels(PAGES[name]) for name in PAGES] == [expected] * 3
-    assert 'a[aria-current="page"]' in (ROOT / "dashboard/theme.css").read_text()
-    theme = (ROOT / "dashboard/theme.css").read_text()
+    assert 'a[aria-current="page"]' in (ROOT / "dashboard/theme.css").read_text(encoding="utf-8")
+    theme = (ROOT / "dashboard/theme.css").read_text(encoding="utf-8")
     assert 'nav.tabs button[aria-pressed="true"]' in theme
     assert 'button[aria-selected="true"]' not in theme
     assert 'nav.tabs button:disabled' not in theme
@@ -39,6 +39,6 @@ def test_ac_56_navbar_semantics_and_mobile_layout() -> None:
     assert 'role="tabpanel"' not in PAGES["index.html"]
     assert 'aria-pressed="true"' in PAGES["index.html"]
     assert 'setAttribute("aria-pressed"' in PAGES["index.html"]
-    theme = (ROOT / "dashboard/theme.css").read_text()
+    theme = (ROOT / "dashboard/theme.css").read_text(encoding="utf-8")
     assert "@media (max-width: 760px)" in theme
     assert ".top nav.tabs { order: 3; flex: 1 0 100%; max-width: 100%; }" in theme

@@ -57,12 +57,12 @@ class JevClient:
     ) -> None:
         self._key = api_key
         self._owned = client is None
-        self._client = client or httpx.AsyncClient()
+        self._client = client  # created on first use: no idle client when Jev is never asked
         self._model = model
         self._url = url
 
     async def aclose(self) -> None:
-        if self._owned:
+        if self._owned and self._client is not None:
             await self._client.aclose()
 
     async def choose(self, state: str, question: str, options: list[str]) -> JevChoice:
@@ -79,6 +79,8 @@ class JevClient:
                 }
             },
         }
+        if self._client is None:
+            self._client = httpx.AsyncClient()
         try:
             response = await self._client.post(
                 self._url,
