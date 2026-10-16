@@ -19,10 +19,16 @@ from typing import Literal
 import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 
 from agents import baseline_agent, common, healing_agent, scripted
-from dashboard.explorer import _recording_executor, get_explorer_info, run_explore
+from dashboard.explorer import (
+    _recording_executor,
+    check_data_correctness,
+    get_explorer_info,
+    run_explore,
+)
 from healer import metrics
 from healer.jev import from_env
 from healer.models import AuditEvent
@@ -145,17 +151,28 @@ class Dashboard:
                 }
             else:
                 llm = common.make_llm()
+                heal_exec, self.traces["healing"] = _recording_executor(
+                    healing_agent.executor(healing), self.store, {}, self.mocks["healing"]
+                )
+                base_exec, self.traces["baseline"] = _recording_executor(
+                    baseline_agent.executor(http["baseline"], baseline),
+                    self.store,
+                    {},
+                    self.mocks["baseline"],
+                )
+                heal_graph = create_react_agent(
+                    llm,
+                    common.make_tools(healing, heal_exec, "healing", self.store, run_id),
+                    prompt=common.SYSTEM_PROMPT,
+                )
+                base_graph = create_react_agent(
+                    llm,
+                    common.make_tools(baseline, base_exec, "baseline", self.store, run_id),
+                    prompt=common.SYSTEM_PROMPT,
+                )
                 jobs = {
-                    "healing": lambda: common.run(
-                        healing_agent.build(healing, llm, self.store, run_id),
-                        common.TASK,
-                    ),
-                    "baseline": lambda: common.run(
-                        baseline_agent.build(
-                            http["baseline"], baseline, llm, self.store, run_id
-                        ),
-                        common.TASK,
-                    ),
+                    "healing": lambda: common.run(heal_graph, common.TASK),
+                    "baseline": lambda: common.run(base_graph, common.TASK),
                 }
             self.runs = {a: {**IDLE, "status": "running"} for a in jobs}
             self.tasks = {
@@ -178,7 +195,11 @@ class Dashboard:
 
     async def _finish(self, agent: str, job) -> None:
         try:
-            self.runs[agent] = {"status": "done", **asdict(await job())}
+            run = asdict(await job())
+            run["data_correct"] = check_data_correctness(
+                self.mocks[agent].state(), self.mutation
+            )[0]
+            self.runs[agent] = {"status": "done", **run}
         # A crashed run is shown on the page as the run's error, not swallowed.
         except Exception as exc:  # noqa: BLE001
             self.runs[agent] = {
