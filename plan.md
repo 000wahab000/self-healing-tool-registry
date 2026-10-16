@@ -526,3 +526,5 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | Date | Item | Status | Notes |
 |---|---|---|---|
 | 2026-10-16 | T2-7 | done | Spec watcher (FR-18, AC-55): polls a `SpecSource` list on an interval, saves hash changes to `FixStore.save_spec`, calls `Healer.precompute(old, new)` only when the healer provides it (contract 5), injected clock/sleep, bounded per-source backoff, runs as a background task; tests in `tests/t2ps2/` |
+| 2026-10-16 | Dashboard screenshot fixes | done | FR-20.1/20.2, AC-56: scoped one-tool LLM steps, truthful cap/correctness badges, preset stats and readable email; browser-checked at desktop and mobile widths |
+| 2026-10-16 | Live LLM call details | done | FR-20.3, AC-57: live LLM calls use the existing trace recorder and expandable call cards; offline fake-LLM API and browser check |

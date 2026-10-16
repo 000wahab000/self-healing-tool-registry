@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
+import json
 import re
 import time
 from pathlib import Path
 
 import httpx
 import pytest
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.utils.function_calling import convert_to_openai_tool
+from pydantic import Field
 
 from dashboard import demo
 from dashboard.app import create_app
@@ -28,6 +35,38 @@ TOOLS = ["get_user", "update_email", "set_manager", "create_ticket"]
 FAST = {"agent": "scripted", "step_delay": 0}
 # Agents wait 3 x step_delay before their first call: room to trigger a mutation.
 PACED = {"agent": "scripted", "step_delay": 0.1}
+_llm_ids = itertools.count()
+
+
+class FakeLLM(GenericFakeChatModel):
+    """Offline fake that independently chooses the next response per conversation."""
+
+    bound: list = Field(default_factory=list)
+
+    def bind_tools(self, tools, **kwargs):
+        self.bound = [convert_to_openai_tool(tool) for tool in tools]
+        return self
+
+    def _generate(self, messages, *args, **kwargs):
+        # Both agents share this model; derive progress from each conversation, not
+        # from a shared response iterator whose ordering could race.
+        response = (
+            llm_call("get_user", user_id="123")
+            if not any(isinstance(message, ToolMessage) for message in messages)
+            else AIMessage(content="done")
+        )
+        return ChatResult(generations=[ChatGeneration(message=response)])
+
+
+def llm_call(name: str, **args) -> AIMessage:
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": args, "id": f"dashboard-{next(_llm_ids)}"}],
+    )
+
+
+def fake_llm() -> FakeLLM:
+    return FakeLLM(messages=iter(()))
 
 
 @pytest.fixture(autouse=True)
@@ -200,6 +239,14 @@ async def test_m8_is_refused_without_inventing_a_value(client):
     assert s["metrics"]["mttr"] == {}
 
 
+async def test_ac_56_live_m7_reports_incorrect_baseline_and_correct_healing(client):
+    s = await run_with(client, "M7")
+
+    assert s["runs"]["healing"]["data_correct"] is True
+    assert s["runs"]["baseline"]["status"] == "done"
+    assert s["runs"]["baseline"]["data_correct"] is False
+
+
 async def test_reset_clears_the_view_and_the_mocks(client):
     await run_with(client, "M5")
     before = (await state(client))["epoch"]
@@ -223,6 +270,52 @@ async def test_mutation_picked_before_start_survives_start(client):
     assert s["runs"]["baseline"]["hit_limit"] is True
     assert {t["error_class"] for t in s["traces"]["baseline"]} == {"E2"}
     assert s["traces"]["healing"][0]["heal_event"] is not None
+
+
+async def test_ac_57_llm_run_records_detailed_offline_traces(client, monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "dashboard-dummy-key")
+    monkeypatch.setattr("agents.common.make_llm", fake_llm)
+    assert (await client.post("/api/mutation", json={"id": "M5"})).status_code == 200
+    assert (await client.post("/api/start", json={"agent": "llm"})).status_code == 200
+
+    s = await finished(client)
+    traces = s["traces"]
+    assert traces["healing"] and traces["baseline"]
+    healed = next(t for t in traces["healing"] if t["heal_event"] is not None)
+    assert healed["heal_event"]["outcome"] == HealOutcome.RECOVERED
+    assert healed["heal_event"]["class"] == ErrorClass.E2
+    assert all(t["heal_event"] is None for t in traces["baseline"])
+
+    for agent in ("healing", "baseline"):
+        run = s["runs"][agent]
+        assert run["error"] is None
+        assert run["hit_limit"] is False
+        assert run["tool_calls"] == len(traces[agent])
+        for trace in traces[agent]:
+            assert trace["args"]
+            assert trace["result"] is not None
+            assert trace["wire"]
+            assert all(isinstance(header, str) for req in trace["wire"] for header in req["headers"])
+        events = [event for event in s["events"] if event["agent"] == agent]
+        assert len(events) == len(traces[agent])
+        assert [(e["tool"], e["class"]) for e in events] == [
+            (t["tool"], t["error_class"]) for t in traces[agent]
+        ]
+
+    assert healed["wire"][0]["body"] == {"user_id": "123"}
+    assert healed["wire"][-1]["body"] == {"target": {"id": 123}}
+    assert "x-tenant-id" in healed["wire"][-1]["headers"]
+    assert all("headers" in req and isinstance(req["headers"], list) for req in healed["wire"])
+
+    (baseline_trace,) = traces["baseline"]
+    assert len(baseline_trace["wire"]) == 1
+    assert baseline_trace["wire"][0]["body"] == {"user_id": "123"}
+    assert baseline_trace["result"]["status_code"] == 422
+
+    rendered = json.dumps(traces)
+    assert "dashboard-dummy-key" not in rendered
+    assert "Bearer" not in rendered
+    assert "t-1" not in rendered
 
 
 async def test_start_again_runs_on_clean_mocks(client):

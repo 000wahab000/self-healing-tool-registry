@@ -650,3 +650,10 @@ T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 
 T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59.
 
+### Dashboard screenshot fixes
+
+- **FR-20.1** The Live comparison shows only steps relevant to the selected run, keeps long metric values readable, and lays out mutation controls without clipping or misleading selection cues at desktop and narrow widths.
+- **FR-20.2** Run badges and step notes distinguish an iteration cap, a safe refusal, an incomplete run and an incorrect final state; they must not describe a saved ticket as “not saved” or imply every completed request was part of a four-step task.
+- **AC-56** A one-tool M8 run shows the ticket step, refusal and actual final ticket count without unrelated “Never reached” steps; an iteration-capped baseline and an incorrect-state baseline (including live M7 silent ignore) have distinct, accurate labels. Long email addresses remain readable at narrow pane widths. | Dashboard regression + browser check |
+- **FR-20.3** The live LLM run records the same per-tool agent arguments, wire requests (header names only), error/heal event and final output as the scripted run, so its call rows open the existing detail dropdown instead of a flat event-only list. The frozen agent schema and call logging remain unchanged.
+- **AC-57** During a live LLM run, both agents' completed tool calls appear as expandable detail cards with real inputs and outputs; a healed call shows its patch and redacted wire request. No calls are duplicated and the baseline shows no healing details. | Offline fake-LLM integration + browser check |

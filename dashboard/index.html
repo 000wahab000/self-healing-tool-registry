@@ -141,8 +141,9 @@ details[open] > summary .plus::after { transform: rotate(0deg); }
 #note:empty { display: none; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 0 0 12px; }
 .stat { background: var(--soft); border-radius: var(--r); padding: 6px 10px; min-width: 0; }
+.stat:nth-child(2) { grid-column: span 2; }
 .stat small { display: block; color: var(--muted); font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
-.stat b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.stat b { font-size: 13px; font-weight: 500; overflow-wrap: break-word; word-break: normal; font-variant-numeric: tabular-nums; }
 .err { color: var(--bad); font-size: 12.5px; margin: 0 0 8px; overflow-wrap: anywhere; }
 div.calls-live { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r); }
 div.calls-live .row { display: grid; grid-template-columns: 84px 1fr auto 58px; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
@@ -239,7 +240,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
     <div id="live-banner"></div>
     <div class="cols section">
       <section class="card pad pane baseline" id="col-baseline">
-        <div class="pane-head"><h2>Baseline agent</h2><span class="pill bad plain" id="cap-baseline" hidden>Iteration cap</span><span class="pill" id="status-baseline">idle</span></div>
+        <div class="pane-head"><h2>Baseline agent</h2><span class="pill" id="status-baseline">idle</span></div>
         <ol class="steps" id="steps-baseline"></ol>
         <div class="stats" id="stats-baseline"></div>
         <p class="err" id="err-baseline" hidden></p>
@@ -247,7 +248,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <div class="calls-live" id="calls-baseline"></div>
       </section>
       <section class="card pad pane healing" id="col-healing">
-        <div class="pane-head"><h2>Self-healing agent</h2><span class="pill bad plain" id="cap-healing" hidden>Iteration cap</span><span class="pill" id="status-healing">idle</span></div>
+        <div class="pane-head"><h2>Self-healing agent</h2><span class="pill" id="status-healing">idle</span></div>
         <ol class="steps" id="steps-healing"></ol>
         <div class="stats" id="stats-healing"></div>
         <p class="err" id="err-healing" hidden></p>
@@ -302,6 +303,7 @@ const TASK_ARGS = { get_user: { user_id: "123" }, update_email: { user_id: "123"
 const TOOLS = Object.keys(TASK_ARGS);
 const STEP_LABEL = { get_user: "Look up user 123", update_email: "Set the new email", set_manager: "Set manager 456", create_ticket: "Open a ticket" };
 const CONTROL_TOOLS = { C2: ["get_user"], C3: ["get_user", "update_email"] };  // bench CONTROL_STEPS
+const SINGLE_TOOL_RUNS = { M8: ["create_ticket"], "M6-N": ["set_manager"] };
 const MAX_CALLS = 10;  // agents/common.py MAX_ITERATIONS
 const ACTS = [
   ["CLEAN", "Act 1", "Healthy v1", "Both agents finish 4/4 steps"],
@@ -620,9 +622,10 @@ function stepState(ts, tool, o) {
     return { k: { good: "healed", warn: "refused", biz: "biz" }[k] || "fail", note: k === "warn" ? text + " · tool skipped" : text };
   }
   const last = ts[ts.length - 1];
+  if (o.capped && last.error_class !== "OK") return { k: "fail", note: "Iteration cap hit (" + o.total + "/" + MAX_CALLS + ")", capped: true };
   if (last.error_class === "OK") {
     const d = o.details && o.details[{ update_email: "email", set_manager: "manager", create_ticket: "tickets" }[tool]];
-    if (d && d.checked !== false && !d.ok && o.done) return { k: "silent", note: "200 OK, but nothing was saved" };
+    if (d && d.checked !== false && !d.ok && o.done) return { k: "silent", note: tool === "update_email" ? "200 OK, but the email was unchanged" : "200 OK, but final state does not match the task" };
     return { k: "done", note: ts.length > 1 ? "OK after " + ts.length + " calls" : "OK" };
   }
   const code = (last.result && last.result.status_code) || last.error_class;
@@ -775,7 +778,7 @@ function replay(res) {
   const run = ++presetRun;
   exploreRes = res;
   for (const a of AGENTS) $("calls-" + a).hidden = true;  // the preset's own list replaces the live one
-  const tools = CONTROL_TOOLS[res.mutation] || TOOLS;
+  const tools = (res.agent === "llm" && SINGLE_TOOL_RUNS[res.mutation]) || CONTROL_TOOLS[res.mutation] || TOOLS;
   const shown = { healing: [], baseline: [] };
   const steps = (a, done) => renderSteps($("steps-" + a), tools, shown[a], {
     healing: a === "healing", details: res[a].correctness_details, done, total: shown[a].length,
@@ -809,7 +812,6 @@ function replay(res) {
 function finish(res, steps) {
   for (const a of AGENTS) {
     steps(a, true);
-    $("cap-" + a).hidden = !res[a].hit_limit;
     if (!(res[a].traces || []).length) $("p-calls-" + a).replaceChildren(el("div", res[a].error || "No tool calls recorded.", { class: "empty" }));
   }
   const h = res.healing, b = res.baseline;
@@ -819,7 +821,7 @@ function finish(res, steps) {
   const hs = { done: ["good", "Task complete"], refused: ["warn", "Finished · " + skipped.size + " tool skipped safely"], error: ["bad", "LLM error"] }[hStatus] || ["bad", "Incomplete"];
   $("status-healing").className = "pill " + hs[0];
   $("status-healing").textContent = hs[1];
-  const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "False success · data not saved"];
+  const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "Task incomplete · correctness check failed"];
   $("status-baseline").className = "pill " + bs[0];
   $("status-baseline").textContent = bs[1];
   $("preset-status").className = "pill good";
@@ -897,19 +899,24 @@ function renderRun(agent, s) {
   const run = s.runs[agent];
   if (!exploreRes) {
     const status = $("status-" + agent);
-    status.textContent = run.status;
-    status.className = "pill " + ({ running: "warn", done: "good", error: "bad" }[run.status] || "");
-    $("cap-" + agent).hidden = !run.hit_limit;
+    const incomplete = run.status === "done" && run.data_correct === false;
+    const correct = run.status === "done" && run.data_correct === true;
+    status.textContent = run.error ? "Run error" : run.hit_limit ? "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS : incomplete ? "Task incomplete · correctness check failed" : correct ? "Task complete" : run.status === "done" ? "Completed · correctness unavailable" : run.status;
+    status.className = "pill " + (run.error || run.hit_limit || incomplete || run.status === "error" ? "bad" : correct ? "good" : ({ running: "warn", done: "warn", iteration_cap: "bad" }[run.status] || ""));
     const heals = agent === "healing" ? Object.fromEntries(s.heals.map((h) => [h.tool, h])) : {};
-    renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, total: counts[agent], capped: run.hit_limit });
+    const data = s.mocks[agent].data;
+    const emailMismatch = agent === "baseline" && run.status === "done" && run.data_correct === false && lastLiveMut === "M7" && data.users["123"].email !== TASK_ARGS.update_email.email;
+    const details = emailMismatch ? { email: { checked: true, ok: false } } : undefined;
+    renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, details, done: run.status === "done", total: counts[agent], capped: run.hit_limit });
   }
-  const data = s.mocks[agent].data, user = data.users["123"];
-  const stats = [stat("Tool calls", counts[agent]), stat("Email", user.email), stat("Manager", user.manager_id || "none"), stat("Tickets", data.tickets.length)];
-  if (run.llm_tokens) stats.push(stat("Tokens", run.llm_tokens));
+  const shownRun = exploreRes ? exploreRes[agent] : run;
+  const data = (exploreRes && shownRun.data_state) || s.mocks[agent].data, user = data.users["123"];
+  const stats = [stat("Tool calls", exploreRes ? shownRun.tool_calls : counts[agent]), stat("Email", user.email), stat("Manager", user.manager_id || "none"), stat("Tickets", data.tickets.length)];
+  if (shownRun.llm_tokens) stats.push(stat("Tokens", shownRun.llm_tokens));
   $("stats-" + agent).replaceChildren(...stats);
   const err = $("err-" + agent);
-  err.hidden = !run.error;
-  err.textContent = run.error ? "Error: " + run.error : "";
+  err.hidden = !shownRun.error;
+  err.textContent = shownRun.error ? "Error: " + shownRun.error : "";
 }
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
