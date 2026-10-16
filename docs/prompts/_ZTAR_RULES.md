@@ -18,9 +18,11 @@ The Z tasks finish and **prove** the 7-layer verification pipeline (`src/healer/
 | L2 Patched request | Partial | Unknown headers; MCP/GraphQL/gRPC requests (Z2) |
 | L3 Output schema | Partial | E5 still allows a response cast; must be move/unwrap only; response-source provenance (Z3) |
 | L4 Echo | Working | none |
-| L5 Read-back | Working for `update_email` only | Other write tools (Z4) |
-| L6 Invariants | Partial | U1 not proven through the frozen four-tool registry (Z5) |
-| L7 Replay guard | Partial | MCP replay regressions (Z6) |
+| L5 Read-back | Configured for `update_email` only; its W1 test fails because W1 has no drift, so no heal runs (G2) | Other write tools (Z4) |
+| L6 Invariants | Partial | U1 targets `/payments`, which none of the four tools uses, so it is not provable without changing the tool set (Z5) |
+| L7 Replay guard | Partial; D1 test fails (a 503 after a saved write is retried) | G3, MCP replay (Z6) |
+
+**On `main` today, every healable MCP heal aborts with `UNSAFE_PATCH` (G1).** Do G1-G3 before any Z task; see `ZTAR_MINIMUM.md`.
 
 ## Extra hard rules
 

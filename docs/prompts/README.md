@@ -81,3 +81,15 @@ Conflict watch: `mock_api/app.py` (Z4, Z5, Z7, Z10) and `bench/run.py` (Z7, Z12,
 - New layer = one file in `src/healer/layers/` + one `ORDERED` entry.
 - New mutation = one `mock_api/catalog.py` row + `expected_canonical`.
 - New fuzz primitive = one class in `bench/fuzz.py` with spec, request and canonical transforms.
+
+---
+
+# Start here for ZTAR: `ZTAR_MINIMUM.md`
+
+`main` is red (3 failing tests; all MCP heals abort). Run **G1, G2 and G3** first, then follow `ZTAR_MINIMUM.md`, which picks a cut-down scope from each Z prompt.
+
+| ID | Title | Owns | Fixes |
+|---|---|---|---|
+| G1 | MCP heals abort with UNSAFE_PATCH | `verify.py` / `safety.py` | `test_ac_54_mcp_scenarios` |
+| G2 | W1 never triggers a heal | `mock_api/app.py` W1 branch | `test_w1_registry_audits_unsaved_success_at_readback` |
+| G3 | D1 503 after a saved write is retried | `retry.py` | `test_d1_registry_does_not_replay_saved_ticket_after_503` |
