@@ -1,0 +1,14 @@
+{
+  "servers": [
+    {
+      "name": "users",
+      "transport": "stdio",
+      "command": ["python", "-m", "mock_api.mcp_drift_server", "--profile", "users"]
+    },
+    {
+      "name": "tickets",
+      "transport": "stdio",
+      "command": ["python", "-m", "mock_api.mcp_drift_server", "--profile", "tickets"]
+    }
+  ]
+}
