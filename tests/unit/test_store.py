@@ -417,3 +417,24 @@ def test_sanitize_truncates_after_redacting():
 
 def test_sanitize_ignores_empty_secret_values():
     assert sanitize("plain text", ["", "plain"]) == "[REDACTED] text"
+
+
+def test_candidate_fix_save_and_promote(tmp_path: Path):
+    store = Store(str(tmp_path / "test.db"))
+    cand = make_fix("cand_fp_1", status=FixStatus.candidate)
+    fix_id = store.save_fix(cand)
+
+    assert store.get_active("cand_fp_1") is None
+    loaded_cand = store.get_candidate("cand_fp_1")
+    assert loaded_cand is not None
+    assert loaded_cand.fix_id == fix_id
+    assert loaded_cand.status == FixStatus.candidate
+
+    # Promote candidate to active
+    store.promote(fix_id)
+    assert store.get_candidate("cand_fp_1") is None
+    active = store.get_active("cand_fp_1")
+    assert active is not None
+    assert active.fix_id == fix_id
+    assert active.status == FixStatus.active
+
