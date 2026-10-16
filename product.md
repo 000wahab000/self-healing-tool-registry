@@ -769,8 +769,8 @@ T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 
 ### Demo agent (T2-8)
 
-- **FR-20.6** `demo/mcp_agent.py` connects only to the front door (`python -m healer.mcp_server --mcp-servers demo/mcp_servers.demo.json --no-rest`, stdio) and runs one task that needs tools from both the `users` and `tickets` upstreams. `--scripted` (default) runs a fixed call sequence; `--llm` runs a LangGraph agent over the front door's tools (NVIDIA NIM, `NVIDIA_API_KEY`). It prints each call, result and heal, then the audit rows read from `--db`.
-- **FR-20.7** A drift happens mid-task without touching contract 8: `mock_api/mcp_drift_server.py` accepts `--drift <mutation> --drift-after N`, and the demo-only config starts `users` with `--drift M1 --drift-after 1`, so the second `users__get_user` call meets the renamed argument.
+- **FR-20.11** `demo/mcp_agent.py` connects only to the front door (`python -m healer.mcp_server --mcp-servers demo/mcp_servers.demo.json --no-rest`, stdio) and runs one task that needs tools from both the `users` and `tickets` upstreams. `--scripted` (default) runs a fixed call sequence; `--llm` runs a LangGraph agent over the front door's tools (NVIDIA NIM, `NVIDIA_API_KEY`). It prints each call, result and heal, then the audit rows read from `--db`.
+- **FR-20.12** A drift happens mid-task without touching contract 8: `mock_api/mcp_drift_server.py` accepts `--drift <mutation> --drift-after N`, and the demo-only config starts `users` with `--drift M1 --drift-after 1`, so the second `users__get_user` call meets the renamed argument.
 - **AC-67** (number borrowed from T2-PS1's AC-63..69 range, AC-55..59 being used) Scripted mode through a real stdio subprocess finishes all four calls with no error ever returned to the agent, and the audit log holds exactly one `RECOVERED` row (for `users__get_user`). | Integration (`tests/t2ps2/test_ac_67_demo_agent.py`)
 
 ## 21. Earlier additions: overhead and Swagger 2.0 (T1-PS2 files)
