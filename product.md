@@ -567,6 +567,10 @@ Note: "Store (T0)" and the negative cache in the diagram are STRETCH (S6, S7). J
 | AC-25 | An `E3` fixture (non-JSON body) returns a structured error with reason `UNSUPPORTED_CLASS`, writes exactly one audit event and replays nothing | Integration |
 | AC-26 | (STRETCH, S8) M10: the heal produces the same operations as M1, the final mock state is correct, no field, header or value in any request is derived from the injected text, and the audit decision path matches M1's | Integration |
 | AC-27 | The deterministic tie-breaker: M6-D yields exactly one winner, M6-N yields none, and on a write tool an order-only or type-only advantage is not a win | Unit table |
+| AC-28 | The registry adds < 10 ms p95 per call, excluding network. A healthy `Registry.call()` against the in-process mock is less than 10 ms p95 slower than the same request sent straight through the transport the registry wraps, over at least 200 calls on each side | Unit (P3) |
+| AC-60 | A Swagger 2.0 copy of the mock spec (`mock_api/fixtures/swagger2.json`) converts to exactly the same `operations()` map as the mock API's own OpenAPI 3 document, for every operation (body schemas, params, response schemas, descriptions) | Unit (P3) |
+| AC-61 | Loaded through `swagger2_source` as the base spec, the Swagger 2.0 fixture heals M1 on the first `get_user` call and returns the v1 user | Integration (P3) |
+| AC-62 | `convert` maps `securityDefinitions` to `components/securitySchemes` and the resulting `security` list matches the contract (2.0 `basic` to 3.0 `http`/`basic`, `apiKey` and `oauth2` preserved) | Unit (P3) |
 | AC-55 | The spec watcher snapshots a changed spec within one poll interval, does no extra work for an unchanged spec, backs off a failing source until it recovers, and calls `Healer.precompute(old, new)` only when the healer provides it | Unit |
 
 ### Traceability
@@ -589,6 +593,8 @@ Note: "Store (T0)" and the negative cache in the diagram are STRETCH (S6, S7). J
 | F14 | FR-14.1 | AC-17 |
 | F15 | FR-15.1 to 15.8 | AC-14 to AC-17, AC-23 |
 | F16 | FR-16.1 to 16.4 | AC-18 |
+| F21 | FR-21.1 | AC-28 |
+| F22 | FR-22.1 to 22.2 | AC-60 to AC-62 |
 | F18 | FR-18.1 to 18.5 | AC-55 |
 | S6 | FR-5.1, FR-5.2, FR-5.6, FR-10.3, FR-10.4 | AC-11 |
 | S7 | FR-10.5, FR-11.3 | AC-12, AC-19 |
@@ -650,3 +656,13 @@ T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 
 T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59.
 
+## 21. P3 additions (built before the re-plan)
+
+### F21 Healthy-call overhead (P3-2)
+
+- **FR-21.1** A healthy call through the registry adds less than 10 ms p95 of registry work per call, excluding network (§11). Overhead is the per-call difference between a healthy `Registry.call()` against the in-process mock and the same request sent straight through the transport the registry wraps. `bench/overhead.py` times at least 200 calls on each side and prints p50 and p95 for the registry, the direct transport and the difference. `tests/p3/test_ac_28_healthy_overhead.py` asserts that the p95 difference is below 10 ms.
+
+### F22 Swagger 2.0 spec loader (P3-3)
+
+- **FR-22.1** `swagger2.convert(doc)` is a pure, offline function that turns a Swagger 2.0 document into the OpenAPI 3 shape `operations()` reads. It moves `definitions` to `components/schemas` (rewriting every local `$ref`), turns an `in: body` parameter into a `requestBody` (media types from `consumes`, default `application/json`), wraps each response `schema` in `content` (media types from `produces`), lifts a non-body parameter's type keywords into a `schema`, and maps `securityDefinitions` to `components/securitySchemes`. `mock_api/fixtures/swagger2.json` is a Swagger 2.0 copy of the mock API's v1 spec.
+- **FR-22.2** `swagger2.swagger2_source(client, path)` is a `SpecSource`: it fetches the document at `path`, converts and resolves it, and returns a `LoadedSpec` whose `ops` come from `operations()`. It raises `httpx.HTTPError` or `ValueError` when the document is unavailable or malformed, so the registry stays in error-clue mode.
