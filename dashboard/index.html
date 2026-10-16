@@ -1316,13 +1316,14 @@ function renderRun(agent, s) {
   // A replayed scenario shows it once the replay has finished.
   const reply = (exploreRes && !exploreRes.replayDone) ? "" : (shownRun.final_text || "").trim();
   const fin = $("final-" + agent);
-  if (fin.dataset.text !== reply) {
-    fin.dataset.text = reply;
+  if (shownReply[agent] !== reply) {
+    shownReply[agent] = reply;
     fin.hidden = !reply;
-    fin.classList.toggle("failed", !!reply && (shownRun.hit_limit || shownRun.data_correct === false));
+    fin.className = "final" + (reply && (shownRun.hit_limit || shownRun.data_correct === false) ? " failed" : "");
     if (reply) fin.replaceChildren(el("small", "Agent's final answer"), el("p", reply));
   }
 }
+const shownReply = {};
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
   const sig = heals.length + ":" + (heals.length ? heals[heals.length - 1].ts_ms : 0);
