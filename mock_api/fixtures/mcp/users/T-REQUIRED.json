@@ -1,0 +1,187 @@
+{
+  "before": [
+    {
+      "name": "get_user",
+      "description": "Retrieve user details by user ID",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "update_email",
+      "description": "Update a user's email address",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier"
+          },
+          "email": {
+            "type": "string",
+            "description": "New email address"
+          },
+          "email_type": {
+            "type": "string",
+            "description": "Email category",
+            "enum": [
+              "personal",
+              "work"
+            ]
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "email_type"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "set_manager",
+      "description": "Assign a manager to a user",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Employee to update"
+          },
+          "manager_id": {
+            "type": "string",
+            "description": "Manager to assign"
+          }
+        },
+        "required": [
+          "user_id",
+          "manager_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "create_ticket",
+      "description": "Create a support ticket",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier"
+          },
+          "title": {
+            "type": "string",
+            "description": "Ticket title"
+          }
+        },
+        "required": [
+          "user_id",
+          "title"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "after": [
+    {
+      "name": "get_user",
+      "description": "Retrieve user details by user ID",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "update_email",
+      "description": "Update a user's email address",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier"
+          },
+          "email": {
+            "type": "string",
+            "description": "New email address"
+          },
+          "email_type": {
+            "type": "string",
+            "description": "Email category",
+            "enum": [
+              "personal",
+              "work"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for updating email"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "email_type",
+          "reason"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "set_manager",
+      "description": "Assign a manager to a user",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Employee to update"
+          },
+          "manager_id": {
+            "type": "string",
+            "description": "Manager to assign"
+          }
+        },
+        "required": [
+          "user_id",
+          "manager_id"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "create_ticket",
+      "description": "Create a support ticket",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier"
+          },
+          "title": {
+            "type": "string",
+            "description": "Ticket title"
+          }
+        },
+        "required": [
+          "user_id",
+          "title"
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 - Mode: scripted (fixed tool calls, no LLM; the baseline re-sends a failing call with the same arguments until the cap of 10)
 - Runs per scenario and agent (N): 3
-- Date (UTC): 2026-10-14 18:29
+- Date (UTC): 2026-10-16 10:33
 - Jev available: no (M6-N then aborts LOW_CONFIDENCE, which counts as a safe refusal)
 - Spec mode: `on` for the main and tier-0 passes, `off` for the error-only ablation
 - Scenarios: CLEAN, M1, M2, M3, M4, M5, M6-D, M6-N, M7, M8, M9, C1, C2, C3
@@ -14,16 +14,16 @@ ZTAR is the share of runs whose task completed and whose final mock state is cor
 | Scenario | Healing ZTAR | Healing expected outcome | Baseline ZTAR | Baseline expected outcome | Baseline failure mode | Heal path | Refusal reasons | MTTR tier 1 | MTTR tier 0 | heal_ms tier 1 | heal_ms tier 0 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | CLEAN | n/a | 100% (3/3) | n/a | 100% (3/3) | - | - | - | - | - | - | - |
-| M1 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 46.3333/47/48 (n=3) | 4/4/5 (n=3) | 46.3333/47/48 (n=3) | 4/4/5 (n=3) |
-| M2 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 51.3333/45/66 (n=3) | 4.33333/4/5 (n=3) | 51.3333/45/66 (n=3) | 4.33333/4/5 (n=3) |
-| M3 | 100% (3/3) | 100% (3/3) | 100% (3/3) | 100% (3/3) | - | diff x3 | - | 46/47/49 (n=3) | 2.66667/3/3 (n=3) | 46/47/49 (n=3) | 2.66667/3/3 (n=3) |
-| M4 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 51/52/53 (n=3) | 4.66667/5/5 (n=3) | 51/52/53 (n=3) | 4.66667/5/5 (n=3) |
-| M5 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 60.3333/57/69 (n=3) | 8/8/8 (n=3) | 60.3333/57/69 (n=3) | 8/8/8 (n=3) |
-| M6-D | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | tiebreak x3 | - | 48/47/51 (n=3) | - | 48/47/51 (n=3) | - |
+| M1 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 29/30/32 (n=3) | 4/4/5 (n=3) | 29/30/32 (n=3) | 4/4/5 (n=3) |
+| M2 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 22.6667/22/24 (n=3) | 2.33333/2/3 (n=3) | 22.6667/22/24 (n=3) | 2.33333/2/3 (n=3) |
+| M3 | 100% (3/3) | 100% (3/3) | 100% (3/3) | 100% (3/3) | - | diff x3 | - | 37.3333/28/63 (n=3) | 5.33333/5/7 (n=3) | 37.3333/28/63 (n=3) | 5.33333/5/7 (n=3) |
+| M4 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 21.6667/22/22 (n=3) | 3.33333/3/5 (n=3) | 21.6667/22/22 (n=3) | 3.33333/3/5 (n=3) |
+| M5 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 30.6667/30/37 (n=3) | 6.66667/6/9 (n=3) | 30.6667/30/37 (n=3) | 6.66667/6/9 (n=3) |
+| M6-D | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | tiebreak x3 | - | 25.3333/26/28 (n=3) | - | 25.3333/26/28 (n=3) | - |
 | M6-N | 0% (0/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | - | LOW_CONFIDENCE x3 | - | - | - | - |
-| M7 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | ended incomplete 3/3 | diff x3 | - | 50/52/53 (n=3) | - | 50/52/53 (n=3) | - |
+| M7 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | ended incomplete 3/3 | diff x3 | - | 62/23/142 (n=3) | - | 62/23/142 (n=3) | - |
 | M8 | n/a | 100% (3/3) | n/a | 0% (0/3) | hit cap 3/3 | - | NO_SAFE_VALUE x3 | - | - | - | - |
-| M9 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 52.3333/50/58 (n=3) | - | 52.3333/50/58 (n=3) | - |
+| M9 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | hit cap 3/3 | diff x3 | - | 27.3333/27/29 (n=3) | - | 27.3333/27/29 (n=3) | - |
 | C1 | n/a | 100% (3/3) | n/a | 100% (3/3) | - | - | - | - | - | - | - |
 | C2 | n/a | 100% (3/3) | n/a | 0% (0/3) | hit cap 3/3 | - | NOT_DRIFT x3 | - | - | - | - |
 | C3 | n/a | 100% (3/3) | n/a | 0% (0/3) | hit cap 3/3 | - | NOT_DRIFT x3 | - | - | - | - |
@@ -69,8 +69,8 @@ Main and tier-0 passes, recovered heals. MTTR runs from the first failing respon
 
 | Tier | n | mttr_ms mean / p50 / p95 | heal_ms mean / p50 / p95 |
 |---|---|---|---|
-| 0 | 15 | 4.73333/4/8 (n=15) | 4.73333/4/8 (n=15) |
-| 1 | 24 | 50.6667/49/66 (n=24) | 50.6667/49/66 (n=24) |
+| 0 | 15 | 4.33333/4/9 (n=15) | 4.33333/4/9 (n=15) |
+| 1 | 24 | 32/25.5/63 (n=24) | 32/25.5/63 (n=24) |
 
 ## Tokens (FR-8.7, FR-15.4, FR-15.5, AC-16)
 
@@ -113,3 +113,29 @@ Each mutation re-run once with the spec endpoint disabled, so diagnosis runs on 
 | M9 | aborted | NO_SAFE_VALUE | correct | no |
 
 - False-Patch Rate (ablation): 0% (0/4) of the healed runs.
+
+## MCP gateway (T1-8, T1-9, AC-53, AC-54)
+
+Each drift-server mutation runs a fixed three-call task (`get_user`, `update_email`, `create_ticket`) through a healing `Gateway` and through a baseline `upstream_registry` with no store (errors pass through; the baseline re-sends a failing call until the cap of 10 calls). Everything is in-memory. ZTAR, Safe-Refusal and False-Patch use the same definitions as the REST tables.
+
+| Mutation | Healing ZTAR | Healing expected outcome | Baseline ZTAR | Baseline expected outcome | Heal path | Refusal reasons | MTTR tier 1 | heal_ms tier 1 |
+|---|---|---|---|---|---|---|---|---|
+| M1 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | diff x3 | - | 7/6/9 (n=3) | 7/6/9 (n=3) |
+| M2 | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | diff x3 | - | 6.33333/6/7 (n=3) | 6.33333/6/7 (n=3) |
+| T-RENAME | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | diff x3 | - | 6.33333/6/7 (n=3) | 6.33333/6/7 (n=3) |
+| T-ENUM | 100% (3/3) | 100% (3/3) | 0% (0/3) | 0% (0/3) | diff x3 | - | 7/7/8 (n=3) | 7/7/8 (n=3) |
+| T-REQUIRED | n/a | 100% (3/3) | n/a | 100% (3/3) | - | NO_SAFE_VALUE x3 | - | - |
+| M8 | n/a | 100% (3/3) | n/a | 100% (3/3) | - | NO_SAFE_VALUE x3 | - | - |
+
+- Healable ZTAR (M1, M2, T-RENAME, T-ENUM), healing: 100% (12/12); baseline: 0% (0/12)
+- Safe-Refusal Rate (T-REQUIRED, M8): 100% (6/6)
+- False-Patch Rate: 0% (0/12) of the healed runs ended with a wrong final state.
+- T-MOVE needs the tier-2 repair agent and was skipped in scripted mode (run `--agent llm`).
+
+Healthy-call overhead over MCP (`users__get_user`, n=250 per side, in-memory; gateway call minus a direct `ClientSession.call_tool`):
+
+| Series | p50 ms | p95 ms | mean ms |
+|---|---|---|---|
+| gateway | 0.895 | 2.381 | 1.227 |
+| direct | 0.795 | 3.354 | 1.129 |
+| overhead | 0.112 | 0.802 | 0.098 |

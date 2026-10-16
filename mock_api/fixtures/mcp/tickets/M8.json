@@ -1,0 +1,84 @@
+{
+  "before": [
+    {
+      "name": "create_ticket",
+      "description": "Create a support ticket",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier"
+          },
+          "title": {
+            "type": "string",
+            "description": "Ticket title"
+          }
+        },
+        "required": [
+          "user_id",
+          "title"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_tickets",
+      "description": "List existing support tickets",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Filter by user identifier"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "after": [
+    {
+      "name": "create_ticket",
+      "description": "Create a support ticket",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User identifier"
+          },
+          "title": {
+            "type": "string",
+            "description": "Ticket title"
+          },
+          "priority": {
+            "type": "string",
+            "description": "Ticket priority",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        },
+        "required": [
+          "user_id",
+          "title",
+          "priority"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_tickets",
+      "description": "List existing support tickets",
+      "inputSchema": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Filter by user identifier"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ]
+}
