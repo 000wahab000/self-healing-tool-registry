@@ -249,14 +249,14 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
 <header class="top">
   <div class="top-in">
     <div class="brand">Self-healing registry</div>
-    <nav class="tabs" role="tablist" aria-label="Views">
+    <nav class="tabs" aria-label="Views">
       <a href="/">Home</a>
+      <button type="button" aria-pressed="true" data-tab="live">Live stream</button>
+      <button type="button" aria-pressed="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
+      <button type="button" aria-pressed="false" data-tab="metrics">Metrics</button>
+      <button type="button" aria-pressed="false" data-tab="mcp">MCP</button>
+      <button type="button" aria-pressed="false" data-tab="report" id="tab-report">Report</button>
       <a href="/connections">Connections</a>
-      <button role="tab" aria-selected="true" data-tab="live">Live stream</button>
-      <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
-      <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
-      <button role="tab" aria-selected="false" data-tab="mcp">MCP</button>
-      <button role="tab" aria-selected="false" data-tab="report" id="tab-report" hidden>Report</button>
     </nav>
     <span class="spacer"></span>
     <span class="pill plain" id="mutation-chip">No mutation</span>
@@ -266,7 +266,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
 
 <main>
   <!-- LIVE -->
-  <div id="view-live" role="tabpanel">
+  <div id="view-live">
     <div class="head"><div><p class="eyebrow">Real-time</p><h2>Break the API while both agents are running</h2></div></div>
     <section class="card pad controls">
       <div>
@@ -330,7 +330,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
   </div>
 
   <!-- PATCH LOG -->
-  <div id="view-heals" role="tabpanel" hidden>
+  <div id="view-heals" hidden>
     <div class="head"><div><p class="eyebrow">Audit</p><h2>Patch log <span class="dim">· one row per heal attempt, written before the agent sees the result</span></h2></div></div>
     <section class="card scroll">
       <table class="log">
@@ -341,7 +341,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
   </div>
 
   <!-- METRICS -->
-  <div id="view-metrics" role="tabpanel" hidden>
+  <div id="view-metrics" hidden>
     <div class="head"><div><p class="eyebrow">Since the last reset</p><h2>Metrics</h2></div></div>
     <div class="cards" id="metrics"></div>
     <section class="card reasons" id="reasons" hidden>
@@ -350,13 +350,13 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
     </section>
 
   <!-- REPORT -->
-  <div id="view-report" role="tabpanel" hidden>
+  <div id="view-report" hidden>
     <div class="head"><div><p class="eyebrow">bench/report.md</p><h2>Benchmark report</h2></div></div>
-    <section class="card pad"><pre id="report"></pre></section>
+    <section class="card pad"><p id="report-empty" class="muted">No benchmark report is available yet. Run <code>python -m bench.run --agent scripted --n 3</code> to generate one.</p><pre id="report"></pre></section>
   </div>
 
   <!-- MCP FRONT DOOR -->
-  <div id="view-mcp" role="tabpanel" hidden>
+  <div id="view-mcp" hidden>
     <div class="head"><div><p class="eyebrow">MCP gateway</p><h2>Front door <span class="dim">· the frozen tools any MCP client sees</span></h2></div></div>
     <div class="cards" id="mcp-transports"></div>
     <section class="card scroll">
@@ -440,7 +440,7 @@ const Demo = (() => {
     C3: ["update_email", "BUSINESS", 422, null, [], "NOT_DRIFT"],
   };
   const SEQ = ["get_user", "update_email", "set_manager", "create_ticket"];
-  const SAMPLE_REPORT = "Demo mode: simulated data, no backend connected.\n\nRun `python -m bench` to generate bench/report.md and it will appear here.";
+  const SAMPLE_REPORT = "Demo mode: simulated data, no backend connected.\n\nRun `python -m bench.run --agent scripted --n 3` to generate bench/report.md and it will appear here.";
   const d = { on: false, epoch: 1, eid: 0, mut: null, events: [], heals: [], runs: null, data: null, timer: null, idx: {}, errs: {}, fp: 0 };
   const fresh = () => ({ users: { "123": { email: "old@example.com", manager_id: null } }, tickets: [] });
   const idle = () => ({ status: "idle", final_text: "", tool_calls: 0, llm_tokens: 0, hit_limit: false, error: null });
@@ -660,7 +660,7 @@ async function act(path, body) {
 
 /* ---------- tabs ---------- */
 function showTab(name) {
-  for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  for (const b of document.querySelectorAll("nav.tabs button[data-tab]")) b.setAttribute("aria-pressed", String(b.dataset.tab === name));
   for (const v of ["live", "heals", "metrics", "mcp", "report"]) $("view-" + v).hidden = v !== name;
 }
 for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => showTab(b.dataset.tab);
@@ -1276,7 +1276,8 @@ function loadMcp() {
 }
 function loadReport() {
   call("/api/report").then((r) => {
-    if (r.report) { $("report").textContent = r.report; $("tab-report").hidden = false; }
+    $("report").textContent = r.report || "";
+    $("report-empty").hidden = Boolean(r.report);
   }).catch(() => {});
 }
 clearView();

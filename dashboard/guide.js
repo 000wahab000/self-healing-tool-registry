@@ -76,7 +76,7 @@
   };
   function openTab(name) {
     const b = document.querySelector(`[data-tab='${name}']`);
-    if (b && b.getAttribute("aria-selected") !== "true") b.click();
+    if (b && b.getAttribute("aria-pressed") !== "true") b.click();
   }
   function place() {
     const s = page[i];
