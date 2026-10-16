@@ -171,8 +171,9 @@ div.calls-live .empty { display: block; color: var(--muted); text-align: center;
 .why.fixed { border-left-color: var(--ok); background: var(--ok-bg); }
 .why b { font-weight: 600; }
 .why code, mark.hit { font-family: var(--mono); font-size: .95em; }
-mark.hit { background: var(--warn-bg); color: var(--warn); border-radius: 3px; padding: 0 2px; outline: 1px solid var(--warn); animation: hit-pulse 1.2s ease-out 2; }
-@keyframes hit-pulse { 50% { outline-offset: 2px; } }
+mark.hit { background: var(--bad-bg); color: var(--bad); font-weight: 600; border-radius: 3px; padding: 0 3px; outline: 1px solid var(--bad); animation: hit-blink 1.1s ease-in-out infinite; }
+/* the same red pulse as the "broke here" badge, so the eye goes straight to the broken field */
+@keyframes hit-blink { 0%, 100% { box-shadow: 0 0 0 0 transparent; opacity: 1; } 50% { box-shadow: 0 0 0 3px var(--bad-bg); opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { mark.hit { animation: none; } }
 .call.broke .where { background: var(--bad-bg); color: var(--bad); }
 .call.healed .where { background: var(--ok-bg); color: var(--ok); animation: where-swap 2.2s steps(1) forwards; }
@@ -1005,6 +1006,16 @@ function whyBox(t, h) {
     const missing = fields.filter((f) => f.why.startsWith("is required")).map((f) => f.name);
     const gone = sent.filter((a) => !fields.some((f) => f.name === a) && missing.length);
     box.append(". ");
+    const typed = fields.filter((f) => f.why.startsWith("must be") && t.args && f.name in t.args);
+    if (typed.length) {
+      box.append("The agent sent ");
+      typed.forEach((f, k) => {
+        const v = t.args[f.name];
+        if (k) box.append(", ");
+        box.append(el("code", JSON.stringify(v)), " (" + (typeof v === "string" ? "text" : typeof v) + ")");
+      });
+      box.append(". ");
+    }
     if (missing.length && gone.length) box.append("The agent sent ", el("code", gone.join(", ")), " (the old name), so nothing matched.");
   }
   if (h && h.outcome === "RECOVERED" && h.fix) {
@@ -1020,7 +1031,8 @@ function preHighlight(v, terms) {
   const text = formatJson(v), node = el("pre");
   terms = terms.filter((x) => /^\w+$/.test(x));  // field names only: nothing to escape
   if (!terms.length) { node.textContent = text; return node; }
-  const re = new RegExp('"(' + terms.join("|") + ')"', "g");
+  // The name, plus its value when one follows, so a wrong-type value is marked too.
+  const re = new RegExp('"(' + terms.join("|") + ')"(?:: (?:"[^"]*"|-?\\d+(?:\\.\\d+)?|true|false|null))?', "g");
   let last = 0, m;
   while ((m = re.exec(text))) { node.append(text.slice(last, m.index), el("mark", m[0], { class: "hit" })); last = m.index + m[0].length; }
   node.append(text.slice(last));
