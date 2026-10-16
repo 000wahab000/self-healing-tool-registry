@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connections - Self-healing registry</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+  @media (min-width: 900px) { .grid { grid-template-columns: 1.2fr 1fr; align-items: start; } }
+  .row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  .row:first-child { border-top: 0; }
+  .row .name { font: 500 14px var(--mono); }
+  .row .url { flex: 1; min-width: 160px; font: 13px var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+  .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
+  label { display: block; font-size: 13px; color: var(--ink-2); margin: 12px 0 4px; }
+  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg); }
+  .hint { font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
+  .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  #result { margin-top: 14px; font-size: 14px; }
+  #result ul { margin: 8px 0 0; padding-left: 18px; font: 12.5px var(--mono); max-height: 180px; overflow: auto; }
+  .note { margin-top: 18px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">Self-healing registry</div>
+    <nav class="tabs" aria-label="Views">
+      <a href="/">Home</a>
+      <a href="/live">Live stream</a>
+      <a href="/connections" aria-current="page" style="background:var(--panel);border-color:var(--line-2);color:var(--ink)">Connections</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <p class="eyebrow">Gateway</p>
+  <div class="head"><h2>Connections</h2></div>
+  <p class="sub">Changes apply the next time the gateway starts: <code>python -m healer.mcp_server --mcp-servers config/mcp_servers.json</code></p>
+
+  <div class="grid section">
+    <div>
+      <section class="card pad">
+        <h3>MCP servers</h3>
+        <div id="servers"></div>
+      </section>
+      <section class="card pad section">
+        <h3>Other APIs</h3>
+        <div id="apis"></div>
+      </section>
+    </div>
+
+    <section class="card pad">
+      <h3>Add a connection</h3>
+      <form id="form" autocomplete="off">
+        <label for="type">Type</label>
+        <select id="type">
+          <option value="mcp">MCP server over HTTP</option>
+          <option value="openapi">OpenAPI 3</option>
+          <option value="swagger2">Swagger 2.0</option>
+          <option value="graphql">GraphQL</option>
+        </select>
+        <label for="name">Name</label>
+        <input id="name" required maxlength="32" pattern="[a-z][a-z0-9_-]{0,31}" placeholder="billing">
+        <p class="hint">Lowercase letters, digits, - and _. No double underscore. Tools show up as <code>name__tool</code>.</p>
+        <label for="url" id="url-label">MCP endpoint URL</label>
+        <input id="url" type="url" required placeholder="https://example.com/mcp">
+        <div id="spec-box">
+          <label for="spec">Spec path (optional)</label>
+          <input id="spec" placeholder="/openapi.json">
+        </div>
+        <label for="token">Token environment variable name (optional)</label>
+        <input id="token" placeholder="BILLING_TOKEN" pattern="[A-Za-z_][A-Za-z0-9_]*" spellcheck="false">
+        <p class="hint">Type the variable's NAME, set it in the gateway's server environment. Never paste the token itself here.</p>
+        <div id="auth-box" hidden>
+          <label for="auth">Connections access token</label>
+          <input id="auth" type="password" autocomplete="off">
+          <p class="hint">This dashboard is not on localhost, so changes need the server's CONNECTIONS_TOKEN. Kept in this page only.</p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" id="test">Test connection</button>
+          <button type="submit" class="btn primary" id="save">Save</button>
+        </div>
+        <div id="result" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+  </div>
+</main>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+let defaults = {};
+
+// Build DOM with textContent only: nothing from the config or the network is ever parsed as HTML.
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  Object.assign(e, props || {});
+  for (const k of kids) e.append(k);
+  return e;
+}
+
+function authHeaders() {
+  const t = $("auth").value;
+  return t ? { Authorization: "Bearer " + t } : {};
+}
+
+async function api(method, url, body) {
+  const r = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = {};
+  try { data = await r.json(); } catch (_) { /* non-JSON error body */ }
+  if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Request failed (" + r.status + ")");
+  return data;
+}
+
+function say(ok, text, tools) {
+  const box = $("result");
+  box.replaceChildren(el("span", { className: "pill " + (ok ? "good" : "bad"), textContent: text }));
+  if (tools && tools.length) {
+    box.append(el("div", { className: "muted", textContent: tools.length + " tool" + (tools.length === 1 ? "" : "s") + ":" }));
+    box.append(el("ul", {}, ...tools.map((t) => el("li", { textContent: t }))));
+  }
+}
+
+function render(list, rows) {
+  list.replaceChildren();
+  if (!rows.length) list.append(el("div", { className: "empty", textContent: "None configured." }));
+  for (const r of rows) list.append(r);
+}
+
+function row(name, kind, url, token, readonly) {
+  const r = el("div", { className: "row" },
+    el("span", { className: "name", textContent: name }),
+    el("span", { className: "pill plain", textContent: kind }),
+    el("span", { className: "url", textContent: url || "" }));
+  if (token) r.append(el("span", { className: "muted mono", textContent: "token: $" + token }));
+  if (readonly) {
+    r.append(el("span", { className: "pill warn plain", textContent: "configured in file" }));
+  } else {
+    r.append(el("button", { className: "btn small", type: "button", textContent: "Remove", onclick: () => remove(name) }));
+  }
+  return r;
+}
+
+async function load() {
+  const d = await api("GET", "/api/connections");
+  defaults = d.defaults;
+  $("auth-box").hidden = !d.auth_required;
+  const kindLabel = { openapi: "OpenAPI 3", swagger2: "Swagger 2.0", graphql: "GraphQL" };
+  render($("servers"), d.servers.map((s) => row(s.name, s.transport === "http" ? "MCP / HTTP" : "MCP / " + s.transport, s.url, s.token_env, s.readonly)));
+  render($("apis"), d.apis.map((a) => row(a.name, kindLabel[a.kind] || a.kind, a.base_url + (a.spec_path || defaults[a.kind] || ""), a.token_env, false)));
+}
+
+async function remove(name) {
+  if (!confirm("Remove " + name + "?")) return;
+  try { await api("DELETE", "/api/connections/" + encodeURIComponent(name)); say(true, "Removed " + name); await load(); }
+  catch (e) { say(false, e.message); }
+}
+
+function entry() {
+  const type = $("type").value;
+  const e = { name: $("name").value.trim() };
+  if (type === "mcp") { e.transport = "http"; e.url = $("url").value.trim(); }
+  else { e.kind = type; e.base_url = $("url").value.trim(); e.spec_path = $("spec").value.trim(); }
+  e.token_env = $("token").value.trim();
+  return e;
+}
+
+function syncType() {
+  const type = $("type").value;
+  const mcp = type === "mcp";
+  $("spec-box").hidden = mcp;
+  $("url-label").textContent = mcp ? "MCP endpoint URL" : "API base URL";
+  $("url").placeholder = mcp ? "https://example.com/mcp" : "https://api.example.com";
+  $("spec").placeholder = defaults[type] || "/openapi.json";
+}
+$("type").onchange = syncType;
+
+$("test").onclick = async () => {
+  if (!$("form").reportValidity()) return;
+  $("test").disabled = true;
+  say(true, "Testing...");
+  try {
+    const r = await api("POST", "/api/connections/test", entry());
+    r.ok ? say(true, "Connected", r.tools) : say(false, r.error || "Failed");
+  } catch (e) { say(false, e.message); }
+  $("test").disabled = false;
+};
+
+$("form").onsubmit = async (ev) => {
+  ev.preventDefault();
+  try {
+    const r = await api("POST", "/api/connections", entry());
+    say(true, "Saved " + r.name + ". Restart the gateway to apply.");
+    $("form").reset();
+    syncType();
+    await load();
+  } catch (e) { say(false, e.message); }
+};
+
+load().then(syncType).catch((e) => say(false, e.message));
+</script>
+</body>
+</html>

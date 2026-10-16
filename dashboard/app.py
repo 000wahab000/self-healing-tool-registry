@@ -23,6 +23,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 
 from agents import baseline_agent, common, healing_agent, scripted
+from dashboard.connections import router as connections_router
 from dashboard.explorer import (
     _recording_executor,
     check_data_correctness,
@@ -341,6 +342,7 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     app = FastAPI(title="Self-healing demo dashboard", lifespan=lifespan)
     app.state.dash = dash
+    app.include_router(connections_router)
 
     @app.get("/", include_in_schema=False)
     async def landing() -> FileResponse:
