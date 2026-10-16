@@ -311,15 +311,6 @@ class Store:
                 cached.status = FixStatus.retired
                 self._active.pop(fp, None)
                 self._candidates.pop(fp, None)
-        if won:
-            sig_row = self._db.execute(
-                "SELECT signature FROM fixes WHERE fix_id = ?", (fix_id,)
-            ).fetchone()
-            if sig_row:
-                sig_data = json.loads(sig_row["signature"])
-                pat = sig_data.get("abstract")
-                if pat:
-                    self.record_rule_win(pat)
 
     def audit(self, event: AuditEvent) -> None:
         with self._db:

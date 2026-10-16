@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from agents import baseline_agent, common, healing_agent, scripted
 from bench.run import CONTROL_STEPS, CONTROL_TASK
+from dashboard.connections import router as connections_router
 from dashboard.explorer import (
     _recording_executor,
     check_data_correctness,
@@ -34,6 +35,7 @@ from healer import metrics
 from healer.jev import from_env
 from healer.models import AuditEvent
 from healer.registry import Registry
+from healer.repair import from_env as repair_from_env
 from healer.store import Store
 from mock_api.app import ALIASES, CUSTOM, MUTATIONS
 from mock_api.app import create_app as create_mock
@@ -114,8 +116,8 @@ class Dashboard:
                 for a, m in self.mocks.items()
             }
             self.clients = list(http.values())
-            healing = Registry(
-                http["healing"], self.tools, self.cfg, self.store, self.jev
+            healing = Registry(  # repair: the tier-2 LLM agent, when NVIDIA_API_KEY is set
+                http["healing"], self.tools, self.cfg, self.store, self.jev, repair=repair_from_env()
             )
             baseline = Registry(http["baseline"], self.tools, self.cfg)  # v1 specs only
             await healing.load()
@@ -241,6 +243,8 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             self._clear()
+            # Only Reset empties the patch log; Start, scenarios and drifts keep adding to it.
+            self.base_heal = len(self.store.audit_events())
 
     async def explore(
         self,
@@ -294,7 +298,6 @@ class Dashboard:
         self.epoch += 1
         events = self.store.call_events()
         self.base_event = events[-1]["event_id"] if events else 0
-        self.base_heal = len(self.store.audit_events())
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces = {a: [] for a in self.mocks}
 
@@ -363,10 +366,15 @@ def create_app(db_path: str | None = None) -> FastAPI:
 
     app = FastAPI(title="Self-healing demo dashboard", lifespan=lifespan)
     app.state.dash = dash
+    app.include_router(connections_router)
 
     @app.get("/", include_in_schema=False)
     async def landing() -> FileResponse:
         return FileResponse(HERE / "landing.html", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/guide.js", include_in_schema=False)
+    async def guide() -> FileResponse:
+        return FileResponse(HERE / "guide.js", headers={"Cache-Control": "no-cache"})
 
     @app.get("/theme.css", include_in_schema=False)
     async def theme() -> FileResponse:
@@ -409,6 +417,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.post("/api/mutation")
     async def mutation(body: MutationIn) -> dict:
         await bad_request(dash.mutate(body.id))
+        if body.id and all(r["status"] != "running" for r in dash.runs.values()):
+            # Nothing is calling the API, so a drift would go unseen: run a quick scripted
+            # pass so the break is hit and healed, and the patch log shows it.
+            await bad_request(dash.start("scripted", 0.3))
         return dash.state()
 
     @app.post("/api/reset")
