@@ -33,9 +33,18 @@ def check(
                     get(base_doc, op["from"])
                 except KeyError:
                     return Reason.NO_SAFE_VALUE
+            elif op["op"] == OpName.enum_map:
+                try:
+                    get(base_doc, op["path"])
+                except KeyError:
+                    return Reason.NO_SAFE_VALUE
         for op in req + resp:
             name = op["op"]
-            if name in (OpName.move, OpName.cast) and spec_paths is not None:
+            if name == OpName.enum_map:
+                mapping = op.get("mapping", {})
+                if len(set(mapping.values())) != len(mapping):
+                    return Reason.UNSAFE_PATCH
+            if name in (OpName.move, OpName.cast, OpName.enum_map) and spec_paths is not None:
                 dest = op["to"] if name == OpName.move else op["path"]
                 if tuple(dest) not in spec_paths:
                     return Reason.UNSAFE_PATCH
