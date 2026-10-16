@@ -657,4 +657,4 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 | AC-78 | The benchmark scorecard endpoint `GET /api/metrics/scorecard` returns measured ZTAR, False-Patch Rate, Safe-Refusal Rate, token overhead and per-scenario outcomes from `bench/report.md`, and renders in the scorecard panel | Unit (`tests/dashboard/test_ac_78_scorecard.py`) |
 | AC-79 | The live safety and timing endpoint `GET /api/metrics/live` reports the session's heals by tier, outcomes, safe refusals and token usage, and renders in the live safety panel | Unit (`tests/dashboard/test_ac_79_live_safety.py`) |
 | AC-80 | The fix lifecycle endpoint `GET /api/metrics/lifecycle` returns rules, active fixes, patch ops and replay telemetry using only existing read-only `FixStore` methods, and renders in the fix lifecycle panel | Unit (`tests/dashboard/test_ac_80_lifecycle.py`) |
-
+| AC-74 | Explorer correctness checks the full task when no tools were called, while retaining scoped checks for called tools and accepting seeded state for C2/C3 controls | Unit (`tests/dashboard/test_ac_74_zero_call_run.py`) |

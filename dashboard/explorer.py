@@ -457,7 +457,7 @@ def check_data_correctness(
     live LLM given a one-line request is not failed for work it never asked for.
     An empty/None set means the full four-step demo task.
     """
-    full = touched is None
+    full = not touched
     check_email = full or "update_email" in touched
     check_manager = full or "set_manager" in touched
     check_tickets = full or "create_ticket" in touched
