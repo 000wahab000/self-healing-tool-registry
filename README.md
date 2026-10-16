@@ -1,44 +1,27 @@
 # Self-Healing Gateway for MCP and REST Tools
 
-**When an upstream API or MCP server changes under your agent, the call is repaired instead of looping.**
+**An agent calls one MCP server. When an upstream tool or API changes shape underneath it, the gateway repairs the call instead of letting the agent loop on the error.**
 
-Agents call tools generated once from a spec or a `tools/list`. Upstreams keep changing; the tools do not. This gateway sits between the agent and its upstreams. When a call breaks, it works out what changed, builds a small fix from operations that cannot write an invented value, tries it once, checks the answer and returns the result. When no safe fix exists it returns a structured refusal (`retry: false`) and the agent skips that one tool.
+Agents call tools that were generated once from a spec or a `tools/list`, and upstreams keep changing. The gateway sits in front of upstream MCP servers and web APIs (OpenAPI 3, Swagger 2.0, GraphQL). On a break it diffs the current schema against the original, builds a fix from a few operations that cannot write an invented value, retries once, checks the answer and writes one audit row. When no safe fix exists it returns a structured refusal (`retry: false`) and the agent skips that one tool.
 
 Built for **PS 01: Self-Healing Tool Registries Under Runtime API Schema Drift**.
 
-**Status.** The healing core, REST/OpenAPI path, benchmark and dashboard are built. The MCP front door is built; the upstream MCP client and MCP healing are in progress (see [`plan.md`](plan.md), Phase 13+). GraphQL, gRPC and Postgres are deferred.
-
 ```mermaid
 flowchart LR
-    A[Agent] -->|MCP: stdio or Streamable HTTP| F[Front-door MCP server<br/>frozen agent_schema]
-    F --> R[Registry + Healer<br/>detect, diagnose, fix, verify, audit]
-    R -->|MCP client| U1[Upstream MCP server 1..N]
-    R -->|REST adapter| U2[OpenAPI / Swagger 2.0 APIs]
-    R --> S[(SQLite audit log and fixes)]
-    W[Spec watcher] -.->|precompute| R
+    A[Agent] -->|MCP: stdio or HTTP| F[Front door<br/>python -m healer.mcp_server]
+    F --> R[Healing core<br/>detect, diagnose, fix, gate, verify, audit]
+    R --> U1[Upstream MCP servers]
+    R --> U2[OpenAPI / Swagger 2.0 / GraphQL APIs]
+    R --> S[(SQLite: fixes + audit log)]
+    W[Spec watcher] -.->|precompute fixes| R
+    T2[Tier-2 repair LLM<br/>--repair, ops only] -.->|when tiers 0/1 refuse| R
 ```
 
-## Measured so far
+Tier 0 replays a stored fix; tier 1 builds one with code; tier 2 (opt-in `--repair`, gpt-oss-20b on NVIDIA NIM) asks an LLM for DSL operations only, which pass the same safety gate and live verification. Details: [`writeup.md`](writeup.md).
 
-| | Healing agent | Baseline |
-|---|---|---|
-| Tasks completed after the API changed (M1 to M5, M7, M9) | **100%** (21/21) | 14% (3/21) |
-| Wrong data written by a fix | **0** (0/24 heals) | n/a |
-| Refused safely when no safe fix existed | **100%** (6/6) | loops until the 10-call cap |
-| Heal time, new break (median / p95) | **49 ms / 66 ms** | n/a |
-| Heal time, repeated break (median / p95) | **4 ms / 8 ms** | n/a |
+## Measured
 
-<sub>Source: [`bench/report.md`](bench/report.md): REST mock, scripted mode (fixed tool calls, no LLM), N = 3, 2026-10-14, wall-clock on a laptop. Token overhead and MCP-upstream numbers are not measured yet.</sub>
-
-## How it heals
-
-1. **Frozen agent view.** Each tool keeps its day-one `agent_schema`; the registry translates to the current `wire_schema`.
-2. **Every reply is checked**: status, output schema and declared postchecks (catches a `200` that ignored the data).
-3. **Code builds the fix** from the current-versus-original schema diff, using `move`, `cast`, `header`, `route` (plus `enum_map`, `encoding`). A deterministic tie-breaker picks between equal candidates; the optional Jev classifier is used only if that still ties.
-4. **Prove it**: safety gate, one replay, full re-check, then commit or roll back. One audit row per attempt.
-5. **Refuse honestly** when no safe value exists.
-
-Hard rules (details in [`agent.md`](agent.md) §2): no invented values, no executed model code, no loops, no unlogged heal, frozen `agent_schema`, no secrets stored. Non-drift errors (409, missing record, invalid value on an unchanged spec) pass through unchanged.
+Scripted mode (fixed calls, no LLM), N = 3, from [`bench/report.md`](bench/report.md): the REST mock completed 21/21 healable runs (baseline 3/21), the MCP drift server completed 12/12 (baseline 0/12), and no healed run ended with wrong data (REST 0/24, MCP 0/12). **LLM-mode numbers (token cost, tier 2) are not measured yet.**
 
 ## Quick start
 
@@ -69,9 +52,11 @@ Hard rules (details in [`agent.md`](agent.md) §2): no invented values, no execu
    | Re-run the benchmark | `python -m bench.run --agent scripted --n 3` |
    | Run the mock API on its own | `python -m mock_api` → http://127.0.0.1:8000/docs |
    | Serve the gateway over MCP (needs `pip install -e ".[mcp]"`) | `python -m healer.mcp_server`, see [`docs/mcp-clients.md`](docs/mcp-clients.md) |
+   | Front your own upstreams (MCP servers and APIs) | `python -m healer.mcp_server --mcp-servers config/mcp_servers.json` (add `--repair` for tier 2, needs `NVIDIA_API_KEY`) |
+   | Run the MCP demo agent (no key; `--llm` for a live agent) | `python -m demo.mcp_agent` |
    | Run the tests | `pytest -q` |
 
-**Dashboard pages:** `/` landing page; `/live` both agents side by side with four presets (Clean, M5, M8, M3), mutation buttons, patch log, metrics and the benchmark report.
+**Dashboard pages** (`python -m dashboard`): `/` landing page with a guided tour; `/live` both agents side by side with an editable prompt, mutation buttons, a "broke here" marker and a cost chart; patch log with a "what changed" animation; metrics and the benchmark report; `/connections` to add MCP servers and APIs by URL (tokens by environment-variable name only).
 
 **Real LLM agents** use NVIDIA NIM's OpenAI-compatible endpoint (`https://integrate.api.nvidia.com/v1`), default model [`openai/gpt-oss-20b`](https://build.nvidia.com/openai/gpt-oss-20b), temperature 0; `LLM_MODEL` overrides it. The dashboard loads `.env`; benchmark and pytest processes do not, so export the key in the shell for those:
 
@@ -87,11 +72,11 @@ RUN_E2E=1 .venv/bin/python -m pytest tests/e2e -q
 
 | Document | What's in it |
 |---|---|
-| [`docs/mcp-clients.md`](docs/mcp-clients.md) | Connect Claude Desktop, Cursor or Windsurf to the gateway; add an upstream server |
-| [`product.md`](product.md) | Requirements, mutation catalog, acceptance criteria |
-| [`technical-approach.md`](technical-approach.md) | Architecture, data model, algorithms, limits |
-| [`writeup.md`](writeup.md) | Diagnosis and patch logic, results, limitations |
-| [`bench/report.md`](bench/report.md) | Full benchmark tables, including the error-only ablation |
-| [`pitch.md`](pitch.md) | 30-second pitch and Q&A |
-| [`plan.md`](plan.md), [`AGENTS.md`](AGENTS.md), [`team-prompts.md`](team-prompts.md) | Build plan, file ownership across the four machines, kickoff prompts |
-| [`agent.md`](agent.md) | Coding rules and invariants |
+| [`docs/mcp-clients.md`](docs/mcp-clients.md) | Connect Claude Desktop, Cursor or Windsurf; add an upstream server |
+| [`writeup.md`](writeup.md) | Architecture, how healing works, evaluation, limits |
+| [`pitch.md`](pitch.md) | Spoken pitch and Q&A |
+| [`bench/report.md`](bench/report.md) | Full benchmark tables (the only source of numbers) |
+| [`product.md`](product.md), [`technical-approach.md`](technical-approach.md) | Requirements, acceptance criteria, design |
+| [`plan.md`](plan.md), [`AGENTS.md`](AGENTS.md), [`agent.md`](agent.md) | Build plan, file ownership, coding invariants |
+
+GraphQL APIs can be listed in the gateway config but are not benchmarked. gRPC and Postgres are deferred.
