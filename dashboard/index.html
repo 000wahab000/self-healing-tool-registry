@@ -155,6 +155,7 @@ div.calls-live .empty { display: block; color: var(--muted); text-align: center;
 .time, .lat { color: var(--muted); font: 12px var(--mono); }
 .lat { text-align: right; }
 .calls-live .tool { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
+.run-note { margin: 0; color: var(--ink-2); font-size: 13px; }
 
 /* patch log + metrics */
 .scroll { overflow-x: auto; }
@@ -236,6 +237,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <div class="groups" id="mutations"></div>
       </div>
       <div id="note" role="status"></div>
+      <p class="run-note" id="scenario-note" role="status" aria-live="polite"></p>
     </section>
     <div id="live-banner"></div>
     <div class="cols section">
@@ -626,6 +628,10 @@ function stepState(ts, tool, o) {
   if (last.error_class === "OK") {
     const d = o.details && o.details[{ update_email: "email", set_manager: "manager", create_ticket: "tickets" }[tool]];
     if (d && d.checked !== false && !d.ok && o.done) return { k: "silent", note: tool === "update_email" ? "200 OK, but the email was unchanged" : "200 OK, but final state does not match the task" };
+    if (ts.length > 1 && ts.some((t) => t.error_class === "E1")) {
+      const requests = ts.reduce((n, t) => n + (t.wire || []).filter((w) => w.path !== "/openapi.json" && !w.path.endsWith("/validate")).length, 0);
+      return { k: "done", note: "Transient retry · " + (requests || ts.length) + " requests" };
+    }
     return { k: "done", note: ts.length > 1 ? "OK after " + ts.length + " calls" : "OK" };
   }
   const code = (last.result && last.result.status_code) || last.error_class;
@@ -766,7 +772,7 @@ function callCard(t, healing, i) {
     const head = el("div", null, { class: "wire-head" });
     head.append(el("span", w.method + " " + w.path, { class: "mono" }));
     for (const name of w.headers || []) head.append(el("span", "+ " + name, { class: "tag" }));
-    body.append(block("New input from tool registry", head, ...(w.body !== null && w.body !== undefined ? [pre(w.body)] : []), ...(h && h.fix ? [opChips(h.fix)] : [])));
+    body.append(block(h && h.fix ? "New input from tool registry" : sent.length + " request attempts · transient retry", head, ...(w.body !== null && w.body !== undefined ? [pre(w.body)] : []), ...(h && h.fix ? [opChips(h.fix)] : [])));
   }
   body.append(block("Final output", pre(t.result)));
   d.append(sum, body);
@@ -850,7 +856,7 @@ $("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_
 $("start-llm").onclick = () => act("/api/start", { agent: "llm" });
 $("reset").onclick = () => act("/api/reset", {});
 
-let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut;
+let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut, liveRunScenario = null;
 const counts = { healing: 0, baseline: 0 };
 const liveCalls = { healing: [], baseline: [] };
 
@@ -862,7 +868,7 @@ function emptyCalls(agent) {
   list.replaceChildren(li);
 }
 function clearView() {
-  after = 0; healSig = "";
+  after = 0; healSig = ""; liveRunScenario = null; $("scenario-note").textContent = "";
   for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; const list = $("calls-" + a); if (list) list.classList.remove("calls"); emptyCalls(a); }
 }
 // Scripted runs carry full traces, so each call becomes the same dropdown the presets show.
@@ -907,7 +913,8 @@ function renderRun(agent, s) {
     const data = s.mocks[agent].data;
     const emailMismatch = agent === "baseline" && run.status === "done" && run.data_correct === false && lastLiveMut === "M7" && data.users["123"].email !== TASK_ARGS.update_email.email;
     const details = emailMismatch ? { email: { checked: true, ok: false } } : undefined;
-    renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, details, done: run.status === "done", total: counts[agent], capped: run.hit_limit });
+    const tools = CONTROL_TOOLS[liveRunScenario] || TOOLS;
+    renderSteps($("steps-" + agent), tools, liveCalls[agent], { healing: agent === "healing", heals, details, done: run.status === "done", total: counts[agent], capped: run.hit_limit });
   }
   const shownRun = exploreRes ? exploreRes[agent] : run;
   const data = (exploreRes && shownRun.data_state) || s.mocks[agent].data, user = data.users["123"];
@@ -978,6 +985,10 @@ function renderMetrics(m) {
   $("reasons-list").replaceChildren(...reasons.map(([k, v]) => el("span", k + " ×" + v, { class: "op" })));
 }
 function render(s) {
+  if (s.run_scenario !== undefined) liveRunScenario = s.run_scenario;
+  const selectedControl = ["C2", "C3"].includes(s.active_mutation) ? s.active_mutation : null;
+  $("scenario-note").textContent = selectedControl && selectedControl !== liveRunScenario
+    ? selectedControl + " selected after this run started; it cannot affect the current task. Start a new run to use it." : "";
   const chip = $("mutation-chip");
   chip.textContent = s.active_mutation ? "Live mutation " + s.active_mutation : "No mutation";
   chip.className = "pill " + (s.active_mutation ? "bad" : "plain");

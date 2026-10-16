@@ -10,7 +10,7 @@ import json
 import os
 import tempfile
 import uuid
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -23,6 +23,7 @@ from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel, Field
 
 from agents import baseline_agent, common, healing_agent, scripted
+from bench.run import CONTROL_STEPS, CONTROL_TASK
 from dashboard.explorer import (
     _recording_executor,
     check_data_correctness,
@@ -92,6 +93,7 @@ class Dashboard:
         self.clients: list[httpx.AsyncClient] = []
         self.epoch = 0
         self.mutation: str | None = None
+        self.run_scenario: str | None = None
         self.base_event = 0  # the view starts after the last start / reset
         self.base_heal = 0
         self.runs = {a: dict(IDLE) for a in self.mocks}
@@ -103,6 +105,7 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             mutation = self.mutation  # a drift picked before Start applies to this run
+            scenario = mutation if mutation in CONTROL_STEPS else None
             self._clear()
             http = {
                 a: httpx.AsyncClient(
@@ -140,6 +143,7 @@ class Dashboard:
                         False,
                         step_delay,
                         run_id,
+                        CONTROL_STEPS.get(scenario, scripted.STEPS),
                     ),
                     "baseline": lambda: self._scripted(
                         base_exec,
@@ -147,10 +151,12 @@ class Dashboard:
                         True,
                         step_delay,
                         run_id,
+                        CONTROL_STEPS.get(scenario, scripted.STEPS),
                     ),
                 }
             else:
                 llm = common.make_llm()
+                task = CONTROL_TASK.get(scenario, common.TASK)
                 heal_exec, self.traces["healing"] = _recording_executor(
                     healing_agent.executor(healing), self.store, {}, self.mocks["healing"]
                 )
@@ -171,16 +177,24 @@ class Dashboard:
                     prompt=common.SYSTEM_PROMPT,
                 )
                 jobs = {
-                    "healing": lambda: common.run(heal_graph, common.TASK),
-                    "baseline": lambda: common.run(base_graph, common.TASK),
+                    "healing": lambda: common.run(heal_graph, task),
+                    "baseline": lambda: common.run(base_graph, task),
                 }
             self.runs = {a: {**IDLE, "status": "running"} for a in jobs}
+            self.run_scenario = scenario  # the page's "cannot affect this run" note
             self.tasks = {
-                a: asyncio.create_task(self._finish(a, job)) for a, job in jobs.items()
+                a: asyncio.create_task(self._finish(a, job, mutation))
+                for a, job in jobs.items()
             }
 
     async def _scripted(
-        self, execute, agent: str, retry_same_args: bool, step_delay: float, run_id: str
+        self,
+        execute,
+        agent: str,
+        retry_same_args: bool,
+        step_delay: float,
+        run_id: str,
+        steps: Sequence[tuple[str, dict]] = scripted.STEPS,
     ):
         # The first call (get_user) would otherwise fire before any mutation can be triggered.
         await asyncio.sleep(LEAD_IN_STEPS * step_delay)
@@ -191,13 +205,20 @@ class Dashboard:
             store=self.store,
             run_id=run_id,
             step_delay=step_delay,
+            steps=steps,
         )
 
-    async def _finish(self, agent: str, job) -> None:
+    async def _finish(self, agent: str, job, run_mutation: str | None) -> None:
         try:
             run = asdict(await job())
+            # Rate what the run saw, not whatever mutation is live now: a control
+            # picked after Start cannot affect this task (the page says so too).
+            if run_mutation is None and self.mutation in CONTROL_STEPS:
+                mut = None
+            else:
+                mut = self.mutation
             run["data_correct"] = check_data_correctness(
-                self.mocks[agent].state(), self.mutation
+                self.mocks[agent].state(), mut
             )[0]
             self.runs[agent] = {"status": "done", **run}
         # A crashed run is shown on the page as the run's error, not swallowed.
@@ -282,6 +303,7 @@ class Dashboard:
         return {
             "epoch": self.epoch,
             "active_mutation": self.mutation,
+            "run_scenario": self.run_scenario,
             "runs": self.runs,
             # Both agents share one audit log; only the healing side can heal.
             "traces": {
