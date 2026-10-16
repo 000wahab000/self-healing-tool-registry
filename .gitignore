@@ -8,6 +8,3 @@ __pycache__/
 bench/results*
 .claude/
 graphify-out/
-
-# local SQLite files
-*.sqlite
