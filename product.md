@@ -307,6 +307,16 @@ Design principles:
 - **FR-16.3** A patch log read from the audit log, and a metrics panel.
 - **FR-16.4** A landing page at `/` explains the problem, where the registry sits, and how drift is detected, classified and patched. The Live view (`/live`) has four presets (CLEAN, M5, M8, M3) that run both agents side by side with a 4-step tracker per agent. Each tool call is a dropdown, closed by default, showing the agent input, the error, the new input the registry sent (header names only, never values) and the final output.
 
+### F18 Spec watcher (MCP gateway, T2-7)
+
+> Numbered F18; FR-17 is the STRETCH section (S1 to S8 plus `Healer.precompute`, FR-17.11). The watcher feeds that precompute hook (contract 5 in `AGENTS.md`).
+
+- **FR-18.1** The watcher polls each `SpecSource` on an interval and keeps, per source, the last `LoadedSpec` it saw. It runs as a background task and never blocks a tool call.
+- **FR-18.2** When a source's `spec_hash` differs from the last one seen, the watcher saves the new snapshot to the `FixStore` (`save_spec`) exactly once per change. The first observation of a source establishes the baseline: it saves the snapshot but triggers no precompute.
+- **FR-18.3** On a change, the watcher calls `Healer.precompute(old, new)` with the two `LoadedSpec`s, and only when the healer provides `precompute` (contract 5). Without it, the watcher still records snapshots.
+- **FR-18.4** When a source fails (`httpx.HTTPError` or `ValueError`, the `SpecSource` contract) the watcher backs off that source: its next poll is delayed by `interval × 2^failures`, capped at a maximum. A later success resets the backoff. One failing source never stops the others.
+- **FR-18.5** The clock and the sleep are injected, so tests run with no real time and no network.
+
 ### STRETCH
 
 - **S1:** After a commit, prepare `candidate` fixes for other tools on the same API whose base schema contains the same removed field (same name and type). A candidate is used only when that tool's fingerprint matches, and it is always verified.
@@ -557,6 +567,7 @@ Note: "Store (T0)" and the negative cache in the diagram are STRETCH (S6, S7). J
 | AC-25 | An `E3` fixture (non-JSON body) returns a structured error with reason `UNSUPPORTED_CLASS`, writes exactly one audit event and replays nothing | Integration |
 | AC-26 | (STRETCH, S8) M10: the heal produces the same operations as M1, the final mock state is correct, no field, header or value in any request is derived from the injected text, and the audit decision path matches M1's | Integration |
 | AC-27 | The deterministic tie-breaker: M6-D yields exactly one winner, M6-N yields none, and on a write tool an order-only or type-only advantage is not a win | Unit table |
+| AC-55 | The spec watcher snapshots a changed spec within one poll interval, does no extra work for an unchanged spec, backs off a failing source until it recovers, and calls `Healer.precompute(old, new)` only when the healer provides it | Unit |
 
 ### Traceability
 
@@ -578,6 +589,7 @@ Note: "Store (T0)" and the negative cache in the diagram are STRETCH (S6, S7). J
 | F14 | FR-14.1 | AC-17 |
 | F15 | FR-15.1 to 15.8 | AC-14 to AC-17, AC-23 |
 | F16 | FR-16.1 to 16.4 | AC-18 |
+| F18 | FR-18.1 to 18.5 | AC-55 |
 | S6 | FR-5.1, FR-5.2, FR-5.6, FR-10.3, FR-10.4 | AC-11 |
 | S7 | FR-10.5, FR-11.3 | AC-12, AC-19 |
 | S8 | FR-12.8 | AC-26 |
