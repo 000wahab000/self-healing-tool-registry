@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sqlite3
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
@@ -133,6 +134,9 @@ class Healer:
             reason = Reason.DEADLINE
         except OpError as e:
             reason = e.reason
+        except Exception:  # a bug must still end in one audit row and a structured error
+            logging.getLogger(__name__).exception("heal failed for %s", tool.name)
+            reason = Reason.VERIFY_FAILED
         return self._abort(h, reason)
 
     async def _run(self, h: _Heal) -> Any:
@@ -396,13 +400,12 @@ class Healer:
                 self._store.promote(fix.fix_id)
                 self._store.record_result(fix.fix_id, True)
                 fix.status = FixStatus.active
-            elif h.tier is Tier.T0:
+            elif h.tier is Tier.T0:  # a replay of one fix is not new evidence for a rule
                 self._store.record_result(fix.fix_id, True)
             else:
                 h.fix_id = self._store.save_fix(fix)
-                pat = fix.signature.get("abstract")
-                if pat:
-                    self._store.record_rule_win(pat)
+            if h.tier is not Tier.T0 and (pat := fix.signature.get("abstract")):
+                self._store.record_rule_win(pat)
             self._store.audit(self._event(h, HealOutcome.RECOVERED, None))
         except sqlite3.Error:  # a fix that cannot be logged is not applied
             raise _Abort(Reason.VERIFY_FAILED) from None
