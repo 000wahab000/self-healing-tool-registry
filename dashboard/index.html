@@ -167,6 +167,13 @@ div.calls-live .empty { display: block; color: var(--muted); text-align: center;
 .call.broke { animation: call-shake .45s ease-in-out 2, call-red 1.6s ease-out forwards; }
 .call.healed { animation: call-heal 2.2s ease-out forwards; }
 .call .where { font: 500 var(--fs-xs)/20px var(--sans); padding: 0 8px; border-radius: var(--r-pill); white-space: nowrap; }
+.why { border-left: 3px solid var(--bad); background: var(--bad-bg); border-radius: 0 var(--r) var(--r) 0; padding: 8px 12px; font-size: var(--fs-sm); color: var(--ink); line-height: 1.5; }
+.why.fixed { border-left-color: var(--ok); background: var(--ok-bg); }
+.why b { font-weight: 600; }
+.why code, mark.hit { font-family: var(--mono); font-size: .95em; }
+mark.hit { background: var(--warn-bg); color: var(--warn); border-radius: 3px; padding: 0 2px; outline: 1px solid var(--warn); animation: hit-pulse 1.2s ease-out 2; }
+@keyframes hit-pulse { 50% { outline-offset: 2px; } }
+@media (prefers-reduced-motion: reduce) { mark.hit { animation: none; } }
 .call.broke .where { background: var(--bad-bg); color: var(--bad); }
 .call.healed .where { background: var(--ok-bg); color: var(--ok); animation: where-swap 2.2s steps(1) forwards; }
 @keyframes call-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
@@ -222,8 +229,8 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
 @keyframes chg-fly { 0% { left: 0; opacity: 1; } 90% { opacity: 1; } 100% { left: calc(100% - 10px); opacity: 0; } }
 @keyframes chg-land { 0% { opacity: .45; } 60% { transform: scale(1.06); box-shadow: 0 0 0 4px var(--accent-bg); } 100% { opacity: 1; transform: none; background: var(--ok-bg); color: var(--ok); } }
 .chg-none { color: var(--ink-2); font-size: var(--fs-sm); }
-.broke { display: block; margin-top: 3px; font: var(--fs-xs) var(--sans); color: var(--ink-2); white-space: normal; max-width: 300px; }
-.broke b { color: var(--bad); font-weight: 600; }
+.broke-line { display: block; margin-top: 3px; font: var(--fs-xs) var(--sans); color: var(--ink-2); white-space: normal; max-width: 300px; }
+.broke-line b { color: var(--bad); font-weight: 600; }
 .story { margin: 0 0 12px; padding: 12px 16px; border-left: 3px solid var(--bad); background: var(--panel); border-radius: 0 var(--r) var(--r) 0; font-size: var(--fs-sm); color: var(--ink-2); }
 .story b { color: var(--ink); }
 .story pre { margin: 8px 0 0; max-height: 140px; overflow: auto; font-size: var(--fs-xs); background: var(--soft); padding: 8px 10px; border-radius: var(--r-sm); }
@@ -957,6 +964,68 @@ function healBox(h) {
   if (k === "biz") box.append(el("p", "The spec is unchanged, so the error is the agent's to handle. No patch, no replay.", { class: "hint" }));
   return box;
 }
+// Why a call broke, from the error's structure only (field paths and error types). The API's
+// free-text message is never echoed: it is untrusted and, in M10, an injection attempt.
+const TYPE_WHY = { missing: "is required but was not sent", extra_forbidden: "is no longer accepted",
+  string_type: "must be text", int_type: "must be a whole number", int_parsing: "must be a whole number",
+  float_type: "must be a number", bool_type: "must be true or false", enum: "must be one of the new allowed values",
+  literal_error: "must be one of the new allowed values", string_pattern_mismatch: "has the wrong format",
+  model_attributes_type: "must be an object" };
+const STATUS_WHY = { 401: "the API now requires a login", 403: "the API refused access", 404: "the endpoint moved or no longer exists",
+  405: "the endpoint no longer accepts this method", 409: "the request conflicts with existing data", 415: "the API wants a different body format",
+  422: "the API rejected the shape of the request", 429: "too many requests (temporary)" };
+function breakInfo(t, h) {
+  const res = t.result || {}, body = res.body;
+  // A healed call's final result is the good one: the original failure lives on the heal event.
+  const code = h && h.outcome === "RECOVERED" ? Number(h.raw_code) || undefined : res.status_code;
+  const detail = body && Array.isArray(body.detail) ? body.detail : [];
+  const fields = detail.filter((d) => Array.isArray(d.loc)).map((d) => ({ path: d.loc.join("."), name: String(d.loc[d.loc.length - 1]), why: TYPE_WHY[d.type] || "was rejected (" + d.type + ")" }));
+  const sent = Object.keys(t.args || {});
+  let lead = code >= 500 ? "the API had a server error (temporary)" : STATUS_WHY[code] || (code ? "the API answered HTTP " + code : "the call failed");
+  const cls = (h && h.class) || t.error_class;
+  if (cls === "E5") lead = "the API answered 200 OK, but the reply came back in a different shape";
+  if (cls === "E6") lead = "the API answered 200 OK, but silently ignored the change";
+  return { lead, fields, sent };
+}
+function whyBox(t, h) {
+  const { lead, fields, sent } = breakInfo(t, h);
+  // No error body (a healed call): name the fields from the fix's own moves instead.
+  const moves = (h && h.fix ? h.fix.request_ops : []).filter((o) => o.op === "move");
+  if (!fields.length && moves.length) {
+    const box = el("div", null, { class: "why" + (h.outcome === "RECOVERED" ? " fixed" : "") });
+    box.append(el("b", "Why it broke: "), lead + ": the API now expects ");
+    moves.forEach((o, k) => { if (k) box.append(", "); box.append(el("code", o.to.join(".")), " instead of ", el("code", o.from.join("."))); });
+    box.append(".", el("br"), el("b", "How it was healed: "), [...h.fix.request_ops, ...h.fix.response_ops].map((o) => opText(o).join(" ")).join("; ") + ".");
+    return { box, terms: moves.flatMap((o) => [o.to[o.to.length - 1], o.from[o.from.length - 1]]).map(String) };
+  }
+  const box = el("div", null, { class: "why" + (h && h.outcome === "RECOVERED" ? " fixed" : "") });
+  box.append(el("b", "Why it broke: "), lead + (fields.length ? ": " : "."));
+  fields.slice(0, 3).forEach((f, k) => { if (k) box.append(", "); box.append(el("code", f.path), " " + f.why); });
+  if (fields.length) {
+    const missing = fields.filter((f) => f.why.startsWith("is required")).map((f) => f.name);
+    const gone = sent.filter((a) => !fields.some((f) => f.name === a) && missing.length);
+    box.append(". ");
+    if (missing.length && gone.length) box.append("The agent sent ", el("code", gone.join(", ")), " (the old name), so nothing matched.");
+  }
+  if (h && h.outcome === "RECOVERED" && h.fix) {
+    const ops = [...h.fix.request_ops, ...h.fix.response_ops].map((o) => opText(o).join(" ")).join("; ");
+    box.append(el("br"), el("b", "How it was healed: "), ops || "replayed unchanged", ".");
+  } else if (h && h.outcome !== "RECOVERED") {
+    box.append(el("br"), el("b", "Why not healed: "), (h.reason === "NOT_DRIFT" ? "the API's shape did not change, so the error belongs to the agent." : "no safe fix (" + (h.reason || "refused") + "); the registry never guesses a value."));
+  }
+  return { box, terms: fields.map((f) => f.name) };
+}
+// A JSON block with the broken field names marked, built with text nodes only.
+function preHighlight(v, terms) {
+  const text = formatJson(v), node = el("pre");
+  terms = terms.filter((x) => /^\w+$/.test(x));  // field names only: nothing to escape
+  if (!terms.length) { node.textContent = text; return node; }
+  const re = new RegExp('"(' + terms.join("|") + ')"', "g");
+  let last = 0, m;
+  while ((m = re.exec(text))) { node.append(text.slice(last, m.index), el("mark", m[0], { class: "hit" })); last = m.index + m[0].length; }
+  node.append(text.slice(last));
+  return node;
+}
 function callCard(t, healing, i) {
   const h = t.heal_event;
   const recovered = h && h.outcome === "RECOVERED";
@@ -971,9 +1040,12 @@ function callCard(t, healing, i) {
   else if (failed || h) sum.append(el("span", "✕ broke here", { class: "where" }));
   sum.append(el("span", t.latency_ms + " ms", { class: "ms" }), el("span", null, { class: "plus", "aria-hidden": "true" }));
   const body = el("div", null, { class: "call-body" });
-  body.append(block("Agent input", pre(t.args)));
+  const broken = (t.error_class && t.error_class !== "OK") || h;
+  const why = broken ? whyBox(t, h) : null;
+  if (why) body.append(why.box);
+  body.append(block("Agent input", why ? preHighlight(t.args, why.terms) : pre(t.args)));
   if (h) body.append(block("Error", healBox(h)));
-  else if (t.error_class !== "OK") body.append(block("Error", pre(t.result)));
+  else if (t.error_class !== "OK") body.append(block("Error", preHighlight(t.result, why.terms)));
   const sent = (t.wire || []).filter((w) => w.path !== "/openapi.json" && !w.path.endsWith("/validate"));
   if (healing && sent.length > 1) {
     const w = sent[sent.length - 1];
@@ -1014,6 +1086,8 @@ function replay(res) {
       shown[a].push(traces[i]);
       const list = $("p-calls-" + a);
       const card = list.appendChild(callCard(traces[i], a === "healing", i));
+      // Open the first break in each column so the "why it broke" line is visible at once.
+      if (card.matches(".broke, .healed") && !list.querySelector("details.call[open]")) card.open = true;
       list.scrollTop = card.offsetTop - 4;
       steps(a, false);
       more = more || i + 1 < traces.length;
@@ -1210,7 +1284,7 @@ function renderHeals(heals) {
     const outcome = el("td"); outcome.append(el("span", k === "warn" ? "Safe refusal · 0 invented values" : k === "biz" ? "Business error pass-through" : text.split(" · ")[0], { class: "tag " + k }));
     if (h.reason && h.reason !== "NOT_DRIFT") outcome.append(" ", el("span", h.reason, { class: "tag" }));
     const toolCell = el("td", null, { class: "mono" });
-    const short = el("span", null, { class: "broke" });
+    const short = el("span", null, { class: "broke-line" });
     short.append(el("b", h.outcome === "RECOVERED" ? "Fixed: " : h.reason === "NOT_DRIFT" ? "Passed on: " : "Refused: "), brokeRow(h));
     toolCell.append(h.tool, short);
     tr.append(first, toolCell, cell(badge(h.class)), el("td", String(h.tier)), el("td", h.path || "-"), outcome,
