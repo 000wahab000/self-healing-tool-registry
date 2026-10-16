@@ -5,12 +5,12 @@
 :root {
   color-scheme: light;
   /* surfaces and lines */
-  --bg: #f5f5f2; --panel: #fbfbf8; --raised: #fbfbf8; --soft: #eceee8;
-  --line: #e1eadd; --sage: #e1eadd; --line-2: #b9c6b3; --dash: #cdc8c7;
-  --ink: #000000; --ink-2: #3b4237; --muted: #7d8778; --on-ink: #ffffff; --on-accent: #000000;
+  --bg: #e8e8e3; --panel: #f0f0eb; --raised: #f0f0eb; --soft: #e0e1db;
+  --line: #d5dbcf; --sage: #d5dbcf; --line-2: #b0b9a8; --dash: #c4c0bd;
+  --ink: #000000; --ink-2: #3b4237; --muted: #5d6558; --on-ink: #ffffff; --on-accent: #000000;
   --accent: #19e76e; --accent-ink: #00b86b; --accent-bg: #e8fbef;
   --ok: #00804a; --ok-bg: #e3f9ea; --warn: #93650a; --warn-bg: #f6ecd2; --bad: #b3372d; --bad-bg: #f8e4e0;
-  --biz: #2f5b96; --biz-bg: #e3ebf6;
+  --biz: #4f5a4a; --biz-bg: #dfe2da;
   --e1: #93650a; --e1-bg: #f6ecd2; --e2: #b3372d; --e2-bg: #f8e4e0; --e3: #6f3fb0; --e3-bg: #efe6fa;
   --e4: #b5521c; --e4-bg: #fbe9db; --e5: #a8336c; --e5-bg: #f9e3ee; --e6: #1f6f6a; --e6-bg: #dcefed;
   --pink: var(--e5);
@@ -42,7 +42,7 @@
     --ink: #ecede8; --ink-2: #b9bdb1; --muted: #8d9386; --on-ink: #000000; --on-accent: #000000;
     --accent: #19e76e; --accent-ink: #3ddc84; --accent-bg: #15291d;
     --ok: #3ddc84; --ok-bg: #15291d; --warn: #e8b04a; --warn-bg: #2d2513; --bad: #ff7a6b; --bad-bg: #3a1c18;
-    --biz: #8fb3e6; --biz-bg: #1b2433;
+    --biz: #b3baab; --biz-bg: #272a24;
     --e1: #e8b04a; --e1-bg: #2d2513; --e2: #ff7a6b; --e2-bg: #3a1c18; --e3: #b79cff; --e3-bg: #261e3d;
     --e4: #ff9e5e; --e4-bg: #34200f; --e5: #ff86bb; --e5-bg: #35182a; --e6: #4fd6cb; --e6-bg: #12302d;
     --series-baseline: #ea580c; --series-healing: #22a866;
@@ -56,7 +56,7 @@
   --ink: #ecede8; --ink-2: #b9bdb1; --muted: #8d9386; --on-ink: #000000; --on-accent: #000000;
   --accent: #19e76e; --accent-ink: #3ddc84; --accent-bg: #15291d;
   --ok: #3ddc84; --ok-bg: #15291d; --warn: #e8b04a; --warn-bg: #2d2513; --bad: #ff7a6b; --bad-bg: #3a1c18;
-  --biz: #8fb3e6; --biz-bg: #1b2433;
+  --biz: #b3baab; --biz-bg: #272a24;
   --e1: #e8b04a; --e1-bg: #2d2513; --e2: #ff7a6b; --e2-bg: #3a1c18; --e3: #b79cff; --e3-bg: #261e3d;
   --e4: #ff9e5e; --e4-bg: #34200f; --e5: #ff86bb; --e5-bg: #35182a; --e6: #4fd6cb; --e6-bg: #12302d;
   --series-baseline: #ea580c; --series-healing: #22a866;
