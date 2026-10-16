@@ -34,7 +34,7 @@ from dashboard.explorer import (
 )
 from dashboard.metrics_view import fix_lifecycle, live_safety, scorecard
 from healer import metrics
-from healer.gateway import load_apis, load_config
+from healer.gateway import Gateway, load_apis, load_config
 from healer.jev import from_env
 from healer.models import AuditEvent, ErrorClass, HealOutcome
 from healer.registry import Registry
@@ -81,7 +81,13 @@ class ExploreIn(BaseModel):
 class Dashboard:
     """Both agents run the demo task against their own mock; the store is shared."""
 
-    def __init__(self, db_path: str | None = None) -> None:
+    def __init__(
+        self,
+        db_path: str | None = None,
+        gateway: Registry | Gateway | None = None,
+        mcp_port: int = 8001,
+        upstream_config_path: str | Path | None = None,
+    ) -> None:
         env = os.environ
         self.cfg = {
             "OAUTH_BEARER": env.get("OAUTH_BEARER") or "Bearer test-token",
@@ -121,6 +127,9 @@ class Dashboard:
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
         self._mcp_info: dict | None = None
+        self.gateway = gateway
+        self.mcp_port = mcp_port
+        self.upstream_config_path = upstream_config_path
 
     def _not_busy(self) -> None:
         """A scenario (and a live-LLM one can take minutes) holds the lock for its whole run.
@@ -327,17 +336,22 @@ class Dashboard:
     async def mcp_info(self) -> dict:
         """What the MCP front door exposes, read from the same `Registry.tools()`."""
         if self._mcp_info is None:
-            # A fresh mock, so the frozen schemas come from the clean v1 spec,
-            # never from a mutation the live demo happens to have applied.
-            token = self.cfg["OAUTH_BEARER"].removeprefix("Bearer ")
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=create_mock(token)),
-                base_url="http://mock",
-            ) as client:
-                registry = Registry(client, self.tools, self.cfg, self.store)
-                await registry.load()
-                tools = registry.tools()
-            upstream = ROOT / "config" / "mcp_servers.json"
+            if self.gateway is not None:
+                tools = self.gateway.tools()
+            else:
+                # A fresh mock, so the frozen schemas come from the clean v1 spec,
+                # never from a mutation the live demo happens to have applied.
+                token = self.cfg["OAUTH_BEARER"].removeprefix("Bearer ")
+                async with httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=create_mock(token)),
+                    base_url="http://mock",
+                ) as client:
+                    registry = Registry(client, self.tools, self.cfg, self.store)
+                    await registry.load()
+                    tools = registry.tools()
+            upstream = Path(
+                self.upstream_config_path or ROOT / "config" / "mcp_servers.json"
+            )
             self._mcp_info = {
                 "front_door": {
                     "name": "healer",
@@ -346,7 +360,7 @@ class Dashboard:
                         "http": {
                             "path": "/mcp",
                             "default_host": "127.0.0.1",
-                            "default_port": 8001,
+                            "default_port": self.mcp_port,
                         },
                     },
                     "tools": tools,
@@ -529,13 +543,20 @@ async def bad_request(call: Awaitable[None]) -> None:
         raise HTTPException(400, str(exc)) from exc
 
 
-def create_app(db_path: str | None = None) -> FastAPI:
-    dash = Dashboard(db_path)
+def create_app(
+    db_path: str | None = None,
+    gateway: Registry | Gateway | None = None,
+    mcp_port: int = 8001,
+    upstream_config_path: str | Path | None = None,
+) -> FastAPI:
+    dash = Dashboard(db_path, gateway, mcp_port, upstream_config_path)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        yield
-        await dash.aclose()
+        try:
+            yield
+        finally:
+            await dash.aclose()
 
     app = FastAPI(title="Self-healing demo dashboard", lifespan=lifespan)
     app.state.dash = dash
