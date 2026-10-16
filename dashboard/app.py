@@ -110,6 +110,9 @@ class Dashboard:
         events = self.store.call_events()
         self.base_event = events[-1]["event_id"] if events else 0
         self.base_heal = 0
+        self._audit: list[AuditEvent] = []
+        self._audit_last_id = 0
+        self._heal_summaries: list[dict] = []
         self.base_call = self.base_event  # Metrics counts calls since the last Reset or restart
         # The measured LLM token pair (baseline, healing) stays for the session, so a
         # later scripted run does not erase a figure an earlier LLM run measured.
@@ -285,7 +288,10 @@ class Dashboard:
             await self._stop()
             self._clear()
             # Only Reset empties the patch log; Start, scenarios and drifts keep adding to it.
-            self.base_heal = len(self.store.audit_events())
+            self._refresh_audit()
+            self.base_heal += len(self._audit)
+            self._audit.clear()
+            self._heal_summaries.clear()
             calls = self.store.call_events()
             self.base_call = calls[-1]["event_id"] if calls else 0
             self._llm_tokens = None
@@ -388,7 +394,8 @@ class Dashboard:
         self.traces = {a: [] for a in self.mocks}
 
     def state(self, after: int = 0) -> dict:
-        audit = self.store.audit_events()[self.base_heal :]
+        self._refresh_audit()
+        audit = self._audit
         return {
             "epoch": self.epoch,
             "active_mutation": self.mutation,
@@ -400,7 +407,7 @@ class Dashboard:
                 "baseline": [{**t, "heal_event": None} for t in self.traces["baseline"]],
             },
             "events": self.store.call_events(max(after, self.base_event)),
-            "heals": [self._heal(e) for e in audit],
+            "heals": self._heal_summaries.copy(),
             "metrics": {
                 "mttr": {
                     str(int(t)): v for t, v in metrics.mttr_summary(audit).items()
@@ -413,6 +420,13 @@ class Dashboard:
                 for a, m in self.mocks.items()
             },
         }
+
+    def _refresh_audit(self) -> None:
+        for event_id, event in self.store.audit_events_since(self._audit_last_id):
+            summary = self._heal(event)
+            self._audit.append(event)
+            self._heal_summaries.append(summary)
+            self._audit_last_id = event_id
 
     def _drift(self, mutation: str | None) -> None:
         self.drifts.append((time.time_ns() // 1_000_000, mutation))
@@ -456,7 +470,7 @@ class Dashboard:
         scripted run makes no model call, so it falls back to an explicitly
         labelled estimate (`tokens_measured` is false) until an LLM run measures it.
         """
-        calls = [e for e in self.store.call_events() if e["event_id"] > self.base_call]
+        calls = self.store.call_events(self.base_call)
         total = {"healing": 0, "baseline": 0}
         errors = {"healing": 0, "baseline": 0}
         retries = {"healing": 0, "baseline": 0}

@@ -181,6 +181,11 @@ class PostgresStore:
             cur.execute(f"SELECT {AUDIT_COLS} FROM heal_events ORDER BY event_id")
             return [_event(row) for row in cur.fetchall()]
 
+    def audit_events_since(self, after_event_id: int) -> list[tuple[int, AuditEvent]]:
+        raise NotImplementedError(
+            "PostgresStore: audit_events_since not implemented yet, see plan.md (deferred)"
+        )
+
     def is_negative(self, fp: str) -> bool:
         return self._neg.get(fp, 0) > self._clock()
 
