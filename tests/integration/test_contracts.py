@@ -50,3 +50,13 @@ async def test_injected_spec_source_serves_load_and_heal(api, client, make_regis
     api.set_mutation("M1")
     assert await reg.call("get_user", {"user_id": "123"}) == USER
     assert len(seen) == 2 and seen[0] != seen[1]  # the heal diagnosed the mutated spec
+
+
+async def test_contract_4_registry_exposes_tools_accessor(make_registry):
+    """Contract 4: Registry exposes tools() and passes tools accessor to Healer."""
+    reg = await make_registry()
+    assert reg.healer._tools is not None
+    tools = list(reg.healer._tools())
+    assert len(tools) == len(reg.tools())
+    assert {t.name for t in tools} == {t["name"] for t in reg.tools()}
+
