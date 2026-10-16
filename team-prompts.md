@@ -1,8 +1,17 @@
 # Team kickoff prompts
 
-Paste the prompt for your person into your agent as the first message of a new session. Each prompt starts that person's first item; for later items, change the item ID in the last paragraph. Ownership and rules: `AGENTS.md` ("Four-person ownership"). Work items: `plan.md` ("Phase 13+: four parallel tracks").
+Two teams, four machines. Paste a machine's prompt into its agent as the first message of a new session. Each prompt starts that machine's first item. For each later item, start a new session, paste the same prompt and change the item ID in the "Start with" line. Ownership and contracts: `AGENTS.md` ("Two teams, four machines"). Work items: `plan.md` ("Phase 13+: MCP gateway, two teams on four machines").
 
-Common setup for everyone (once, in your own clone of the repo):
+| Machine | Person | First item | Then |
+|---|---|---|---|
+| Team 1, PS1 | Wahab | T1-0 land the old P2 branch | T1-1 to T1-5 |
+| Team 1, PS2 | Wahab | T1-6 mock drift MCP server | T1-7 to T1-10 |
+| Team 2, PS1 | Teammate | T2-1 upstream MCP client adapter | T2-2 to T2-6 |
+| Team 2, PS2 | Teammate | T2-7 spec watcher | T2-8 to T2-11 |
+
+Step 0 in `plan.md` comes first on every machine: merge the open branches into `main`. The `mcp` optional group exists only after P1's branch `p1/p1-1-mcp-stdio` merges.
+
+Common setup on every machine (once, in its own clone of the repo):
 
 ```bash
 git pull origin main
@@ -13,7 +22,7 @@ python -m venv .venv
 ```
 
 ```bash
-pip install -e ".[dev,agents]"
+pip install -e ".[dev,agents,mcp]"
 ```
 
 Checks before every PR (no CI exists, so these are the gate):
@@ -30,92 +39,101 @@ Never paste `.env` contents or API keys into any agent.
 
 ---
 
-## P1: teammate (GPT with oh-my-opencode-slim)
+## Team 1, PS1: healing core (Wahab)
 
 ```text
-I am P1 on this project. Read AGENTS.md first, then agent.md, then the "Phase 13+: four parallel tracks" section of plan.md, then product.md sections 6, 8, 11 and 15.
+I am Team 1, machine PS1 (T1-PS1) on this project. Read AGENTS.md first, then agent.md, then the "Phase 13+: MCP gateway, two teams on four machines" section of plan.md, then product.md.
 
-My track is P1: the MCP server and protocols. I own only the files listed for P1 in AGENTS.md. Do not edit any other file. If you need a change in a file someone else owns (especially heal.py, models.py or store.py, which P2 owns), stop and write down the exact request for me to send to its owner.
+Product direction: a self-healing gateway. Agents call our MCP server; the registry forwards each call to an upstream MCP server or a REST API. When an upstream tool's schema drifts, the healer diagnoses it from the old and new tools/list and rewrites the call with deterministic ops. The agent's schema never changes.
 
-Start with item P1-1, the MCP server over stdio:
-1. Read src/healer/registry.py (Registry.tools(), Registry.call(), load()) and src/healer/models.py (HealError, SpecSource). The MCP server wraps these and adds no healing logic.
-2. Write the FR and AC for the MCP server into product.md as a new feature section. Use AC-30 onward only. Show me the text before writing any code.
-3. Add an optional dependency group "mcp" in pyproject.toml with the official mcp SDK pinned to one major version. Check the current version on PyPI first; do not guess it.
-4. Build src/healer/mcp_server.py on the SDK's low-level server so that tools/list returns Registry.tools() exactly: agent_schema as inputSchema, never derived from Python signatures. tools/call goes through Registry.call(). An error dict from the registry becomes a tool result with isError true and the dict as structured content. Never send tools/list_changed, because agent_schema is frozen. Log to stderr only, never stdout. Add a CLI entry point healer-mcp with --base-url, --spec-path, --tools and --db.
-5. Write tests in tests/mcp/ using the SDK's client against the in-process mock API (see tests/integration/conftest.py for how the mock is wired; copy what you need into tests/mcp/conftest.py). The tests must show: the tools are listed; get_user works; after api.set_mutation("M1") the same session still gets the right result with no list_changed; M8 returns isError with the refusal reason. Name each AC test test_ac_3X_*.
-6. Run python -m pytest -q and ruff check . until both are clean.
-7. Create branch p1/p1-1-mcp-stdio, commit, push, and open a PR to main with P2 as reviewer.
+My track is the healing core. I own only the files listed for T1-PS1 in AGENTS.md. Do not edit any other file. If I need a change in another machine's file, stop and write the exact request for me to send to its owner.
 
-Rules that are never broken: the invariants in agent.md section 2. Do not claim any speed or reliability number in code comments, docs or the PR that is not measured in bench/report.md.
+Start with: T1-0 (land the old P2 branch).
+- git fetch origin. Read the single commit on origin/p2/p2-0-llm-benchmark (git show --stat).
+- Map every file and hunk to its plan item: S1, S8/M10, X3, S2, X2-E3, X4 precompute.
+- For each item, cut a branch t1-ps1/t1-0-<item-slug> from origin/main with only that item's code, tests and plan row. Put the registry.py change and the dashboard/ change on branches of their own, and say in each PR body which machine must approve it (T2-PS1 or T2-PS2).
+- Keep Healer.precompute guarded: nothing calls it yet, and it works when no watcher exists. Add a test for that.
+- Check every claim in the commit message against a test. List any claim that has no test; do not invent the missing work.
+- Do not delete or force-push the original branch.
+
+For later items (T1-1 to T1-5): write the FR and AC in product.md first (my range is AC-40 to AC-49), then the code, then a test_ac_XX_* test for each AC. MCP outcomes come from T2-PS1's adapter (contract 7). Until T1-PS2's fixtures land, test with hand-written tools/list dicts.
+
+Rules for every item: one item per PR on a branch named t1-ps1/<item>-<slug>, cut from main. Rebase on main, then pytest -q and ruff check . must be clean. Keep the agent.md invariants: no invented values, no executed model code, no loops, one audit row per heal, frozen agent_schema, no secrets stored, False-Patch Rate 0. When running tests from a git worktree, set PYTHONPATH to the worktree's src and root first. Never read or print .env. Tick my box in plan.md and add a progress-log row in the same PR. Push and open the PR; do not merge.
+
+Finish with a short report: PR links, ACs covered, tests added, and anything that needs another machine.
 ```
 
-## P2: Wahab (Claude Code)
+---
+
+## Team 1, PS2: mock drift server, benchmark and evidence (Wahab)
 
 ```text
-I am P2 on this project. Read AGENTS.md and the "Phase 13+: four parallel tracks" section of plan.md.
+I am Team 1, machine PS2 (T1-PS2) on this project. Read AGENTS.md first, then agent.md, then the "Phase 13+: MCP gateway, two teams on four machines" section of plan.md, then product.md.
 
-Start item P2-0, MVP evidence. First run the five opt-in live E2E tests in tests/e2e/test_agents_live.py against gpt-oss-20b on NVIDIA NIM, and tell me before any paid call how many calls and roughly how many tokens the run will use. If the live tests pass, plan the LLM-mode benchmark at N = 10 per agent and scenario, clean runs included, and show me the expected call count before starting it. Report AC-14 and AC-16 as measured, misses included, and record the model and provider in bench/report.md. Branch p2/p2-0-llm-benchmark, one PR.
+Product direction: a self-healing gateway. Agents call our MCP server; the registry forwards each call to an upstream MCP server or a REST API. When an upstream tool's schema drifts, the healer repairs the call. My track builds the drifting upstream server that everyone tests against, then measures the results.
+
+I own only the files listed for T1-PS2 in AGENTS.md. Do not edit any other file. If I need a change in another machine's file, stop and write the exact request for me to send to its owner.
+
+Start with: T1-6 (mock drift MCP server). Three machines wait on it, so keep it small and land it first.
+- Write the FR and AC in product.md first (my range is AC-50 to AC-54).
+- mock_api/mcp_drift_server.py on the official mcp SDK (the version pinned in pyproject.toml), over stdio and Streamable HTTP. Its tools mirror the REST mock in mock_api/app.py.
+- Mutations, each applied and reset by name: rename tool, rename argument, retype argument, add required argument, change enum, and an M8-style unsafe change that must be refused. Reuse the REST mock's mutation names where one matches.
+- The control interface is contract 8 in AGENTS.md. Document it at the top of the file: how to apply, list and reset a mutation.
+- The server can start with a different tool set (a flag or argument), so tests can run two upstream servers.
+- Tests: each mutation changes tools/list and makes the old call fail; reset restores the original exactly.
+
+Next items in order: T1-7 (recorded tools/list fixtures in mock_api/fixtures/mcp/), T1-8 (healthy-call overhead over MCP in bench/overhead.py), T1-9 (MCP scenarios in bench/run.py and bench/report.md), T1-10 (live gpt-oss-20b runs, N = 10, misses included). Report only measured numbers.
+
+Rules for every item: one item per PR on a branch named t1-ps2/<item>-<slug>, cut from main. Write the FR and AC first and a test_ac_XX_* test for each AC. Rebase on main, then pytest -q and ruff check . must be clean. Keep the agent.md invariants. When running tests from a git worktree, set PYTHONPATH to the worktree's src and root first. Never read or print .env; live runs read the key from the environment. Tick my box in plan.md and add a progress-log row in the same PR. Push and open the PR; do not merge.
+
+Finish with a short report: PR links, ACs covered, tests added, and anything that needs another machine.
 ```
 
-## P3: OpenCode free tier, no plugins
+---
 
-### Pick a model
-
-The repo is private. Use only a free model that OpenCode Zen marks as zero-retention and not used for training. As of 2026-10-15 the Zen docs list these:
-
-- `deepseek-v4.1-flash-free` (try this first)
-- `step-5-preview-free`
-- `longcat-2.5-preview-free`
-- `space-bunny-free`
-
-Do not use `big-pickle`, `exo-free`, `mimo-v2.5-free`, `mimo-v2.6-flash-free` or `muse-spark-1.3-contributor-free`, which may use prompts for training. Do not use the Nemotron free models either: they log usage and are for trial use only. `jev-1.13-free` is a decision model, not a coding model.
-
-Free models are time-limited and change often. Check the current list at https://opencode.ai/docs/zen/ and pick the model in OpenCode with `/models`. If a model fails at tool calls or edits the wrong files, switch to the next one on the list.
-
-### Prompt (one item per session; start a fresh session for each item)
+## Team 2, PS1: MCP client, loader and front door (teammate)
 
 ```text
-I am P3 on this project. Read AGENTS.md first, then only the "Track P3" table in plan.md.
+I am Team 2, machine PS1 (T2-PS1) on this project. Read AGENTS.md first, then agent.md, then the "Phase 13+: MCP gateway, two teams on four machines" section of plan.md, then product.md sections 6, 8, 11 and 15, then tests/mcp/client-handoff.md.
 
-I own only these files: src/healer/swagger2.py, bench/overhead.py, mock_api/fixtures/, tests/p3/, and checkbox and progress-log edits in plan.md phases 0 to 12. Do not edit, rename, reformat or delete any other file. If something else needs to change, stop and tell me what and why.
+Product direction: a self-healing gateway. Agents call our MCP server (src/healer/mcp_server.py); the registry forwards each call to an upstream MCP server or a REST API. When an upstream tool's schema drifts, the healer (T1-PS1) repairs the call. My track is the plumbing: connecting to upstream MCP servers, loading their tools, routing calls and serving the merged tool list.
 
-Do item P3-1 only: plan hygiene.
-1. Read the "Progress log" table at the end of plan.md.
-2. For each unticked "- [ ]" box in phases 0 to 12, decide whether the progress log or an existing test shows it is done. Search tests/ for the test it names before deciding.
-3. Change "- [ ]" to "- [x]" only for boxes that are clearly done. Leave these unticked: the AC-18 manual check, anything about live or LLM runs, and anything you are unsure about.
-4. Change nothing else in plan.md: no rewording, no reformatting.
-5. Show me a list of every box you ticked and the evidence for each one (log row or test name). Then stop. Do not commit until I say so.
+I own only the files listed for T2-PS1 in AGENTS.md. Do not edit any other file. If I need a change in another machine's file (especially models.py, heal.py or store.py, which T1-PS1 owns), stop and write the exact request for me to send to its owner.
 
-When I say commit: create branch p3/p3-1-plan-hygiene, commit only plan.md, push, and open a PR to main.
+Start with: T2-1 (upstream MCP client adapter).
+- Write the FR and AC in product.md first (my range is AC-30 to AC-39).
+- src/healer/adapters/mcp_upstream.py: one client session per upstream server, over stdio or Streamable HTTP, using the official mcp SDK.
+- A tool call returns the same Outcome model the REST adapter returns. Keep the JSON-RPC error code and message, the isError flag and its content, so T1-PS1 can classify them. This mapping is contract 7 in AGENTS.md; send its exact shape to T1-PS1 before building on it.
+- Tests: success, an isError result, a JSON-RPC invalid-params error, an unknown-tool error and a transport failure each give the right Outcome. If T1-PS2's mock drift server is not merged yet, test against a minimal in-process server in tests/t2ps1/.
+
+Next items in order: T2-2 (mcp_upstream_source: tools/list to OperationSpec, keyed <server>__<tool>), T2-3 (config/mcp_servers.json with env var names only, no secrets), T2-4 (registry dispatch by protocol; tools() stays frozen), T2-5 (front door over stdio and HTTP serving REST and MCP tools, never emitting tools/list_changed). T2-6 (GraphQL, gRPC, Postgres) is deferred.
+
+Rules for every item: one item per PR on a branch named t2-ps1/<item>-<slug>, cut from main. Write the FR and AC first and a test_ac_XX_* test for each AC. Rebase on main, then pytest -q and ruff check . must be clean. The MCP server adds no healing logic of its own (contract 4). Keep the agent.md invariants. Logs go to stderr only. Never read or print .env. Tick my box in plan.md and add a progress-log row in the same PR. Push and open the PR; do not merge.
+
+Finish with a short report: PR links, ACs covered, tests added, and anything that needs another machine.
 ```
 
-For P3-2 and P3-3, use the same prompt with the "Do item ..." part replaced by that item's row from the Track P3 table in `plan.md`, and add these lines:
+---
+
+## Team 2, PS2: watcher, demo, dashboard and docs (teammate)
 
 ```text
-Write the FR and AC text for product.md first (P3-2 uses AC-28; P3-3 uses AC-50 onward) and show it to me before writing code.
-Write the test first, run it and show me that it fails, then write the code until it passes.
-Run python -m pytest -q and ruff check . and show me the last lines of both.
+I am Team 2, machine PS2 (T2-PS2) on this project. Read AGENTS.md first, then agent.md, then the "Phase 13+: MCP gateway, two teams on four machines" section of plan.md, then product.md.
+
+Product direction: a self-healing gateway. Agents call our MCP server; the registry forwards each call to an upstream MCP server or a REST API. When an upstream tool's schema drifts, the healer repairs the call. My track makes it visible: a watcher that spots drift early, a demo agent, the dashboard and the docs.
+
+I own only the files listed for T2-PS2 in AGENTS.md. Do not edit any other file. If I need a change in another machine's file, stop and write the exact request for me to send to its owner.
+
+Start with: T2-7 (spec watcher).
+- Write the FR and AC in product.md first (my range is AC-55 to AC-59).
+- src/healer/spec_watcher.py: poll a list of SpecSource callables on an interval (OpenAPI now, upstream MCP once T2-PS1 lands it). Hash each LoadedSpec and save a snapshot when it changes.
+- Call Healer.precompute(old, new) only when the healer has it (contract 5). Guard the call so the watcher works without it.
+- Inject the clock and sleep so tests run instantly. Use bounded backoff when a source fails. Never block a tool call.
+- Tests: a change is snapshotted within one interval; an unchanged spec causes no extra work; a failing source backs off and recovers.
+
+Next items in order: T2-8 (demo/mcp_agent.py: an agent that connects only to our front door, uses tools from 2+ mock upstream servers, and finishes a task after a mid-task rename), T2-9 (dashboard MCP view and mutation buttons through contract 8), T2-10 (docs/mcp-clients.md from tests/mcp/client-handoff.md), T2-11 (README, pitch and writeup around the gateway, every number from bench/report.md). T2-8 and T2-9 wait for T2-5 and T1-6.
+
+Rules for every item: one item per PR on a branch named t2-ps2/<item>-<slug>, cut from main. Write the FR and AC first and a test_ac_XX_* test for each AC. Rebase on main, then pytest -q and ruff check . must be clean. Keep the agent.md invariants. Docs and pitch use only numbers measured in bench/report.md; never claim "the agent never sees an error". Check dashboard changes in the browser and attach screenshots to the PR. Never read or print .env. Tick my box in plan.md and add a progress-log row in the same PR. Push and open the PR; do not merge.
+
+Finish with a short report: PR links, ACs covered, tests added, and anything that needs another machine.
 ```
-
-## P4: Antigravity with Gemini Flash (Gemini Pro via Jio)
-
-Antigravity quota on a Jio-bundled Pro account is shared across the plan and resets on a schedule. Keep one item per conversation and use planning mode, so the agent shows its plan before spending quota on edits.
-
-```text
-I am P4 on this project. Read AGENTS.md first, then the "Track P4" table in plan.md, then the README section on running the dashboard.
-
-I own only the files listed for P4 in AGENTS.md. Do not edit any other file. If you need a change elsewhere, stop and tell me.
-
-Do item P4-1, the AC-18 browser check:
-1. Install with pip install -e ".[dev,agents]" and start the dashboard with python -m dashboard. Do not put any API key anywhere; the scripted mode needs none.
-2. Open http://127.0.0.1:8080 in the browser. Start a scripted run, then trigger M5 with one click.
-3. Check three things and record evidence for each: (a) one click triggers the mutation; (b) both the healing and the baseline panes update live; (c) the heal event appears in the patch log within 1 second. For (c), note the time of the click and compare it with the heal event's timestamp from the dashboard's API. Do not judge it by eye.
-4. Repeat for M3 or M4, and for M8 (it must show a clean refusal, not a heal).
-5. Restart everything and run the full demo twice from a cold start: once normally, once with no Jev settings at all.
-6. Take screenshots of each step. Write the results as a table: step, expected, observed, time in ms, pass or fail.
-7. Do not change any code in this item. If something fails, describe it and stop.
-
-When done: create branch p4/p4-1-ac18-check, add a row to the plan.md progress log with the results, commit, push, and open a PR to main with the table and screenshots in the description.
-```
-
-For later P4 items, use the same first two paragraphs and replace the "Do item" part with that item's row from the Track P4 table in `plan.md`. For P4-2, add: "Write the FR and AC (AC-55 onward) and show them to me before writing code. Inject the clock and the sleep function so tests never wait in real time."
