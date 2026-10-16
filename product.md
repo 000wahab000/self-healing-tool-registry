@@ -654,4 +654,5 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 | ID | Criterion | Verification |
 |---|---|---|
 | AC-77 | The dashboard provides a modular panel slot: `GET /panels/registry.js` returns 200 with a JavaScript content type, `index.html` includes the panel container and registry script, and panels mount and refresh without disrupting other views | Unit (`tests/dashboard/test_ac_77_panel_slot.py`) |
+| AC-78 | The benchmark scorecard endpoint `GET /api/metrics/scorecard` returns measured ZTAR, False-Patch Rate, Safe-Refusal Rate, token overhead and per-scenario outcomes from `bench/report.md`, and renders in the scorecard panel | Unit (`tests/dashboard/test_ac_78_scorecard.py`) |
 
