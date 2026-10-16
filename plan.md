@@ -421,7 +421,7 @@ Two teams of one person each. Each person runs two machines, so four agents work
 
 | Order | Item | Key tasks | Done when |
 |---|---|---|---|
-| T1-6 | Mock drift MCP server | FR/AC first. `mock_api/mcp_drift_server.py` on the official `mcp` SDK, stdio and Streamable HTTP. Its tools mirror the REST mock (`get_user`, `create_order` and the rest). A control interface (contract 8) applies and resets mutations: rename tool, rename argument, retype argument, add required argument, change enum, and an M8-style unsafe change. A second instance with a different tool set covers the "2+ servers" case. | Each mutation changes `tools/list` and makes the old call fail; reset restores the original |
+| T1-6 (done) | Mock drift MCP server | FR/AC first. `mock_api/mcp_drift_server.py` on the official `mcp` SDK, stdio and Streamable HTTP. Its tools mirror the REST mock (`get_user`, `create_order` and the rest). A control interface (contract 8) applies and resets mutations: rename tool, rename argument, retype argument, add required argument, change enum, and an M8-style unsafe change. A second instance with a different tool set covers the "2+ servers" case. | Each mutation changes `tools/list` and makes the old call fail; reset restores the original |
 | T1-7 | Drift fixtures | `mock_api/fixtures/mcp/`: recorded `tools/list` before and after each mutation, used by T1-PS1 and T2-PS1 unit tests without a running server | Fixture tests load every snapshot pair |
 | T1-8 | Healthy-call overhead over MCP | Extend `bench/overhead.py`: time 200+ healthy calls through the gateway against the same calls sent straight upstream; report p50 and p95 | Numbers printed and recorded in `bench/report.md` |
 | T1-9 | MCP drift benchmark | Add the MCP mutations to `bench/run.py` as scenarios beside the REST ones; same metrics (ZTAR, Safe-Refusal, False-Patch, MTTR) | `bench/report.md` has an MCP section from a scripted run |
@@ -517,6 +517,7 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 |---|---|---|---|
 | 2026-10-15 | P3-2 | done | Healthy-call overhead (AC-28, FR-21.1): `bench/overhead.py` and `tests/p3/test_ac_28_healthy_overhead.py`; local run adds 0.3 ms p95 over the raw transport (n = 250 per side), under the 10 ms budget |
 | 2026-10-15 | P3-3 | done | Swagger 2.0 loader (F22, AC-60 to AC-62): `src/healer/swagger2.py` (`convert` + `swagger2_source`), `mock_api/fixtures/swagger2.json`, `tests/p3/`; the 2.0 fixture converts to the mock's OpenAPI 3 `operations()` exactly (5 ops) and M1 heals when the base spec loads through `swagger2_source` |
+| 2026-10-16 | T1-6 | done | Mock drift MCP server (AC-50, AC-51, Contract 8): `mock_api/mcp_drift_server.py` on low-level MCP SDK Server, stdio and Streamable HTTP, users and tickets profiles, mutations M1, M2, T-RENAME, T-REQUIRED, T-ENUM, M8, Python and __admin_* MCP controls; in-process tests in `tests/t1ps2/` |
 
 ### Progress log: T2-PS1
 
