@@ -32,6 +32,8 @@ Mutations:
     - "T-REQUIRED": New required argument on update_email: 'reason' (string).
     - "T-ENUM": Enum values changed on update_email: 'email_type' ['personal', 'work'] -> ['PERSONAL', 'WORK'].
     - "M8": Unsafe required argument added to create_ticket: 'priority' with no safe default.
+    - "T-MOVE": get_user renamed to fetch_user AND 'user_id' renamed to 'customer_id' in one
+      release. Tier 1 cannot pair the tools (their schemas differ); the tier-2 repair agent can.
 
 Failure semantics:
     - Unknown tool: JSON-RPC error code -32601 ("Method not found").
@@ -62,6 +64,7 @@ MUTATIONS: tuple[str, ...] = (
     "T-REQUIRED",
     "T-ENUM",
     "M8",
+    "T-MOVE",
 )
 
 SEED: dict[str, Any] = {
@@ -287,10 +290,18 @@ class McpDriftServer:
                         "description": "User identifier as integer",
                     }
 
-        elif mutation == "T-RENAME":
+        elif mutation in ("T-RENAME", "T-MOVE"):
             for tool in tools:
                 if tool["name"] == "get_user":
                     tool["name"] = "fetch_user"
+                    if mutation == "T-MOVE":
+                        tool["inputSchema"]["properties"] = {
+                            "customer_id": {
+                                "type": "string",
+                                "description": "Customer identifier",
+                            }
+                        }
+                        tool["inputSchema"]["required"] = ["customer_id"]
 
         elif mutation == "T-REQUIRED":
             for tool in tools:

@@ -9,7 +9,11 @@ def test_jev_renders_enum_map_and_encoding_options():
     text = render_option(
         {
             "request_ops": [
-                {"op": "enum_map", "path": ["body", "kind"], "mapping": {"work": "WORK"}},
+                {
+                    "op": "enum_map",
+                    "path": ["body", "kind"],
+                    "mapping": {"work": "WORK"},
+                },
                 {"op": "encoding", "content_type": "application/x-www-form-urlencoded"},
             ],
             "response_ops": [],

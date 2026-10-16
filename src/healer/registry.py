@@ -19,6 +19,7 @@ from healer.jev import JevClient
 from healer.models import ErrorClass, Fix, Outcome, SpecSource
 from healer.openapi_loader import openapi_source
 from healer.ops import apply_ops
+from healer.repair import RepairAgent
 from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S, SPEC_MODE
 from healer.store import FixStore
 
@@ -85,6 +86,7 @@ class Registry:
         spec_source: SpecSource | None = None,
         grpc_channel: object | None = None,
         mcp_session: object | None = None,
+        repair: RepairAgent | None = None,
     ) -> None:
         if spec_mode not in (
             "on",
@@ -121,6 +123,7 @@ class Registry:
                 clock=clock,
                 spec_mode=spec_mode,
                 tools=lambda: list(self.defs.values()),
+                repair=repair,
             )
             if store
             else None
@@ -209,7 +212,9 @@ class Registry:
             try:
                 latest = await self.grpc_source()
                 service, method_name = tool.base_op["operation_id"].rsplit(".", 1)
-                pool = _pool([bytes.fromhex(item) for item in latest.raw["descriptors"]])
+                pool = _pool(
+                    [bytes.fromhex(item) for item in latest.raw["descriptors"]]
+                )
                 method = pool.FindServiceByName(service).methods_by_name[method_name]
                 outcome = await grpc.send(
                     self.grpc_channel,
@@ -244,7 +249,9 @@ class Registry:
         t0 = self._clock()
         base = self.base_doc(tool, args)
         cfg = tool.config
-        if cfg.get("write") and not (cfg.get("idempotent") or cfg.get("idempotency_key")):
+        if cfg.get("write") and not (
+            cfg.get("idempotent") or cfg.get("idempotency_key")
+        ):
             # A 5xx after a non-idempotent write may already have committed: never resend it.
             outcome = await self._attempt(tool, base, tool.active_fix)
         else:

@@ -109,6 +109,7 @@ class DecisionPath(StrEnum):
     tiebreak = "tiebreak"
     jev = "jev"
     jev_unavailable = "jev_unavailable"
+    repair = "repair"  # tier 2: the repair agent's proposal (S3)
 
 
 class Tier(IntEnum):

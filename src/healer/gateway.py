@@ -20,6 +20,7 @@ from mcp.client.streamable_http import create_mcp_http_client, streamable_http_c
 from healer.adapters import mcp_upstream
 from healer.jev import JevClient
 from healer.registry import Registry
+from healer.repair import RepairAgent
 from healer.store import FixStore
 
 
@@ -92,6 +93,7 @@ async def upstream_registry(
     cfg: Mapping[str, str],
     jev: JevClient | None = None,
     overrides: Mapping[str, dict] | None = None,
+    repair: RepairAgent | None = None,
 ) -> Registry:
     """One healing registry over one upstream server, exposing every tool it lists."""
     source = mcp_upstream.mcp_source(session, name)
@@ -105,7 +107,14 @@ async def upstream_registry(
         },
     }
     registry = Registry(
-        None, config, cfg, store, jev, spec_source=source, mcp_session=session
+        None,
+        config,
+        cfg,
+        store,
+        jev,
+        spec_source=source,
+        mcp_session=session,
+        repair=repair,
     )
     await registry.load()
     return registry
@@ -118,6 +127,7 @@ async def connect_upstreams(
     cfg: Mapping[str, str] | None = None,
     env: Mapping[str, str] = os.environ,
     jev: JevClient | None = None,
+    repair: RepairAgent | None = None,
 ) -> AsyncIterator[list[Registry]]:
     """Open every configured upstream; sessions close when the context exits."""
     async with AsyncExitStack() as stack:
@@ -126,7 +136,13 @@ async def connect_upstreams(
             session = await stack.enter_async_context(_open(server, env))
             registries.append(
                 await upstream_registry(
-                    server["name"], session, store, cfg or {}, jev, server.get("tools")
+                    server["name"],
+                    session,
+                    store,
+                    cfg or {},
+                    jev,
+                    server.get("tools"),
+                    repair,
                 )
             )
         yield registries
