@@ -34,7 +34,7 @@ from dashboard.explorer import (
 )
 from dashboard.metrics_view import fix_lifecycle, live_safety, scorecard
 from healer import metrics
-from healer.gateway import load_apis, load_config
+from healer.gateway import Gateway, load_apis, load_config
 from healer.jev import from_env
 from healer.models import AuditEvent, ErrorClass, HealOutcome
 from healer.registry import Registry
@@ -81,7 +81,13 @@ class ExploreIn(BaseModel):
 class Dashboard:
     """Both agents run the demo task against their own mock; the store is shared."""
 
-    def __init__(self, db_path: str | None = None) -> None:
+    def __init__(
+        self,
+        db_path: str | None = None,
+        gateway: Registry | Gateway | None = None,
+        mcp_port: int = 8001,
+        upstream_config_path: str | Path | None = None,
+    ) -> None:
         env = os.environ
         self.cfg = {
             "OAUTH_BEARER": env.get("OAUTH_BEARER") or "Bearer test-token",
@@ -110,6 +116,9 @@ class Dashboard:
         events = self.store.call_events()
         self.base_event = events[-1]["event_id"] if events else 0
         self.base_heal = 0
+        self._audit: list[AuditEvent] = []
+        self._audit_last_id = 0
+        self._heal_summaries: list[dict] = []
         self.base_call = self.base_event  # Metrics counts calls since the last Reset or restart
         # The measured LLM token pair (baseline, healing) stays for the session, so a
         # later scripted run does not erase a figure an earlier LLM run measured.
@@ -118,6 +127,9 @@ class Dashboard:
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
         self._mcp_info: dict | None = None
+        self.gateway = gateway
+        self.mcp_port = mcp_port
+        self.upstream_config_path = upstream_config_path
 
     def _not_busy(self) -> None:
         """A scenario (and a live-LLM one can take minutes) holds the lock for its whole run.
@@ -285,7 +297,10 @@ class Dashboard:
             await self._stop()
             self._clear()
             # Only Reset empties the patch log; Start, scenarios and drifts keep adding to it.
-            self.base_heal = len(self.store.audit_events())
+            self._refresh_audit()
+            self.base_heal += len(self._audit)
+            self._audit.clear()
+            self._heal_summaries.clear()
             calls = self.store.call_events()
             self.base_call = calls[-1]["event_id"] if calls else 0
             self._llm_tokens = None
@@ -321,17 +336,22 @@ class Dashboard:
     async def mcp_info(self) -> dict:
         """What the MCP front door exposes, read from the same `Registry.tools()`."""
         if self._mcp_info is None:
-            # A fresh mock, so the frozen schemas come from the clean v1 spec,
-            # never from a mutation the live demo happens to have applied.
-            token = self.cfg["OAUTH_BEARER"].removeprefix("Bearer ")
-            async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=create_mock(token)),
-                base_url="http://mock",
-            ) as client:
-                registry = Registry(client, self.tools, self.cfg, self.store)
-                await registry.load()
-                tools = registry.tools()
-            upstream = ROOT / "config" / "mcp_servers.json"
+            if self.gateway is not None:
+                tools = self.gateway.tools()
+            else:
+                # A fresh mock, so the frozen schemas come from the clean v1 spec,
+                # never from a mutation the live demo happens to have applied.
+                token = self.cfg["OAUTH_BEARER"].removeprefix("Bearer ")
+                async with httpx.AsyncClient(
+                    transport=httpx.ASGITransport(app=create_mock(token)),
+                    base_url="http://mock",
+                ) as client:
+                    registry = Registry(client, self.tools, self.cfg, self.store)
+                    await registry.load()
+                    tools = registry.tools()
+            upstream = Path(
+                self.upstream_config_path or ROOT / "config" / "mcp_servers.json"
+            )
             self._mcp_info = {
                 "front_door": {
                     "name": "healer",
@@ -340,7 +360,7 @@ class Dashboard:
                         "http": {
                             "path": "/mcp",
                             "default_host": "127.0.0.1",
-                            "default_port": 8001,
+                            "default_port": self.mcp_port,
                         },
                     },
                     "tools": tools,
@@ -388,7 +408,8 @@ class Dashboard:
         self.traces = {a: [] for a in self.mocks}
 
     def state(self, after: int = 0) -> dict:
-        audit = self.store.audit_events()[self.base_heal :]
+        self._refresh_audit()
+        audit = self._audit
         return {
             "epoch": self.epoch,
             "active_mutation": self.mutation,
@@ -400,7 +421,7 @@ class Dashboard:
                 "baseline": [{**t, "heal_event": None} for t in self.traces["baseline"]],
             },
             "events": self.store.call_events(max(after, self.base_event)),
-            "heals": [self._heal(e) for e in audit],
+            "heals": self._heal_summaries.copy(),
             "metrics": {
                 "mttr": {
                     str(int(t)): v for t, v in metrics.mttr_summary(audit).items()
@@ -413,6 +434,13 @@ class Dashboard:
                 for a, m in self.mocks.items()
             },
         }
+
+    def _refresh_audit(self) -> None:
+        for event_id, event in self.store.audit_events_since(self._audit_last_id):
+            summary = self._heal(event)
+            self._audit.append(event)
+            self._heal_summaries.append(summary)
+            self._audit_last_id = event_id
 
     def _drift(self, mutation: str | None) -> None:
         self.drifts.append((time.time_ns() // 1_000_000, mutation))
@@ -456,7 +484,7 @@ class Dashboard:
         scripted run makes no model call, so it falls back to an explicitly
         labelled estimate (`tokens_measured` is false) until an LLM run measures it.
         """
-        calls = [e for e in self.store.call_events() if e["event_id"] > self.base_call]
+        calls = self.store.call_events(self.base_call)
         total = {"healing": 0, "baseline": 0}
         errors = {"healing": 0, "baseline": 0}
         retries = {"healing": 0, "baseline": 0}
@@ -515,13 +543,20 @@ async def bad_request(call: Awaitable[None]) -> None:
         raise HTTPException(400, str(exc)) from exc
 
 
-def create_app(db_path: str | None = None) -> FastAPI:
-    dash = Dashboard(db_path)
+def create_app(
+    db_path: str | None = None,
+    gateway: Registry | Gateway | None = None,
+    mcp_port: int = 8001,
+    upstream_config_path: str | Path | None = None,
+) -> FastAPI:
+    dash = Dashboard(db_path, gateway, mcp_port, upstream_config_path)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        yield
-        await dash.aclose()
+        try:
+            yield
+        finally:
+            await dash.aclose()
 
     app = FastAPI(title="Self-healing demo dashboard", lifespan=lifespan)
     app.state.dash = dash

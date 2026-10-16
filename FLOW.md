@@ -4,6 +4,34 @@ An agent calls tools that were generated once from a spec. The services behind t
 
 ## 1. The big picture
 
+For a local all-services start on Linux/macOS, run `.venv/bin/python start.py`
+from the repository root. From elsewhere, use absolute paths to both the
+virtual-environment interpreter and `start.py`; service paths are resolved from
+the repository root regardless of the caller's working directory. It loads the
+root `.env`, uses the repository as each child's working directory, and starts
+the REST mock followed by one unified FastAPI dashboard+MCP process. REST
+defaults to `127.0.0.1:8000`; dashboard and MCP share `127.0.0.1:8080` at `/`
+and `/mcp`. `--mock-port`, `--port`, `--host` and `--db` override environment
+defaults (`MOCK_PORT`, `PORT`, `HOST`, `DB_PATH`); explicit CLI arguments win.
+Without a `PORT`, the web bind defaults to `127.0.0.1`; a platform `PORT` with
+no `HOST` defaults to `0.0.0.0`. The default root `healer.db`
+is shared by gateway and dashboard audit reader. Ctrl+C or SIGTERM stops the
+launched children; an unexpected child exit also stops the stack. A port
+conflict fails startup without killing existing processes. The launcher starts
+no demo agent or benchmark and applies no drift automatically; configured MCP
+servers and APIs are loaded by the gateway. Individual dashboard and standalone
+`healer.mcp_server` commands remain available. Remote MCP protection is
+configured with `MCP_TOKEN_ENV` (the name of a separate secret-manager
+environment variable), exact comma-separated `MCP_ALLOWED_HOSTS`, and optional
+exact comma-separated `MCP_ALLOWED_ORIGINS`; never put the token value in config.
+The dashboard itself remains unauthenticated and needs authenticated TLS ingress
+when exposed remotely.
+
+The dashboard's demonstration and mutation controls operate on in-process mock
+APIs, not the separately launched REST mock or configured upstream MCP servers.
+Sharing the audit database does not merge those dashboard traces with calls
+made by external MCP clients.
+
 ```mermaid
 flowchart LR
     A[Agent] -->|MCP stdio or HTTP| F["Front door<br/>python -m healer.mcp_server"]
@@ -138,7 +166,8 @@ Per scenario it records completion, the final data state, tier, `heal_ms`, MTTR 
 
 | Path | Role |
 |---|---|
-| `src/healer/mcp_server.py` | Front door (stdio, Streamable HTTP), starts the watcher |
+| `src/healer/mcp_server.py` | Standalone front door (stdio, Streamable HTTP), starts the watcher |
+| `dashboard/unified.py` | Dashboard and MCP front door on one HTTP listener; starts the watcher |
 | `gateway.py` | `Gateway`, config loading, `upstream_registry`, `api_registry`, `probe` |
 | `registry.py` | `ToolDefinition`, `Registry.call()`, `tools()`, dispatch by protocol |
 | `adapters/` | `rest`, `mcp_upstream`, `graphql`, `grpc` (deferred): send and normalize to `Outcome` |
@@ -156,6 +185,7 @@ Per scenario it records completion, the final data state, tier, `heal_ms`, MTTR 
 | `agents/` | Healing, baseline and scripted agents |
 | `bench/` | `run.py`, `overhead.py`, `record_mcp_fixtures.py`, generated `report.md` |
 | `dashboard/`, `demo/` | Web UI, terminal demo, MCP demo agent |
+| `start.py` | Local Linux/macOS launcher for the REST mock and unified dashboard/MCP process |
 | `config/` | `tools.json` (idempotency, postchecks, header sources), `mcp_servers.json` |
 
 ## 8. Safety invariants

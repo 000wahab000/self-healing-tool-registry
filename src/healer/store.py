@@ -177,6 +177,7 @@ def _fix(row: sqlite3.Row) -> Fix:
 
 def _event(row: sqlite3.Row) -> AuditEvent:
     d = dict(row)
+    d.pop("event_id", None)
     return AuditEvent(
         **d
         | {
@@ -202,6 +203,7 @@ class FixStore(Protocol):
     def record_result(self, fix_id: int, won: bool) -> None: ...
     def audit(self, event: AuditEvent) -> None: ...
     def audit_events(self) -> list[AuditEvent]: ...
+    def audit_events_since(self, after_event_id: int) -> list[tuple[int, AuditEvent]]: ...
     def is_negative(self, fp: str) -> bool: ...
     def add_negative(self, fp: str) -> None: ...
     def save_spec(self, spec_hash: str, spec: dict) -> None: ...
@@ -411,6 +413,15 @@ class Store:
             f"SELECT {AUDIT_COLS} FROM heal_events ORDER BY event_id"
         )
         return [_event(r) for r in rows]
+
+    def audit_events_since(self, after_event_id: int) -> list[tuple[int, AuditEvent]]:
+        """Return ordered rows after the cursor; the id is separate from AuditEvent (AC-76)."""
+        rows = self._db.execute(
+            f"SELECT event_id, {AUDIT_COLS} FROM heal_events"
+            " WHERE event_id > ? ORDER BY event_id",
+            (after_event_id,),
+        )
+        return [(row["event_id"], _event(row)) for row in rows]
 
     def is_negative(self, fp: str) -> bool:
         return self._neg.get(fp, 0) > self._clock()
