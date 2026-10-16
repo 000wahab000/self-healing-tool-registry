@@ -104,7 +104,9 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             mutation = self.mutation  # a drift picked before Start applies to this run
+            base_heal = self.base_heal
             self._clear()
+            self.base_heal = base_heal  # the patch log keeps every heal until Reset
             http = {
                 a: httpx.AsyncClient(
                     transport=httpx.ASGITransport(app=m), base_url="http://mock"
@@ -348,6 +350,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def landing() -> FileResponse:
         return FileResponse(HERE / "landing.html", headers={"Cache-Control": "no-cache"})
 
+    @app.get("/guide.js", include_in_schema=False)
+    async def guide() -> FileResponse:
+        return FileResponse(HERE / "guide.js", headers={"Cache-Control": "no-cache"})
+
     @app.get("/theme.css", include_in_schema=False)
     async def theme() -> FileResponse:
         return FileResponse(HERE / "theme.css", headers={"Cache-Control": "no-cache"})
@@ -389,6 +395,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.post("/api/mutation")
     async def mutation(body: MutationIn) -> dict:
         await bad_request(dash.mutate(body.id))
+        if body.id and all(r["status"] != "running" for r in dash.runs.values()):
+            # Nothing is calling the API, so a drift would go unseen: run a quick scripted
+            # pass so the break is hit and healed, and the patch log shows it.
+            await bad_request(dash.start("scripted", 0.3))
         return dash.state()
 
     @app.post("/api/reset")
