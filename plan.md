@@ -508,6 +508,7 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | 2026-10-16 | T1-0 (S1) | done | S1 sibling-tool candidate propagation (AC-40) |
 | 2026-10-16 | T1-0 (S8/M10) | done | S8 injection resistance scenario (M10, AC-26) |
 | 2026-10-16 | T1-0 (S2) | done | S2 rule mining with rules table (AC-44) |
+| 2026-10-16 | T1-0 (X3) | done | X3 new operations enum_map and encoding (AC-41, AC-42) |
 
 ### Progress log: T1-PS2
 
