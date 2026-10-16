@@ -517,5 +517,7 @@ Two teams of one person each. Each person runs two machines, so four agents work
 | 2026-10-16 | 13 re-plan | done | Direction changed to an MCP gateway that heals upstream MCP servers; work split into two teams on four machines (T1-PS1, T1-PS2, T2-PS1, T2-PS2); old P1 to P4 items mapped to new ones |
 | 2026-10-16 | 13 T1-0 (S1) | done | S1 sibling-tool candidate propagation (AC-40) |
 | 2026-10-16 | 13 T1-0 (S2) | done | S2 rule mining with rules table (AC-44) |
+| 2026-10-16 | 13 T1-0 (X4) | done | X4 fix precompute contract (AC-47, guarded) |
+
 
 

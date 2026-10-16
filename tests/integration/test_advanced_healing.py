@@ -11,6 +11,7 @@ from healer.models import (
     Tier,
     Violation,
 )
+from healer.openapi_loader import openapi_source
 
 USER = {"id": "123", "name": "Ada", "email": "ada@example.com"}
 
@@ -112,4 +113,65 @@ async def test_ac_44_rule_mining(api, make_registry, store):
     events = [e for e in store.audit_events() if e.outcome == HealOutcome.RECOVERED]
     assert len(events) == 1
     assert events[0].tool == "set_manager"
+
+
+async def test_ac_47_precompute(api, client, make_registry, store):
+    """(FUTURE, X4) Precomputed fix allows the first failing call after a spec change
+    to recover at Tier-0 speed without sending live requests during precomputation (FR-17.11, AC-47)."""
+    old_spec = await openapi_source(client)()
+    reg = await make_registry()
+
+    # Mutate the API (M1: user_id -> customer_id on get_user)
+    api.set_mutation("M1")
+    new_spec = await openapi_source(client)()
+
+    calls_before = api.get_user_calls
+    # Run precompute: must send 0 live requests
+    count = await reg.healer.precompute(old_spec, new_spec)
+    assert count >= 1
+    assert api.get_user_calls == calls_before  # 0 live requests sent
+
+    # Check candidate fix exists in store
+    pred_fp, _ = fingerprint.fingerprint(
+        "get_user",
+        Outcome(
+            ErrorClass.E2,
+            "rest",
+            "422",
+            violations=[Violation(Side.REQ, ["body", "customer_id"], "missing")],
+        ),
+    )
+    cand = store.get_candidate(pred_fp)
+    assert cand is not None
+    assert cand.status == FixStatus.candidate
+
+    # First failing call recovers at Tier-0 speed (<500 ms)
+    res = await reg.call("get_user", {"user_id": "123"})
+    assert res["id"] == "123"
+
+    events = store.audit_events()
+    assert len(events) == 1
+    assert events[0].tier == Tier.T0
+    assert events[0].outcome == HealOutcome.RECOVERED
+    assert events[0].heal_ms < 500
+
+
+async def test_precompute_guarded_when_no_watcher_exists(api, make_registry, store):
+    """Guard verification: Healer.precompute is never called automatically.
+    When no watcher exists, regular tool calls and ordinary healing function completely normally."""
+    reg = await make_registry()
+    # Healthy call operates normally without precompute
+    res = await reg.call("get_user", {"user_id": "123"})
+    assert res["id"] == "123"
+    assert len(store._candidates) == 0
+
+    # Normal drift (M1) recovers via ordinary Tier-1 diagnosis without precompute running
+    api.set_mutation("M1")
+    healed = await reg.call("get_user", {"user_id": "123"})
+    assert healed["id"] == "123"
+    events = store.audit_events()
+    assert len(events) == 1
+    assert events[0].tier == Tier.T1
+    assert events[0].outcome == HealOutcome.RECOVERED
+
 

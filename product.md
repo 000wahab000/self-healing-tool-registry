@@ -605,10 +605,14 @@ Beyond the code, the problem statement requires the items below. This section on
 #### S2: Rule Mining
 - **FR-17.8** Fixes record an abstract structural signature (roles replacing concrete names). When the same abstract signature achieves 3 verified wins, a deterministic rule is stored in `rules` to bypass Jev for future matching instances.
 
+#### X4: Fix Precomputation (Heal side)
+- **FR-17.11** `Healer.precompute(old: LoadedSpec, new: LoadedSpec)` computes candidate fixes from spec diffs before any failure occurs and records them as `candidate` status in the store, without sending live API requests.
+
 ### Acceptance Criteria (T1-PS1 Reserved: AC-40 to AC-49)
 
 | ID | Criterion | Verification |
 |---|---|---|
 | AC-40 | (STRETCH, S1) Sibling propagation: a second tool hit by the same rename heals at Tier-0 speed (<500 ms) on its first occurrence | Integration |
 | AC-44 | (STRETCH, S2) Rule mining: after 3 wins of the same pattern, subsequent ambiguous breaks heal without Jev | Integration |
+| AC-47 | (FUTURE, X4) Precomputed fix allows the first failing call after a spec change to recover at Tier-0 speed | Integration |
 
