@@ -243,12 +243,17 @@ class Registry:
             return {"error": "AGENT_ARG_ERROR", "tool": name, "retry": False}
         t0 = self._clock()
         base = self.base_doc(tool, args)
-        outcome = await retry.with_retries(
-            lambda: self._attempt(tool, base, tool.active_fix),
-            remaining=lambda: HEAL_DEADLINE_S - (self._clock() - t0),
-            sleep=self._sleep,
-            jitter=self._jitter,
-        )
+        cfg = tool.config
+        if cfg.get("write") and not (cfg.get("idempotent") or cfg.get("idempotency_key")):
+            # A 5xx after a non-idempotent write may already have committed: never resend it.
+            outcome = await self._attempt(tool, base, tool.active_fix)
+        else:
+            outcome = await retry.with_retries(
+                lambda: self._attempt(tool, base, tool.active_fix),
+                remaining=lambda: HEAL_DEADLINE_S - (self._clock() - t0),
+                sleep=self._sleep,
+                jitter=self._jitter,
+            )
         if outcome.cls is ErrorClass.OK:
             return outcome.data
         if outcome.cls in (ErrorClass.BUSINESS, ErrorClass.E1) or self.healer is None:
