@@ -72,7 +72,6 @@ async def test_ac_46_jev_says_repair_and_the_agent_heals(repair_registry):
     "jev",
     [
         FakeJev(index=1),  # "report": the error goes to the agent
-        FakeJev(down=True),  # no judge, no repair
         FakeJev(confidence=0.3),  # below the read threshold
     ],
 )
@@ -140,3 +139,12 @@ async def test_ac_46_only_repairable_refusals_reach_jev(
     assert allowed is expected
     assert (len(jev.states) == 1) is expected
     assert (reason in REPAIRABLE) or not expected
+
+
+@pytest.mark.asyncio
+async def test_ac_46_unreachable_jev_falls_back_to_the_no_jev_rule(repair_registry):
+    llm = FakeLlm(GOOD)
+    async with repair_registry(llm, FakeJev(down=True)) as (registry, drift, _):
+        drift.apply_mutation("T-MOVE")  # NO_CANDIDATE: still repaired, gated and verified
+        result = await registry.call(TOOL, ARGS)
+    assert result["id"] == "123" and llm.calls == 1

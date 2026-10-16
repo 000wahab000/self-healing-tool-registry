@@ -350,7 +350,9 @@ class Healer:
                 list(TRIAGE_OPTIONS),
             )
         except JevUnavailable:
-            return False  # no judge, no repair: the agent gets the error
+            # An unreachable judge falls back to the no-Jev rule: only a break nothing
+            # explains is tried, and the fix still passes the gate and live verification.
+            return reason is Reason.NO_CANDIDATE
         h.jev_tokens += choice.tokens
         h.path = DecisionPath.jev
         return choice.index == 0 and safety.jev_ok(choice.confidence, write)
