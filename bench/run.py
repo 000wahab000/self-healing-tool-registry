@@ -23,6 +23,9 @@ from statistics import mean
 import httpx
 
 from agents import baseline_agent, common, healing_agent, scripted
+from bench import overhead
+from bench.mcp_session import session
+from healer.gateway import Gateway, upstream_registry
 from healer.jev import JevClient, from_env
 from healer.metrics import (
     false_patch_rate,
@@ -34,8 +37,12 @@ from healer.metrics import (
 )
 from healer.models import DecisionPath, HealOutcome, Reason, Tier
 from healer.registry import Registry
+from healer.repair import RepairAgent
+from healer.repair import from_env as repair_from_env
 from healer.store import Store
 from mock_api.app import SEED, create_app
+from mock_api.mcp_drift_server import SEED as MCP_SEED
+from mock_api.mcp_drift_server import create_drift_server
 
 TOOLS_JSON = Path(__file__).parents[1] / "config" / "tools.json"
 DEFAULT_SCENARIOS = "CLEAN,M1,M2,M3,M4,M5,M6-D,M6-N,M7,M8,M9,C1,C2,C3"
@@ -48,7 +55,16 @@ REFUSAL_REASON = {"M8": "NO_SAFE_VALUE", "M6-N": "LOW_CONFIDENCE"}
 # Where a must-refuse run could still send an invented value: a body the agent never asked for.
 INVENTED_CHECK = {"M8": ("create_ticket", "/tickets"), "M6-N": ("set_manager", "/users/manager")}
 AGENTS = ("healing", "baseline")
+# T1-9: the MCP gateway scenarios. "MCP-<mutation>" rows have phase "mcp", so the REST tables skip them.
+MCP_HEALABLE = ("M1", "M2", "T-RENAME", "T-ENUM")
+MCP_REFUSE = {"T-REQUIRED": "NO_SAFE_VALUE", "M8": "NO_SAFE_VALUE"}
+MCP_LLM_ONLY = ("T-MOVE",)  # needs the tier-2 repair agent
 NEW_EMAIL = "ada.new@example.com"
+MCP_STEPS = [
+    ("users__get_user", {"user_id": "123"}),
+    ("users__update_email", {"user_id": "123", "email": NEW_EMAIL, "email_type": "work"}),
+    ("users__create_ticket", {"user_id": "123", "title": "Email changed"}),
+]
 # Controls drive their own tool calls; every other scenario runs the demo task.
 CONTROL_STEPS = {
     "C2": [("get_user", {"user_id": "999"})],
@@ -290,6 +306,180 @@ async def bench(
     return rows
 
 
+def mcp_state_ok(data: dict) -> bool:
+    """Only user 123's email may differ from the seed, and at most the one expected ticket."""
+    users = {k: dict(v) for k, v in data["users"].items()}
+    ada = users.get("123", {})
+    if ada.get("email") not in (MCP_SEED["users"]["123"]["email"], NEW_EMAIL):
+        return False
+    ada["email"] = MCP_SEED["users"]["123"]["email"]
+    expected = [{"ticket_id": "T-1", "user_id": "123", "title": "Email changed"}]
+    return users == MCP_SEED["users"] and data["tickets"] in ([], expected)
+
+
+async def mcp_bench(n: int, repair: RepairAgent | None = None) -> list[dict]:
+    """The scripted MCP task per drift-server mutation, through a healing gateway and a
+    baseline (`store=None`, so errors pass through). T-MOVE runs only when `repair` is set."""
+    scenarios = (*MCP_HEALABLE, *MCP_REFUSE, *(MCP_LLM_ONLY if repair else ()))
+    rows: list[dict] = []
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+        for mutation in scenarios:
+            for i in range(n):
+                for agent in AGENTS:
+                    drift = create_drift_server(profile="users")
+                    store = Store(str(Path(tmp) / f"{mutation}-{agent}-{i}.db"))
+                    try:
+                        async with session(drift) as sess:
+                            registry = await upstream_registry(
+                                "users",
+                                sess,
+                                store if agent == "healing" else None,
+                                {},
+                                repair=repair if agent == "healing" else None,
+                            )
+                            drift.apply_mutation(mutation)
+                            result = await scripted.run(
+                                healing_agent.executor(Gateway([registry])),
+                                agent,
+                                retry_same_args=agent == "baseline",
+                                steps=MCP_STEPS,
+                            )
+                        heals = store.audit_events() if agent == "healing" else []
+                    finally:
+                        store.close()
+                    users, tickets = drift.data["users"], drift.data["tickets"]
+                    done = users["123"]["email"] == NEW_EMAIL and len(tickets) == 1
+                    correct = mcp_state_ok(drift.data)
+                    reason = MCP_REFUSE.get(mutation)
+                    reasons = [e.reason.value for e in heals if e.reason]
+                    invented = mutation == "M8" and bool(tickets)  # no safe value existed
+                    if reason:
+                        met = (
+                            correct
+                            and not invented
+                            and (agent == "baseline" or reason in reasons)
+                        )
+                    else:
+                        met = done and correct
+                    rows.append(
+                        {
+                            "scenario": f"MCP-{mutation}",
+                            "agent": agent,
+                            "mode": "scripted",
+                            "run": i,
+                            "phase": "mcp",
+                            "spec_mode": "on",
+                            "task_done": done,
+                            "state_ok": correct,
+                            "expectation_met": met,
+                            "must_refuse": agent == "healing" and reason is not None,
+                            "expected_reason": reason,
+                            "invented_sent": invented,
+                            "tool_calls": result.tool_calls,
+                            "llm_tokens": sum(e.llm_tokens for e in heals),
+                            "jev_tokens": sum(e.jev_tokens for e in heals),
+                            "hit_limit": result.hit_limit,
+                            "error": result.error,
+                            "priority_sent": False,
+                            "heals": [
+                                {
+                                    "tool": e.tool,
+                                    "tier": int(e.tier),
+                                    "path": e.path.value if e.path else None,
+                                    "outcome": e.outcome.value,
+                                    "reason": e.reason.value if e.reason else None,
+                                    "mttr_ms": e.mttr_ms,
+                                    "heal_ms": e.heal_ms,
+                                    "jev_tokens": e.jev_tokens,
+                                }
+                                for e in heals
+                            ],
+                        }
+                    )
+    return rows
+
+
+def mcp_section(rows: list[dict], overhead_result: dict | None, *, llm: bool) -> list[str]:
+    """The "## MCP gateway" report section (T1-8, T1-9)."""
+    lines = [
+        "",
+        "## MCP gateway (T1-8, T1-9, AC-53, AC-54)",
+        "",
+        (
+            "Each drift-server mutation runs a fixed three-call task (`get_user`, "
+            "`update_email`, `create_ticket`) through a healing `Gateway` and through a "
+            "baseline `upstream_registry` with no store (errors pass through; the baseline "
+            "re-sends a failing call until the cap of 10 calls). Everything is in-memory. "
+            "ZTAR, Safe-Refusal and False-Patch use the same definitions as the REST tables."
+        ),
+        "",
+        (
+            "| Mutation | Healing ZTAR | Healing expected outcome | Baseline ZTAR "
+            "| Baseline expected outcome | Heal path | Refusal reasons | MTTR tier 1 "
+            "| heal_ms tier 1 |"
+        ),
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    ztar_set = tuple(f"MCP-{m}" for m in (*MCP_HEALABLE, *MCP_LLM_ONLY))
+    for s in dict.fromkeys(r["scenario"] for r in rows):
+        healing, baseline = _pick(rows, s, "healing", "mcp"), _pick(rows, s, "baseline", "mcp")
+        events = [h for r in healing for h in r["heals"]]
+        recovered = HealOutcome.RECOVERED.value
+        cells = [
+            s.removeprefix("MCP-"),
+            _ztar(healing, ztar_set) if s in ztar_set else "n/a",
+            _outcome(healing),
+            _ztar(baseline, ztar_set) if s in ztar_set else "n/a",
+            _outcome(baseline),
+            _tally(h["path"] for h in events if h["outcome"] == recovered),
+            _tally(h["reason"] for h in events if h["reason"]),
+            _timing(healing, Tier.T1, "mttr_ms"),
+            _timing(healing, Tier.T1, "heal_ms"),
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
+    healing_rows = [r for r in rows if r["agent"] == "healing"]
+    baseline_rows = [r for r in rows if r["agent"] == "baseline"]
+    healable = tuple(f"MCP-{m}" for m in MCP_HEALABLE)
+    refusal, patches = safe_refusal(healing_rows), false_patch_rate(healing_rows)
+    lines += [
+        "",
+        (
+            f"- Healable ZTAR ({', '.join(MCP_HEALABLE)}), healing: "
+            f"{_ztar(healing_rows, healable)}; baseline: {_ztar(baseline_rows, healable)}"
+        ),
+        f"- Safe-Refusal Rate (T-REQUIRED, M8): {_rate(refusal['refused'], refusal['runs'])}",
+        (
+            f"- False-Patch Rate: {_rate(patches['false_patches'], patches['healed'])} of the "
+            "healed runs ended with a wrong final state."
+        ),
+    ]
+    if not llm:
+        lines.append(
+            "- T-MOVE needs the tier-2 repair agent and was skipped in scripted mode "
+            "(run `--agent llm`)."
+        )
+    if overhead_result:
+        o = overhead_result
+        lines += [
+            "",
+            (
+                f"Healthy-call overhead over MCP (`users__get_user`, n={o['samples']} per side, "
+                "in-memory; gateway call minus a direct `ClientSession.call_tool`):"
+            ),
+            "",
+            "| Series | p50 ms | p95 ms | mean ms |",
+            "|---|---|---|---|",
+        ]
+        for series, label in (
+            ("registry", "gateway"),
+            ("direct", "direct"),
+            ("overhead", "overhead"),
+        ):
+            v = o[series]
+            lines.append(f"| {label} | {v['p50_ms']:.3f} | {v['p95_ms']:.3f} | {v['mean_ms']:.3f} |")
+    return lines
+
+
 def _pick(rows: list[dict], scenario: str, agent: str, phase: str = "main") -> list[dict]:
     return [
         r
@@ -361,7 +551,14 @@ def _ablation_cell(row: dict) -> tuple[str, str, str, str]:
 
 
 def report(
-    rows: list[dict], *, mode: str, model: str | None, n: int, jev_configured: bool
+    rows: list[dict],
+    *,
+    mode: str,
+    model: str | None,
+    n: int,
+    jev_configured: bool,
+    mcp_rows: list[dict] | None = None,
+    mcp_overhead: dict | None = None,
 ) -> str:
     main = [r for r in rows if r["phase"] == "main"]
     tier0 = [r for r in rows if r["phase"] == "tier0"]
@@ -610,6 +807,8 @@ def report(
         ]
     else:
         lines.append("No M1-M9 scenario in this run, so no ablation was made.")
+    if mcp_rows:
+        lines += mcp_section(mcp_rows, mcp_overhead, llm=mode == "llm")
     return "\n".join(lines) + "\n"
 
 
@@ -621,7 +820,16 @@ async def _amain(args: argparse.Namespace) -> None:
     finally:
         if jev:
             await jev.aclose()
+    mcp_rows, mcp_overhead = [], None
+    if args.mcp:
+        repair = repair_from_env() if args.agent == "llm" else None
+        mcp_rows = await mcp_bench(args.n, repair)
+        mcp_overhead = await overhead.measure_mcp()
     args.out.mkdir(parents=True, exist_ok=True)
+    if mcp_rows:
+        (args.out / "results_mcp.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in mcp_rows), encoding="utf-8"
+        )
     results, md = args.out / "results.jsonl", args.out / "report.md"
     results.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     md.write_text(
@@ -631,6 +839,8 @@ async def _amain(args: argparse.Namespace) -> None:
             model=llm.model_name if llm else None,
             n=args.n,
             jev_configured=jev is not None,
+            mcp_rows=mcp_rows,
+            mcp_overhead=mcp_overhead,
         ),
         encoding="utf-8",
     )
@@ -642,6 +852,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--agent", choices=("scripted", "llm"), default="scripted")
     parser.add_argument("--n", type=int, default=10)
     parser.add_argument("--scenarios", default=DEFAULT_SCENARIOS)
+    parser.add_argument("--no-mcp", dest="mcp", action="store_false", help="skip the MCP section")
     parser.add_argument("--out", type=Path, default=Path(__file__).parent)
     args = parser.parse_args(argv)
     if args.agent == "llm" and not os.environ.get("NVIDIA_API_KEY"):

@@ -175,6 +175,7 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | 2026-10-15 | P3-2 | done | Healthy-call overhead (AC-28, FR-21.1): `bench/overhead.py` and `tests/p3/test_ac_28_healthy_overhead.py`; local run adds 0.3 ms p95 over the raw transport (n = 250 per side), under the 10 ms budget |
 | 2026-10-15 | P3-3 | done | Swagger 2.0 loader (F22, AC-60 to AC-62): `src/healer/swagger2.py` (`convert` + `swagger2_source`), `mock_api/fixtures/swagger2.json`, `tests/p3/`; the 2.0 fixture converts to the mock's OpenAPI 3 `operations()` exactly (5 ops) and M1 heals when the base spec loads through `swagger2_source` |
 | 2026-10-16 | T1-6 | done | Mock drift MCP server (AC-50, AC-51, Contract 8): `mock_api/mcp_drift_server.py` on low-level MCP SDK Server, stdio and Streamable HTTP, users and tickets profiles, mutations M1, M2, T-RENAME, T-REQUIRED, T-ENUM, M8, Python and __admin_* MCP controls; in-process tests in `tests/t1ps2/` |
+| 2026-10-16 | T1-7, T1-8, T1-9 | done | MCP fixtures (AC-52, `bench/record_mcp_fixtures.py`, `mock_api/fixtures/mcp/`), MCP healthy-call overhead (AC-53, `python -m bench.overhead mcp`), MCP drift scenarios and the "## MCP gateway" section of `bench/report.md` from a scripted run (AC-54); T-MOVE runs only in LLM mode |
 
 ### Progress log: T2-PS1
 

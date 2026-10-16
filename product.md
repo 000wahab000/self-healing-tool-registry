@@ -654,6 +654,18 @@ Note: "Store (T0)" and the negative cache are S6 and S7 (built). Jev is optional
 - **AC-50**: For each supported mutation, `tools/list` returns a modified tool definition/schema, and calling the tool with its baseline (pre-drift) shape fails with a JSON-RPC error or an `isError: true` result.
 - **AC-51**: Executing `reset()` restores the tools and schemas returned by `tools/list` to match the baseline definition exactly.
 
+### Functional requirements (T1-7 to T1-9: MCP fixtures and benchmark)
+
+- **FR-23.5** (T1-7): `python -m bench.record_mcp_fixtures` writes `mock_api/fixtures/mcp/<profile>/<mutation>.json` = `{"before": tools/list, "after": tools/list}` for every mutation that changes that profile's tools, leaving out the `__admin*` tools.
+- **FR-23.6** (T1-8): `python -m bench.overhead mcp` times at least 200 healthy `users__get_user` calls through `Gateway`/`upstream_registry` against the same calls sent straight through `ClientSession.call_tool`, both in-memory, and prints p50, p95 and mean for the gateway, the direct call and their difference. The REST mode is unchanged.
+- **FR-23.7** (T1-9): `bench/run.py` runs, per drift-server mutation, a fixed `get_user`, `update_email`, `create_ticket` task through a healing gateway and through a baseline (`upstream_registry` with no store). Rows have the REST run-row fields (scenario `MCP-<mutation>`, phase `mcp`), so ZTAR, Safe-Refusal, False-Patch and MTTR apply. Healable: M1, M2, T-RENAME, T-ENUM. Refusal expected: T-REQUIRED, M8. T-MOVE needs the repair agent and runs only in LLM mode. The report gets an "## MCP gateway" section, with the MCP overhead numbers.
+
+### Acceptance criteria (T1-7 to T1-9)
+
+- **AC-52**: Every fixture in `mock_api/fixtures/mcp/` loads, has no `__admin*` tool, and has `before != after`; a fresh recording reproduces the committed files. | Unit (`tests/t1ps2/test_ac_52_mcp_fixtures.py`)
+- **AC-53**: The MCP overhead bench runs with 200+ samples and returns finite, non-negative p50, p95 and mean values. | Unit (`tests/t1ps2/test_ac_53_mcp_overhead.py`)
+- **AC-54**: In the scripted MCP benchmark, healing recovers M1, M2, T-RENAME and T-ENUM (task done, state correct); refuses T-REQUIRED and M8 with `NO_SAFE_VALUE`; the False-Patch Rate is 0; the baseline never completes the task; T-MOVE is skipped without the repair agent. | Unit (`tests/t1ps2/test_ac_54_mcp_bench.py`)
+
 
 ## 19. Track T2-PS1: MCP Client, Loader and Front Door
 
