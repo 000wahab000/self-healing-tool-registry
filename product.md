@@ -644,7 +644,17 @@ Beyond the code, the problem statement requires the items below. This section on
 
 ## 18. Track T1-PS2: Mock Drift Server and Benchmark
 
-T1-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-50 to AC-54.
+### Functional requirements (T1-6: Mock Drift MCP Server)
+
+- **FR-23.1**: `mock_api/mcp_drift_server.py` implements an in-memory MCP server built on the low-level MCP SDK Server class, supporting stdio and Streamable HTTP. It serves tool sets determined by a `profile` parameter: `users` (tools `get_user`, `update_email`, `set_manager`, `create_ticket`) and `tickets` (tools `create_ticket`, `list_tickets`), seeded with in-memory data matching `mock_api/app.py`.
+- **FR-23.2**: The server implements Contract 8 (mock drift control), providing programmatic Python methods `apply_mutation(name)`, `reset()`, `list_mutations()`, and `current_mutation`, as well as administrative MCP tools `__admin_apply`, `__admin_reset`, and `__admin_list`.
+- **FR-23.3**: Supported mutations include `M1` (rename argument `user_id` to `customer_id`), `M2` (retype `user_id` from string to integer), `T-RENAME` (rename tool `get_user` to `fetch_user`), `T-REQUIRED` (add required argument `reason` to `update_email`), `T-ENUM` (restrict `update_email` format or enum), and `M8` (unsafe change adding required `priority` with no safe default).
+- **FR-23.4**: When a mutation is active, `tools/list` reflects the altered schema. Calling a mutated tool with its pre-mutation arguments returns a standard failure: unknown tools return a JSON-RPC error (-32601), and validation failures return an `isError: true` result explaining the failure. Calling `reset()` restores `tools/list` and handler behavior to the initial baseline.
+
+### Acceptance criteria (Track T1-PS2)
+
+- **AC-50**: For each supported mutation, `tools/list` returns a modified tool definition/schema, and calling the tool with its baseline (pre-drift) shape fails with a JSON-RPC error or an `isError: true` result.
+- **AC-51**: Executing `reset()` restores the tools and schemas returned by `tools/list` to match the baseline definition exactly.
 
 
 ## 19. Track T2-PS1: MCP Client, Loader and Front Door
