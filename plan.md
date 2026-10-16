@@ -378,7 +378,7 @@
 
 ## Phase 13+: STRETCH (only after phase 12)
 
-The order column below was the original single-person plan. The work now runs as the four parallel tracks in the next section; this table keeps the task details and "done when" conditions for the S items.
+The order column below was the original single-person plan. The work now runs as the MCP gateway tracks in the next section; this table keeps the task details and "done when" conditions for the S items.
 
 | Order | Item | Key tasks | Done when |
 |---|---|---|---|
@@ -393,80 +393,104 @@ The order column below was the original single-person plan. The work now runs as
 
 ---
 
-## Phase 13+: four parallel tracks
+## Phase 13+: MCP gateway, two teams on four machines
 
-Four people build the STRETCH items, the `product.md` §14 future scope and an MCP server at the same time. File ownership, reserved AC numbers, branch names, review rules and the contracts between tracks are in `AGENTS.md` ("Four-person ownership"). Kickoff prompts are in `team-prompts.md`. Each track runs its items in order, one PR per item, and keeps `pytest -q` and `ruff check .` clean.
+**New direction (2026-10-16).** The product becomes a self-healing gateway for external MCP servers:
 
-The §14 items and the MCP server have no requirements yet. Each one starts by adding its FR and AC to `product.md` (owner writes, P2 reviews), as `agent.md` invariant 10 requires. IDs: X1 Swagger 2.0, X2 `E3` healing, X3 new operations, X4 drift watcher, X5 Jev drift-vs-business without a spec, X6 Postgres, X7 streaming, X8 MCP server.
+```
+agent -> our MCP server (front door) -> Registry / Healer -> MCP client -> N upstream MCP servers
+                                                          -> REST adapter -> OpenAPI APIs (as today)
+```
 
-### Step 0: shared contracts (P2, before all tracks)
+- The gateway connects to the upstream MCP servers listed in `config/mcp_servers.json` (stdio or Streamable HTTP). It reads each server's `tools/list` and maps every tool's `inputSchema` to an `OperationSpec` (contract 1). It exposes them as namespaced tools `<server>__<tool>` with a frozen `agent_schema`.
+- The agent only sees the frozen schema. When an upstream tool drifts (tool renamed, argument renamed or retyped, required argument added, enum changed), the call fails with a JSON-RPC error or a result with `isError: true`. The healer re-reads `tools/list` and diagnoses the change from the old and new schemas. It rewrites the call with deterministic `ops.py` operations, verifies the result, writes one audit row and stores the fix. A drift it cannot heal safely gets a structured refusal.
+- REST through OpenAPI keeps working, so both protocols share one healing core.
+- The demo runs fully against a local mock MCP server that can change its own tools on command. No public MCP server is a required dependency.
 
-- [x] `OperationSpec`, `ParamSpec`, `LoadedSpec` and `SpecSource` in `models.py`; `openapi_loader.openapi_source(client)` as the default source.
-- [x] `Registry` and `Healer` take a `spec_source` instead of calling `fetch_spec` directly.
-- [x] `FixStore` protocol in `store.py`; `Registry` and `Healer` are typed against it.
-- [x] Contract tests: OpenAPI operations match `OperationSpec`; `Store` implements `FixStore`; an injected spec source is used by both load and heal.
+Two teams of one person each. Each person runs two machines, so four agents work in parallel. File ownership, branches and contracts are in `AGENTS.md` ("Two teams, four machines"). Kickoff prompts are in `team-prompts.md`. Every item starts with its FR and AC in `product.md` (`agent.md` invariant 10), one PR per item, with `pytest -q` and `ruff check .` clean.
 
-### Track P1: MCP server and protocols (teammate, GPT with oh-my-opencode-slim)
+| Machine | Team | Track | AC range | Branch prefix |
+|---|---|---|---|---|
+| **T1-PS1** | Team 1 (Wahab) | Healing core for MCP drift | AC-40 to AC-49 | `t1-ps1/` |
+| **T1-PS2** | Team 1 (Wahab) | Mock drift server, fixtures, benchmark, evidence | AC-50 to AC-54 | `t1-ps2/` |
+| **T2-PS1** | Team 2 (teammate) | MCP client, upstream loader, registry, front-door server | AC-30 to AC-39 | `t2-ps1/` |
+| **T2-PS2** | Team 2 (teammate) | Spec watcher, demo agent, dashboard, docs, pitch | AC-55 to AC-59 | `t2-ps2/` |
 
-The MCP server is the top priority. It turns the registry into a drop-in proxy: any MCP client (Claude Desktop, Cursor, Windsurf, LangChain MCP adapters) gets healing with no code changes. Path: agent → MCP → healer → HTTP → live API.
+### Step 0: land open branches and fix the shared interfaces (before the tracks)
 
-| Order | Item | Key tasks | Done when |
-|---|---|---|---|
-| P1-1 | X8 MCP server over stdio | FR/AC first (AC-30 onward). `src/healer/mcp_server.py` on the official `mcp` SDK (new `mcp` optional group, pinned to one major version). Use the low-level server so `tools/list` returns `Registry.tools()` exactly (`agent_schema` as `inputSchema`, never derived from Python signatures). `tools/call` goes through `Registry.call()`; a heal error or refusal becomes a tool result with `isError: true` and the `HealError` dict as structured content. Never emit `tools/list_changed` (the schema is frozen). Logs to stderr only. CLI entry `healer-mcp --base-url --spec-path --tools --db`. | An MCP client test against the in-process mock lists the tools, calls `get_user`, survives an M1 mutation mid-session with the same session and no `list_changed`, and gets an `isError` result with its reason for M8 |
-| P1-2 | X8 MCP over Streamable HTTP | Same server on Streamable HTTP; one registry shared by concurrent sessions (single-flight still gives one heal for 5 concurrent calls); bind to localhost by default; optional bearer token for remote use | The P1-1 tests pass over HTTP, plus an AC-19-style concurrency test through MCP |
-| P1-3 | X8 MCP client hand-off | Config snippets for Claude Desktop, Cursor and Windsurf (stdio and HTTP) handed to P4 for `docs/`; an opt-in live test with a real MCP client config | P4 can follow the snippets on a clean machine |
-| P1-4 | S4 GraphQL | Strawberry mock with introspection and admin mutations; `graphql_loader.py` emitting `OperationSpec`; `adapters/graphql.py` classifying into `Outcome`; registry dispatch by protocol | M1, M2 and M3 equivalents heal over GraphQL (any missing operation is requested from P2) |
-| P1-5 | S5 gRPC (unary) | grpcio mock with reflection and rich error details; `grpc_loader.py`; `adapters/grpc.py` mapping status codes to `ErrorClass` | M1 and M2 equivalents heal over gRPC |
-| P1-6 | X6 Postgres fix sharing | `store_pg.py` implementing `FixStore`; store tests run on both backends; two registries sharing one database see each other's fixes; one active fix per fingerprint enforced by the database | A fix committed by instance A is reused at tier 0 by instance B |
-| P1-7 | X8b upstream MCP healing (optional) | FR/AC first. A `SpecSource` that reads an upstream MCP server's `tools/list` into `OperationSpec`, so drift in another MCP server's tool schemas heals the same way | An upstream MCP tool renaming a field heals behind the proxy |
-| P1-8 | X7 streaming (optional, last) | FR/AC first: what drift means mid-stream, where a fix applies, when a stream is refused | Defined in `product.md`, then built to its own AC |
+- [ ] Merge the clean open branches into `main`: `p4/p4-1-ac18-check`, `plan-hygiene` (P3-1 to P3-3), `p1/p1-1-mcp-stdio` (P1-1 to P1-3). Run `pytest -q` and `ruff check .` after each merge.
+- [ ] Close `feat/updateUI` (stale, conflicts in `dashboard/index.html`). Delete the six already-merged remote branches.
+- [ ] T1-PS1 splits `origin/p2/p2-0-llm-benchmark` into one PR per item (item T1-0). The split PRs merge before T1-1.
+- [x] Contract 7 (upstream tool mapping) and contract 8 (mock drift control) are written in `AGENTS.md`. Both teams confirm them on day one.
 
-### Track P2: Healing core and evidence (Wahab, Claude Code)
-
-| Order | Item | Key tasks | Done when |
-|---|---|---|---|
-| P2-0 | MVP evidence | Live E2E tests on gpt-oss-20b (NVIDIA NIM); real-LLM benchmark at N = 10 per agent and scenario, clean runs included; AC-14 and AC-16 reported as measured, misses included; model and provider recorded in `report.md` | `report.md` regenerated from an LLM-mode run; `agents/` handed to P4 |
-| P2-1 | S8 injection resistance (M10) | Mock M10, its integration test and benchmark scenario | AC-26 passes |
-| P2-2 | S1 sibling propagation | Candidate fixes for tools with the same removed field; used only on a fingerprint match, always verified | A second tool hit by the same rename heals at tier 0 speed on first occurrence |
-| P2-3 | X3 new operations | `enum_map`, `encoding` (for `415`), lossless value transforms with a round-trip check; schema, `ops.py`, candidates, safety gate, mock mutations | Each new operation heals its mutation; a lossy transform is refused |
-| P2-4 | S3 tier-2 repair agent | Operations JSON out, validated; same gate and verification; 30 s budget; `proposals` table and its `FixStore` methods | A scenario tier 1 cannot build is healed or yields a proposal; no code is executed |
-| P2-5 | S2 rule mining | Abstract signature per fix; after 3 wins a `rules` row that skips Jev; its `FixStore` methods | A repeated ambiguous pattern heals without a Jev call |
-| P2-6 | X2 `E3` healing | Re-send with a defined operation set when the new content type is declared in the spec | A declared content-type change heals; anything else still refuses |
-| P2-7 | X5 Jev drift-vs-business without a spec | Jev yes/no check when the spec is off or unavailable; abort when Jev is absent | A business error is never healed |
-| P2-8 | X4 fix precomputation (heal side) | `Healer.precompute(old, new)`: build and dry-run candidates from the diff, store as `candidate`, send nothing | After P4's watcher sees a change, the first failing call heals at tier 0 speed |
-
-P2 also reviews every P3 and P4 PR and every contract change.
-
-### Track P3: Small isolated items (OpenCode free tier, no plugins)
-
-Each item touches at most two new files plus their tests, has its acceptance test written below, and is reviewed by P2. Use only zero-retention free models (see `team-prompts.md`), because the repo is private.
+### Track T1-PS1: healing core for MCP drift (Team 1)
 
 | Order | Item | Key tasks | Done when |
 |---|---|---|---|
-| P3-1 | Plan hygiene | Tick the `plan.md` boxes in phases 0 to 12 that the progress log and passing tests show are done; leave genuinely open ones (AC-18 manual check, live runs) unticked; no other text changes | Every ticked box names work with a passing test or a progress-log row |
-| P3-2 | AC-28 healthy-call overhead | FR/AC first (AC-28: the registry adds < 10 ms p95 per call, excluding network, `product.md` §11). `bench/overhead.py`: time 200+ healthy `Registry.call()` calls against the in-process mock, subtract the same calls sent straight through the transport, print p50 and p95. `tests/p3/test_ac_28_healthy_overhead.py` | The test passes and the script prints p50 and p95 |
-| P3-3 | X1 Swagger 2.0 converter | FR/AC first. `src/healer/swagger2.py`: a pure function converting a Swagger 2.0 document to the OpenAPI 3 shape `operations()` reads (`definitions` to `components/schemas`, `in: body` to `requestBody`, `consumes`/`produces`, `securityDefinitions`); a `swagger2_source(client, path)`; a 2.0 copy of the mock spec in `mock_api/fixtures/` | `operations(convert(fixture))` equals `operations()` of the mock's OpenAPI 3 spec, and M1 heals when the registry loads the 2.0 fixture |
+| T1-0 | Land the old P2 branch | Split `origin/p2/p2-0-llm-benchmark` into one PR per item (S1, S8/M10, X3, S2, X2-E3, X4 precompute). Changes to `registry.py` and `dashboard/` go into separate PRs that the owning machine approves. Keep `Healer.precompute` guarded until T2-PS2's watcher exists. | Each split PR is green and merged; any claim without a test is listed in the PR |
+| T1-1 | MCP failure classification | FR/AC first. `detect.py` maps an MCP outcome (JSON-RPC `-32602` invalid params, `-32601` unknown tool, `isError` result, transport error) to the existing `ErrorClass` set, from the `Outcome` that T2-PS1's adapter returns (contract 7). A business error from a tool stays a business error. | Each failure kind classifies correctly in unit tests; a business `isError` is never treated as drift |
+| T1-2 | Schema-diff diagnosis | `diagnose.py` compares the frozen `OperationSpec` with the one from a fresh `tools/list`: tool renamed (same schema, new name), argument renamed, argument retyped, new required argument, enum value changed. Every candidate value comes from the agent's call or the new schema, never invented. | Each drift case yields the right candidates; an unexplained drift yields a refusal |
+| T1-3 | MCP heal path | `heal.py` heals an MCP call through the existing pipeline: candidates, safety gate, one retry, verification, one audit row, fix stored in `FixStore` by fingerprint. Add ops only where `ops.py` lacks one (for example a tool-rename op that routes to the new upstream name). | M1 to M3 equivalents heal over MCP end to end against T1-PS2's mock; an M8-style unsafe drift refuses with a structured error |
+| T1-4 | Precompute for MCP | `Healer.precompute(old, new)` accepts two `tools/list` snapshots, builds and dry-runs candidates, stores them as `candidate`, sends nothing | After the watcher reports a change, the first failing call heals at tier 0 |
+| T1-5 | Deferred core items | S3 tier-2 repair agent and X5 Jev check without a spec, only if time is left; FR/AC first | Their own ACs |
 
-### Track P4: Demo, docs and integration (Antigravity, Gemini Flash)
-
-Antigravity's built-in browser agent suits the visual checks. Keep to one feature per conversation to stay inside the plan's quota.
+### Track T1-PS2: mock drift server, benchmark and evidence (Team 1)
 
 | Order | Item | Key tasks | Done when |
 |---|---|---|---|
-| P4-1 | AC-18 browser check | Run the dashboard locally; in the browser, trigger mutations with one click, confirm both agents update live and the heal event appears within 1 s (compare the click time with the `heal_events` timestamp); two cold-start demo rehearsals, including M8 and a run with Jev not configured; screenshots in the PR | Timings and screenshots recorded in the PR and a progress-log row |
-| P4-2 | X4 drift watcher (watch side) | FR/AC first. `spec_watcher.py`: poll a `SpecSource` on an interval, compare hashes, save new snapshots, call `Healer.precompute(old, new)` once P2-8 exists (guarded until then); injected clock and sleep, bounded backoff, never blocks a call | A spec change is snapshotted within one interval; an unchanged spec causes no extra work |
-| P4-3 | MCP client guides | `docs/mcp-clients.md` from P1-3's snippets: Claude Desktop, Cursor, Windsurf, stdio and HTTP; tested by hand on one client | A fresh user connects a client by following the guide |
-| P4-4 | Dashboard updates | Buttons for new scenarios as P1 and P2 land them (M10, new-op mutations); an MCP view showing calls arriving through the MCP server | Dashboard tests pass; new buttons are covered by the existing button-coverage test |
-| P4-5 | LangGraph migration | After P2-0: move both agents from `create_react_agent` to `langchain.agents.create_agent`; pin `langgraph` below 2 until then | Agent tests pass with no deprecation warning |
-| P4-6 | Final docs and pitch | After P2-0: README, `pitch.md` and `writeup.md` updated from the measured `report.md`, misses included; record the schema-rebase idea in `writeup.md` as future design, not built (the frozen `agent_schema` is an invariant); an MCP demo recording for the pitch | Every number in the docs appears in `report.md` |
+| T1-6 | Mock drift MCP server | FR/AC first. `mock_api/mcp_drift_server.py` on the official `mcp` SDK, stdio and Streamable HTTP. Its tools mirror the REST mock (`get_user`, `create_order` and the rest). A control interface (contract 8) applies and resets mutations: rename tool, rename argument, retype argument, add required argument, change enum, and an M8-style unsafe change. A second instance with a different tool set covers the "2+ servers" case. | Each mutation changes `tools/list` and makes the old call fail; reset restores the original |
+| T1-7 | Drift fixtures | `mock_api/fixtures/mcp/`: recorded `tools/list` before and after each mutation, used by T1-PS1 and T2-PS1 unit tests without a running server | Fixture tests load every snapshot pair |
+| T1-8 | Healthy-call overhead over MCP | Extend `bench/overhead.py`: time 200+ healthy calls through the gateway against the same calls sent straight upstream; report p50 and p95 | Numbers printed and recorded in `bench/report.md` |
+| T1-9 | MCP drift benchmark | Add the MCP mutations to `bench/run.py` as scenarios beside the REST ones; same metrics (ZTAR, Safe-Refusal, False-Patch, MTTR) | `bench/report.md` has an MCP section from a scripted run |
+| T1-10 | Real-LLM evidence (old P2-0) | Live runs on gpt-oss-20b (NVIDIA NIM), N = 10 per agent and scenario, REST and MCP, misses included; model and provider recorded | `report.md` regenerated from an LLM-mode run |
 
-### Hand-offs between the tracks
+### Track T2-PS1: MCP client, loader and front door (Team 2)
 
-- P1-1 to P1-3 depend only on step 0 and `Registry`, so they can start now.
-- P1-6 must catch up with `FixStore` after P2-4 and P2-5 add tables.
-- P2-8 needs P4-2's watcher; P4-2 ships first with the hook guarded.
-- P4-3 needs P1-3; P4-5 and P4-6 need P2-0.
-- P3-3's converter plugs in through `SpecSource`; P1 reviews the loader side.
+| Order | Item | Key tasks | Done when |
+|---|---|---|---|
+| T2-1 | Upstream MCP client adapter | FR/AC first. `src/healer/adapters/mcp_upstream.py`: one client session per upstream server (stdio or Streamable HTTP); call tools; return the same `Outcome` model as the REST adapter, keeping the JSON-RPC error code and the `isError` content for T1-PS1 (contract 7) | A call to each mock server returns a correct `Outcome` for success, `isError` and JSON-RPC errors |
+| T2-2 | Upstream loader | `mcp_upstream_source(server)`: a `SpecSource` that reads `tools/list` and maps each `inputSchema` to an `OperationSpec` keyed `<server>__<tool>` | Mapping tests pass on every T1-7 fixture |
+| T2-3 | Multi-server config | `config/mcp_servers.json`: name, transport, command or URL, and the *name* of the env var that holds a token. No secrets in the file. Loaded once at start-up. | Two mock servers load from config; a missing env var gives a clear start-up error |
+| T2-4 | Registry dispatch | `registry.py` routes each tool to the REST or the MCP adapter by protocol; `tools()` stays frozen across upstream changes | REST and MCP tools appear in one `tools()` list and both call paths work |
+| T2-5 | Front door over both transports | Extend `mcp_server.py` (old P1-1, P1-2): expose the merged registry over stdio and Streamable HTTP; never emit `tools/list_changed`; heal errors become `isError` results | An MCP client lists REST and MCP tools, and survives an upstream rename mid-session with no `list_changed` |
+| T2-6 | Deferred protocols | GraphQL, gRPC, Postgres fix store, streaming: start only after T2-5, FR/AC first | Their own ACs |
+
+### Track T2-PS2: watcher, demo, dashboard and docs (Team 2)
+
+| Order | Item | Key tasks | Done when |
+|---|---|---|---|
+| T2-7 | Spec watcher | FR/AC first. `spec_watcher.py`: poll each `SpecSource` (OpenAPI and upstream MCP) on an interval, hash and snapshot changes, call `Healer.precompute(old, new)` once it exists (guarded until then); injected clock, bounded backoff, never blocks a call | A change is snapshotted within one interval; an unchanged spec causes no work |
+| T2-8 | Demo agent | `demo/mcp_agent.py`: a LangGraph agent that connects only to our front door and uses tools from 2+ upstream mock servers in one task; a script triggers a mutation mid-task | The task finishes after a mid-task rename, with one heal event in the audit log |
+| T2-9 | Dashboard MCP view | Show upstream servers, their tools, live MCP calls and heal events; buttons for the MCP mutations through contract 8 | Dashboard tests pass; new buttons covered by the button-coverage test |
+| T2-10 | Client guides | `docs/mcp-clients.md` from `tests/mcp/client-handoff.md`: Claude Desktop, Cursor, Windsurf, stdio and HTTP, plus how to add an upstream server | A fresh user connects a client by following the guide |
+| T2-11 | README, pitch, writeup | Rewrite around the gateway story after T1-9; every number from `bench/report.md`; LangGraph migration (old P4-5) if still needed | Every number in the docs appears in `report.md` |
+
+### Old items: kept, merged, dropped
+
+| Old | Now |
+|---|---|
+| P1-1, P1-2, P1-3 | Land in step 0; remaining P1-2 work moves to T2-5 |
+| P1-4 GraphQL, P1-5 gRPC, P1-6 Postgres, P1-8 streaming | Deferred to T2-6 |
+| P1-7 upstream MCP healing | Becomes the main track: T2-1, T2-2, T1-1 to T1-3 |
+| P2-0 benchmark | T1-10 |
+| P2-1, P2-2, P2-3, P2-5, P2-6 | Land through T1-0 |
+| P2-4 S3, P2-7 X5 | Deferred to T1-5 |
+| P2-8 precompute | T1-4 (MCP snapshots added) |
+| P3-1, P3-2, P3-3 | Land in step 0; P3-2 extended by T1-8 |
+| P4-1 | Lands in step 0 |
+| P4-2 watcher | T2-7 |
+| P4-3 guides | T2-10 |
+| P4-4 dashboard | T2-9 |
+| P4-5 LangGraph, P4-6 docs | T2-11 |
+
+### Hand-offs
+
+- T1-6 and T1-7 come first on T1-PS2, because T1-PS1 and T2-PS1 test against the mock and the fixtures. Until they land, unit tests use hand-written `tools/list` dicts.
+- T2-1 defines the MCP `Outcome` that T1-1 classifies (contract 7). Agree on its shape on day one.
+- T1-3 needs T2-1, T2-2 and T1-6. T2-5 needs T2-4.
+- T2-7 ships with the precompute hook guarded; T1-4 switches it on.
+- T2-8 and T2-9 need T2-5 and T1-6. T2-11 needs T1-9 and T1-10.
+- Wahab reviews every contract change. The teammate reviews Team 1 PRs that touch a contract or a Team 2 file.
 
 ---
 
@@ -493,3 +517,4 @@ Antigravity's built-in browser agent suits the visual checks. Keep to one featur
 | 2026-10-15 | P1-1 | implemented; packaging hand-off pending | Official MCP 2.x low-level stdio interface, frozen schemas, structured refusals, no list-change notifications; SDK memory and actual stdio subprocess tests, custom-spec healing and secret-leak regressions in `tests/mcp/`. Launch with `python -m healer.mcp_server`; P2 request: add `[project.scripts] healer-mcp = "healer.mcp_server:main"`. No P2-owned packaging edit made. |
 | 2026-10-15 | P1-2 | done | Stateful Streamable HTTP shares one registry; loopback default, optional environment-selected bearer authentication on every method, explicit remote host allowlist and exact origins. SDK clients exercise the ASGI HTTP path without sockets, M1/M8 parity and five overlapping sessions producing one heal. `pytest -q`: 584 passed, 5 skipped; `ruff check .` clean. Remote deployment needs a trusted TLS reverse proxy. |
 | 2026-10-16 | P1-3 | hand-off prepared; live acceptance pending | Client-specific stdio/HTTP snippets for P4 are in `tests/mcp/client-handoff.md`; existing opt-in config launcher is in `tests/mcp/test_client_config.py`. Final helper suppresses SDK diagnostic logs and discards child stderr to avoid secret leakage. Static review and lint only after user requested no further tests; final helper runtime validation, live configuration checks and P4 client UI checks remain pending. P2 console-entry request remains unchanged. |
+| 2026-10-16 | 13 re-plan | done | Direction changed to an MCP gateway that heals upstream MCP servers; work split into two teams on four machines (T1-PS1, T1-PS2, T2-PS1, T2-PS2); old P1 to P4 items mapped to new ones |
