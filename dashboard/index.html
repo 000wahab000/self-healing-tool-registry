@@ -344,10 +344,20 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
   <div id="view-metrics" role="tabpanel" hidden>
     <div class="head"><div><p class="eyebrow">Since the last reset</p><h2>Metrics</h2></div></div>
     <div class="cards" id="metrics"></div>
+    <div class="head" style="margin-top:36px"><div><p class="eyebrow">Agent &amp; token impact</p><h3 style="margin:0">What the registry kept away from the agents</h3></div></div>
+    <div class="cards" id="impact"></div>
+    <p class="cost-note" id="impact-note"></p>
+    <section class="card pad cost" id="impact-cost" aria-labelledby="impact-cost-h">
+      <div class="cost-head"><h3 id="impact-cost-h">Baseline agent vs self-healing agent</h3><span class="cost-hero" id="impact-hero"></span><span class="muted" id="impact-sub">Run a scenario to compare both agents.</span></div>
+      <div class="legend" aria-hidden="true"><span><i style="background:#c2410c"></i>Baseline agent</span><span><i style="background:#1d4ed8"></i>Self-healing agent</span></div>
+      <div class="cost-grid" id="impact-chart"></div>
+      <p class="cost-note" id="impact-chart-note"></p>
+    </section>
     <section class="card reasons" id="reasons" hidden>
       <h3>Refusal reasons</h3>
       <div class="ops" id="reasons-list"></div>
     </section>
+  </div>
 
   <!-- REPORT -->
   <div id="view-report" role="tabpanel" hidden>
@@ -498,9 +508,28 @@ const Demo = (() => {
     const by_outcome = {}, by_reason = {};
     d.heals.forEach((h) => { by_outcome[h.outcome] = (by_outcome[h.outcome] || 0) + 1; if (h.reason) by_reason[h.reason] = (by_reason[h.reason] || 0) + 1; });
     const ok = d.heals.filter((h) => h.outcome === "RECOVERED").map((h) => h.mttr_ms);
+    const total = { healing: 0, baseline: 0 }, errs = { healing: 0, baseline: 0 }, retries = { healing: 0, baseline: 0 };
+    const last = { healing: null, baseline: null }, lastFail = { healing: false, baseline: false };
+    d.events.forEach((e) => {
+      const a = e.agent; if (!(a in total)) return;
+      total[a]++; const fail = e.class !== "OK"; if (fail) errs[a]++;
+      const key = e.tool;
+      if (last[a] === key && lastFail[a]) retries[a]++;
+      last[a] = key; lastFail[a] = fail;
+    });
+    const turns = Math.max(0, total.baseline - total.healing);
+    const bTok = d.runs.baseline.llm_tokens || 0, hTok = d.runs.healing.llm_tokens || 0;
+    const measured = (bTok || hTok) ? bTok - hTok : null;
+    const bTokBar = measured === null ? total.baseline * 600 : bTok;
+    const hTokBar = measured === null ? total.healing * 600 : hTok;
     return {
       epoch: d.epoch, active_mutation: d.mut, runs: d.runs, events: d.events.filter((e) => e.event_id > after), heals: d.heals,
-      metrics: { mttr: ok.length ? { "1": { p50_ms: quant(ok, .5), p95_ms: quant(ok, .95), n: ok.length } } : {}, outcomes: { by_outcome, by_reason } },
+      metrics: { mttr: ok.length ? { "1": { p50_ms: quant(ok, .5), p95_ms: quant(ok, .95), n: ok.length } } : {}, outcomes: { by_outcome, by_reason },
+        impact: { heals: by_outcome.RECOVERED || 0, refusals: by_outcome.ABORTED || 0, healing_calls: total.healing, baseline_calls: total.baseline,
+          turns_saved: turns, healing_errors: errs.healing, baseline_errors: errs.baseline, errors_kept_out: Math.max(0, errs.baseline - errs.healing),
+          baseline_retries: retries.baseline, healer_jev_tokens: 0, healer_llm_tokens: 0, healer_tokens: 0,
+          baseline_tokens: bTokBar, healing_tokens: hTokBar,
+          tokens_saved: Math.max(0, bTokBar - hTokBar), tokens_measured: measured !== null, tokens_per_turn: 600 } },
       mocks: { healing: { mutation: d.mut, data: d.data.healing }, baseline: { mutation: d.mut, data: d.data.baseline } },
     };
   }
@@ -1068,7 +1097,7 @@ $("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_
 $("start-llm").onclick = () => act("/api/start", { agent: "llm" });
 $("reset").onclick = () => act("/api/reset", {});
 
-let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut, liveRunScenario = null;
+let after = 0, epoch = null, healSig = "", impactSig = "", busy = false, connected = false, lastLiveMut, liveRunScenario = null;
 const openHeals = new Set(); let seenHeals = 0;
 const counts = { healing: 0, baseline: 0 };
 const liveCalls = { healing: [], baseline: [] };
@@ -1207,6 +1236,77 @@ function renderMetrics(m) {
   const reasons = Object.entries(m.outcomes.by_reason);
   $("reasons").hidden = !reasons.length;
   $("reasons-list").replaceChildren(...reasons.map(([k, v]) => el("span", k + " ×" + v, { class: "op" })));
+  renderImpact(m.impact);
+}
+function num(n) { return Number(n || 0).toLocaleString(); }
+function renderImpact(imp) {
+  const box = $("impact"), noteEl = $("impact-note");
+  if (!imp) {
+    box.replaceChildren(); noteEl.textContent = "";
+    $("impact-chart").replaceChildren(); $("impact-hero").textContent = "";
+    $("impact-sub").textContent = "Run a scenario to compare both agents.";
+    $("impact-chart-note").textContent = "";
+    impactSig = "";
+    return;
+  }
+  box.replaceChildren(
+    metric("Agent turns saved", num(imp.turns_saved), "", "Tool-call round-trips the baseline paid for and this agent did not"),
+    metric("Errors kept from the agent", num(imp.errors_kept_out), "", "Failure results removed from context · baseline " + num(imp.baseline_errors) + " → healing " + num(imp.healing_errors)),
+    metric("Blind retries avoided", num(imp.baseline_retries), "", "Same-call re-sends a standard framework falls into"),
+    metric("Tokens saved", num(imp.tokens_saved), imp.tokens_measured ? "" : "est.", imp.tokens_measured
+      ? "Measured on the last Live LLM run: baseline minus self-healing"
+      : "Avoided turns × ~" + num(imp.tokens_per_turn) + " tokens/turn (no LLM run yet)"),
+    metric("Healer's own tokens", num(imp.healer_tokens), "", "Classifier " + num(imp.healer_jev_tokens) + " + repair " + num(imp.healer_llm_tokens) + ", kept apart"),
+  );
+  noteEl.textContent = imp.tokens_measured
+    ? "Token saving is measured on the last Live LLM run (baseline spend minus healing spend); the healer's own tokens are reported separately (FR-8.7)."
+    : "Counts are measured live in this session. Each avoided turn is a model round-trip the baseline paid for and the healing agent did not. Token saving is an estimate (" + num(imp.turns_saved) + " × ~" + num(imp.tokens_per_turn) + " tokens/turn) until a Live LLM run measures it (AC-16); the healer's own tokens are kept separate (FR-8.7).";
+  renderImpactChart(imp);
+}
+function renderImpactChart(imp) {
+  // The poll runs every 500 ms; rebuilding the bars each time restarts the .9 s
+  // width transition before it finishes, which reads as a blink. Rebuild only
+  // when a displayed value actually changes (reset clears the signature below).
+  const sig = [imp.baseline_tokens, imp.healing_tokens, imp.baseline_calls, imp.healing_calls,
+    imp.baseline_errors, imp.healing_errors, imp.tokens_measured, imp.healer_tokens].join("|");
+  if (sig === impactSig) return;
+  impactSig = sig;
+  const v = {
+    baseline: { tokens: imp.baseline_tokens || 0, turns: imp.baseline_calls || 0, errors: imp.baseline_errors || 0 },
+    healing: { tokens: imp.healing_tokens || 0, turns: imp.healing_calls || 0, errors: imp.healing_errors || 0 },
+  };
+  const measures = [["tokens", "LLM tokens spent"], ["turns", "Agent turns (round-trips)"], ["errors", "Errors fed to the agent"]];
+  $("impact-chart").replaceChildren(...measures.map(([k, label]) => {
+    const box = el("div", null, { class: "cost-m", role: "img" });
+    const max = Math.max(1, ...SERIES.map(([a]) => v[a][k]));
+    box.setAttribute("aria-label", label + ": " + SERIES.map(([a, name]) => name + " " + v[a][k]).join(", "));
+    box.append(el("small", label));
+    for (const [a, name, color] of SERIES) {
+      const row = el("div", null, { class: "bar-row", title: name + ": " + num(v[a][k]) });
+      const track = el("div", null, { class: "bar-track" });
+      const bar = el("div", null, { class: "bar" });
+      bar.style.background = color;
+      track.append(bar);
+      row.append(track, el("b", num(v[a][k])));
+      box.append(row);
+      requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = (100 * v[a][k] / max) + "%"; }));
+    }
+    return box;
+  }));
+  const b = v.baseline, h = v.healing;
+  if (imp.tokens_measured && b.tokens > h.tokens) {
+    $("impact-hero").textContent = Math.round(100 * (b.tokens - h.tokens) / Math.max(1, b.tokens)) + "% fewer tokens";
+    $("impact-sub").textContent = "measured on the last Live LLM run";
+  } else if (b.turns > h.turns) {
+    $("impact-hero").textContent = Math.round(100 * (b.turns - h.turns) / Math.max(1, b.turns)) + "% fewer agent turns";
+    $("impact-sub").textContent = imp.tokens_measured ? "" : "no LLM run yet: the token bars are an estimate";
+  } else {
+    $("impact-hero").textContent = "";
+    $("impact-sub").textContent = "Run a scenario to compare both agents.";
+  }
+  $("impact-chart-note").textContent = imp.tokens_measured
+    ? "Measured in the last Live LLM run. The healer's own tokens (" + num(imp.healer_tokens) + ") are reported separately (FR-8.7)."
+    : "Agent turns and errors are measured live in this session. Token bars are an estimate (" + num(imp.baseline_calls) + " vs " + num(imp.healing_calls) + " turns × ~" + num(imp.tokens_per_turn) + " tokens/turn) until a Live LLM run measures them (AC-16).";
 }
 function render(s) {
   if (s.run_scenario !== undefined) liveRunScenario = s.run_scenario;
