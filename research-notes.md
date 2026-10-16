@@ -1,6 +1,6 @@
-> Supplementary reading only. This file does not change scope. product.md, technical-approach.md and plan.md remain the source of truth; nothing here is a requirement.
+> Supplementary reading only; nothing here is a requirement. `product.md`, `technical-approach.md` and `plan.md` are the source of truth.
 
-Each entry's page was opened and title, authors and year checked on 2026-10-14. Entries marked "arXiv preprint" have no venue on their page and are not peer reviewed. Summaries are condensed from abstracts, not from full texts.
+Title, authors and year of each entry were checked on its page on 2026-10-14. "arXiv preprint" entries have no venue and are not peer reviewed. Summaries are condensed from abstracts.
 
 ## 1. Breaking changes and evolution of web/REST APIs
 

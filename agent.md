@@ -1,22 +1,22 @@
 # agent.md: Instructions for AI Coding Agents
 
-You are building **PS 01: Self-Healing Tool Registries Under Runtime API Schema Drift**. Read this file before writing any code.
+The project is a self-healing gateway for upstream MCP servers and REST/OpenAPI APIs (PS 01: Self-Healing Tool Registries Under Runtime API Schema Drift). Read this file before writing any code. Ownership of files across the four machines is in `AGENTS.md`.
 
 ## 1. Read order and authority
 
-1. `product.md` defines **what** to build: features, requirements (FR-x) and acceptance criteria (AC-x).
-2. `technical-approach.md` defines **how**: components, data model, algorithms, stack.
-3. `plan.md` defines the **order**: phases and tasks. Work only on the current phase.
-4. This file defines the **rules** for writing code in this repo.
+1. `product.md`: **what** to build (FR-x, AC-x).
+2. `technical-approach.md`: **how** (components, data model, algorithms, stack).
+3. `plan.md`: the **order** (work only your own items).
+4. This file: the **rules** for writing code.
 
-When documents conflict, `product.md` wins on requirements and this file wins on coding process. If a conflict blocks you, stop and ask. Do not guess.
+`product.md` wins on requirements; this file wins on coding process. If a conflict blocks you, stop and ask.
 
 ## 2. Non-negotiable invariants
 
-Never break these. Any change that would break one is wrong, even if a test passes.
+Never break these, even if a test passes.
 
 1. **Never invent values.** A patched request may only contain values from the agent's arguments, a config reference, or the current API spec (route names only). There are no defaults, no placeholders, and no model-generated values.
-2. **Never execute model-generated code.** Fixes are operation lists interpreted by `ops.py`. A model (Jev or the STRETCH repair LLM) can only select or emit operations that validate against the operations JSON Schema.
+2. **Never execute model-generated code.** Fixes are operation lists interpreted by `ops.py`. A model (Jev, or the STRETCH repair LLM) can only select or emit operations that validate against the operations JSON Schema.
 3. **Never loop.** Each call gets one heal attempt and each heal gets one replay. A failed fix is never retried. Respect the negative cache and the deadlines.
 4. **Never leave a heal unlogged.** Each heal attempt writes exactly one `heal_events` row before the agent receives its result.
 5. **Store machine-readable data only.** Use enumerated codes, array paths, `{"ref":...}` value references, canonical JSON and epoch-ms integers. No code may parse English text from the store.
@@ -30,7 +30,8 @@ Never break these. Any change that would break one is wrong, even if a test pass
 
 ```
 .
-├── agent.md  product.md  technical-approach.md  proposed-solution.md  plan.md
+├── AGENTS.md  agent.md  product.md  technical-approach.md  plan.md  team-prompts.md
+├── README.md  pitch.md  writeup.md  research-notes.md
 ├── pyproject.toml
 ├── .env.example                 # every env var, no real values
 ├── config/
@@ -41,8 +42,11 @@ Never break these. Any change that would break one is wrong, even if a test pass
 │   ├── ops.py                   # Op Interpreter (pure)
 │   ├── safety.py                # Safety Gate
 │   ├── openapi_loader.py        # fetch, $ref resolution, canonicalize, hash
-│   ├── registry.py              # ToolDefinition, Registry.call()
+│   ├── registry.py              # ToolDefinition, Registry.call(), dispatch by protocol
 │   ├── adapters/rest.py         # request document, send, normalize
+│   ├── adapters/mcp_upstream.py # upstream MCP client (T2-1, planned)
+│   ├── mcp_server.py            # front-door MCP server (T2-5)
+│   ├── spec_watcher.py          # polls specs, calls Healer.precompute (T2-7)
 │   ├── detect.py                # classification + violations
 │   ├── contract.py              # output schema + postchecks
 │   ├── fingerprint.py
@@ -53,10 +57,11 @@ Never break these. Any change that would break one is wrong, even if a test pass
 │   ├── retry.py                 # E1 policy
 │   ├── store.py                 # SQLite + in-memory caches
 │   └── metrics.py               # ZTAR, MTTR, Token Overhead from store/results
-├── mock_api/                    # FastAPI app, mutations as data, admin endpoints
+├── mock_api/                    # FastAPI REST mock + mcp_drift_server.py (MCP mock), mutations as data
 ├── agents/                      # healing_agent.py, baseline_agent.py, shared prompt/tools
 ├── bench/                       # scenario runner, report writer
 ├── dashboard/                   # FastAPI + static HTML live demo
+├── demo/                        # MCP demo agent (T2-8, planned)
 ├── docs/                        # user guides (MCP client setup)
 └── tests/
     ├── unit/
@@ -64,13 +69,13 @@ Never break these. Any change that would break one is wrong, even if a test pass
     └── e2e/                     # real LLM/Jev; skipped unless env vars set
 ```
 
-Do not add top-level directories without updating this file.
+Do not add top-level directories without updating this file. `graphql_loader.py`, `grpc_loader.py`, `store_pg.py` and their adapters are deferred code (T2-6); do not extend them.
 
 ## 4. Stack and conventions
 
 - **Python and typing:** Python 3.11+. Type hints on every function. `from __future__ import annotations`.
 - **Records and enums:** stdlib `dataclasses` for records that cross module boundaries; fix operations stay plain JSON dicts validated by the operations JSON Schema. `StrEnum` for every code (classes, reasons, outcomes, tiers, op names, sides, kinds). Pydantic is used only inside `mock_api/`.
-- **Minimal code (ponytail):** smallest complete change. No abstraction, option, wrapper or "for later" code the plan does not require. Stdlib first, then installed dependencies. A shortcut with a known limit gets a `# ponytail:` comment naming the limit.
+- **Minimal code (ponytail):** smallest complete change. No abstraction, option or "for later" code the plan does not require. Stdlib first, then installed dependencies. A shortcut with a known limit gets a `# ponytail:` comment naming it.
 - **Async:** `httpx.AsyncClient` with explicit timeouts. No requests without a timeout.
 - **Paths:** `list[str | int]` with FastAPI location prefixes (`body`, `query`, `header`, `route`). Never use dotted strings.
 - **Canonical JSON:** use `canonical.dumps()` only (sorted keys, `(",", ":")` separators, UTF-8). Hash with sha256.
@@ -131,5 +136,5 @@ Do not add top-level directories without updating this file.
 - Do not catch broad exceptions and continue silently. Map each failure to a reason code and audit it.
 - Do not log request bodies or headers at info level. They may contain secrets or PII.
 - Do not tune the baseline agent to fail. It uses framework defaults with the same settings as the healing agent.
-- Do not start GraphQL or gRPC work before plan item T2-5 is done (they are deferred to T2-6).
+- Do not start GraphQL, gRPC or Postgres work: deferred to plan item T2-6, which starts only after T2-5.
 - Do not commit `.env`, `*.db` or benchmark outputs containing tokens or keys.
