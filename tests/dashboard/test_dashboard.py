@@ -272,6 +272,55 @@ async def test_mutation_picked_before_start_survives_start(client):
     assert s["traces"]["healing"][0]["heal_event"] is not None
 
 
+async def test_control_picked_mid_run_does_not_invalidate_the_run(client):
+    # C2 answers 404 for user 999 on its own; the demo task writes user 123, so a
+    # control selected around a running task must not grade the run as incorrect.
+    s = await run_with(client, "C2")
+    assert s["active_mutation"] == "C2"
+    assert s["runs"]["healing"]["data_correct"] is True
+    assert s["runs"]["baseline"]["data_correct"] is True
+
+
+async def test_control_picked_before_start_runs_the_control_task(client):
+    assert (await client.post("/api/mutation", json={"id": "C2"})).status_code == 200
+    assert (await client.post("/api/start", json=PACED)).status_code == 200
+    s = await finished(client)
+    assert s["run_scenario"] == "C2"
+    # The scripted agents only look up user 999; nothing is written.
+    assert sorted({e["tool"] for e in s["events"]}) == ["get_user"]
+    data = s["mocks"]["healing"]["data"]
+    assert data["users"]["123"]["email"] == "ada@example.com"
+    assert data["users"]["123"]["manager_id"] is None
+    assert data["tickets"] == []
+    assert s["runs"]["healing"]["data_correct"] is True
+    assert s["runs"]["baseline"]["data_correct"] is True
+
+
+def capturing_llm(seen: list):
+    class Captor(FakeLLM):
+        def _generate(self, messages, *args, **kwargs):
+            for m in messages:
+                if getattr(m, "type", "") == "human" and m.content not in seen:
+                    seen.append(m.content)
+            return super()._generate(messages, *args, **kwargs)
+
+    return lambda: Captor(messages=iter(()))
+
+
+async def test_llm_control_run_gets_the_control_task(client, monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "dashboard-dummy-key")
+    seen = []
+    monkeypatch.setattr("agents.common.make_llm", capturing_llm(seen))
+    assert (await client.post("/api/mutation", json={"id": "C2"})).status_code == 200
+    assert (await client.post("/api/start", json={"agent": "llm"})).status_code == 200
+    s = await finished(client)
+    assert any("user 999" in m for m in seen), seen
+    assert s["run_scenario"] == "C2"
+    assert s["runs"]["healing"]["data_correct"] is True
+    assert s["runs"]["baseline"]["data_correct"] is True
+
+
+
 async def test_ac_57_llm_run_records_detailed_offline_traces(client, monkeypatch):
     monkeypatch.setenv("NVIDIA_API_KEY", "dashboard-dummy-key")
     monkeypatch.setattr("agents.common.make_llm", fake_llm)

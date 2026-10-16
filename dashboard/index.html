@@ -155,6 +155,7 @@ div.calls-live .empty { display: block; color: var(--muted); text-align: center;
 .time, .lat { color: var(--muted); font: 12px var(--mono); }
 .lat { text-align: right; }
 .calls-live .tool { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
+.run-note { margin: 0; color: var(--ink-2); font-size: 13px; }
 
 /* prompt box */
 .prompt-box { margin: 12px 0 4px; display: grid; gap: 6px; }
@@ -254,6 +255,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
       <button role="tab" aria-selected="true" data-tab="live">Live stream</button>
       <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
       <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
+      <button role="tab" aria-selected="false" data-tab="mcp">MCP</button>
       <button role="tab" aria-selected="false" data-tab="report" id="tab-report" hidden>Report</button>
     </nav>
     <span class="spacer"></span>
@@ -298,6 +300,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
         <div class="groups" id="mutations"></div>
       </div>
       <div id="note" role="status"></div>
+      <p class="run-note" id="scenario-note" role="status" aria-live="polite"></p>
     </section>
     <div id="live-banner"></div>
     <div class="cols section">
@@ -351,6 +354,22 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
     <div class="head"><div><p class="eyebrow">bench/report.md</p><h2>Benchmark report</h2></div></div>
     <section class="card pad"><pre id="report"></pre></section>
   </div>
+
+  <!-- MCP FRONT DOOR -->
+  <div id="view-mcp" role="tabpanel" hidden>
+    <div class="head"><div><p class="eyebrow">MCP gateway</p><h2>Front door <span class="dim">· the frozen tools any MCP client sees</span></h2></div></div>
+    <div class="cards" id="mcp-transports"></div>
+    <section class="card scroll">
+      <table class="log">
+        <thead><tr><th>Tool</th><th>Description</th><th>Input schema</th></tr></thead>
+        <tbody id="mcp-tools"></tbody>
+      </table>
+    </section>
+    <section class="card pad">
+      <h3>Upstream servers</h3>
+      <div id="mcp-upstreams"></div>
+    </section>
+  </div>
 </main>
 
 <script>
@@ -373,6 +392,16 @@ const STEP_LABEL = { get_user: "Look up user 123", update_email: "Set the new em
 const CONTROL_TOOLS = { C2: ["get_user"], C3: ["get_user", "update_email"] };  // bench CONTROL_STEPS
 const SINGLE_TOOL_RUNS = { M8: ["create_ticket"], "M6-N": ["set_manager"] };
 const MAX_CALLS = 10;  // agents/common.py MAX_ITERATIONS
+// Offline stand-in for /api/mcp so the static demo shows the MCP view too.
+const DEMO_MCP = {
+  front_door: {
+    name: "healer",
+    transports: { stdio: true, http: { path: "/mcp", default_host: "127.0.0.1", default_port: 8001 } },
+    tools: TOOLS.map((name) => ({ name, description: STEP_LABEL[name], parameters: { type: "object", properties: {}, required: [] } })),
+  },
+  upstream_config_present: false,
+  upstream_servers: [],
+};
 const ACTS = [
   ["CLEAN", "Act 1", "Healthy v1", "Both agents finish 4/4 steps"],
   ["M5", "Act 2", "The headline break", "user_id → target.id (int) + X-Tenant-Id"],
@@ -593,6 +622,7 @@ const Demo = (() => {
     if (path === "/api/start") { start(); return Promise.resolve(state(0)); }
     if (path === "/api/reset") { reset(); return Promise.resolve(state(0)); }
     if (path === "/api/report") return Promise.resolve({ report: SAMPLE_REPORT });
+    if (path === "/api/mcp") return Promise.resolve(DEMO_MCP);
     if (path === "/api/explorer/info") return fetch("/api/explorer/info").then(r => r.json()).catch(() => ({ predefined_queries: [], error_classes: [], mock_info: { tools: {} } }));
     if (path === "/api/explore") {
       // The simulator cannot call an LLM; saying so beats inventing a result.
@@ -631,11 +661,11 @@ async function act(path, body) {
 /* ---------- tabs ---------- */
 function showTab(name) {
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
-  for (const v of ["live", "heals", "metrics", "report"]) $("view-" + v).hidden = v !== name;
+  for (const v of ["live", "heals", "metrics", "mcp", "report"]) $("view-" + v).hidden = v !== name;
 }
 for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => showTab(b.dataset.tab);
 // The landing page links to /live#heals etc.
-if (["heals", "metrics", "report"].includes(location.hash.slice(1))) showTab(location.hash.slice(1));
+if (["heals", "metrics", "mcp", "report"].includes(location.hash.slice(1))) showTab(location.hash.slice(1));
 
 /* ---------- shared rendering ---------- */
 const path = (p) => p.join(".");
@@ -744,6 +774,10 @@ function stepState(ts, tool, o) {
   if (last.error_class === "OK") {
     const d = o.details && o.details[{ update_email: "email", set_manager: "manager", create_ticket: "tickets" }[tool]];
     if (d && d.checked !== false && !d.ok && o.done) return { k: "silent", note: tool === "update_email" ? "200 OK, but the email was unchanged" : "200 OK, but final state does not match the task" };
+    if (ts.length > 1 && ts.some((t) => t.error_class === "E1")) {
+      const requests = ts.reduce((n, t) => n + (t.wire || []).filter((w) => w.path !== "/openapi.json" && !w.path.endsWith("/validate")).length, 0);
+      return { k: "done", note: "Transient retry · " + (requests || ts.length) + " requests" };
+    }
     return { k: "done", note: ts.length > 1 ? "OK after " + ts.length + " calls" : "OK" };
   }
   const code = (last.result && last.result.status_code) || last.error_class;
@@ -900,7 +934,7 @@ function callCard(t, healing, i) {
     const head = el("div", null, { class: "wire-head" });
     head.append(el("span", w.method + " " + w.path, { class: "mono" }));
     for (const name of w.headers || []) head.append(el("span", "+ " + name, { class: "tag" }));
-    body.append(block("New input from tool registry", head, ...(w.body !== null && w.body !== undefined ? [pre(w.body)] : []), ...(h && h.fix ? [opChips(h.fix)] : [])));
+    body.append(block(h && h.fix ? "New input from tool registry" : sent.length + " request attempts · transient retry", head, ...(w.body !== null && w.body !== undefined ? [pre(w.body)] : []), ...(h && h.fix ? [opChips(h.fix)] : [])));
   }
   body.append(block("Final output", pre(t.result)));
   d.append(sum, body);
@@ -1034,7 +1068,7 @@ $("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_
 $("start-llm").onclick = () => act("/api/start", { agent: "llm" });
 $("reset").onclick = () => act("/api/reset", {});
 
-let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut;
+let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut, liveRunScenario = null;
 const openHeals = new Set(); let seenHeals = 0;
 const counts = { healing: 0, baseline: 0 };
 const liveCalls = { healing: [], baseline: [] };
@@ -1047,7 +1081,7 @@ function emptyCalls(agent) {
   list.replaceChildren(li);
 }
 function clearView() {
-  after = 0; healSig = "";
+  after = 0; healSig = ""; liveRunScenario = null; $("scenario-note").textContent = "";
   for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; const list = $("calls-" + a); if (list) list.classList.remove("calls"); emptyCalls(a); }
 }
 // Scripted runs carry full traces, so each call becomes the same dropdown the presets show.
@@ -1092,7 +1126,8 @@ function renderRun(agent, s) {
     const data = s.mocks[agent].data;
     const emailMismatch = agent === "baseline" && run.status === "done" && run.data_correct === false && lastLiveMut === "M7" && data.users["123"].email !== TASK_ARGS.update_email.email;
     const details = emailMismatch ? { email: { checked: true, ok: false } } : undefined;
-    renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, details, done: run.status === "done", total: counts[agent], capped: run.hit_limit });
+    const tools = CONTROL_TOOLS[liveRunScenario] || TOOLS;
+    renderSteps($("steps-" + agent), tools, liveCalls[agent], { healing: agent === "healing", heals, details, done: run.status === "done", total: counts[agent], capped: run.hit_limit });
   }
   const shownRun = exploreRes ? exploreRes[agent] : run;
   const data = (exploreRes && shownRun.data_state) || s.mocks[agent].data, user = data.users["123"];
@@ -1174,6 +1209,10 @@ function renderMetrics(m) {
   $("reasons-list").replaceChildren(...reasons.map(([k, v]) => el("span", k + " ×" + v, { class: "op" })));
 }
 function render(s) {
+  if (s.run_scenario !== undefined) liveRunScenario = s.run_scenario;
+  const selectedControl = ["C2", "C3"].includes(s.active_mutation) ? s.active_mutation : null;
+  $("scenario-note").textContent = selectedControl && selectedControl !== liveRunScenario
+    ? selectedControl + " selected after this run started; it cannot affect the current task. Start a new run to use it." : "";
   const chip = $("mutation-chip");
   chip.textContent = s.active_mutation ? "Live mutation " + s.active_mutation : "No mutation";
   chip.className = "pill " + (s.active_mutation ? "bad" : "plain");
@@ -1205,13 +1244,43 @@ async function poll() {
     busy = false;
   }
 }
+function renderMcp(info) {
+  const fd = info.front_door || {};
+  const transports = fd.transports || {};
+  const http = transports.http || {};
+  const cards = [
+    metric("stdio transport", transports.stdio ? "enabled" : "—", "", "python -m healer.mcp_server"),
+    metric("Streamable HTTP", http.path || "—", "", http.default_host ? http.default_host + ":" + http.default_port : ""),
+  ];
+  $("mcp-transports").replaceChildren(...cards);
+
+  const rows = (fd.tools || []).map((t) => {
+    const tr = el("tr");
+    tr.append(el("td", t.name, { class: "mono" }), el("td", t.description || ""), el("td", formatJson(t.parameters)));
+    return tr;
+  });
+  $("mcp-tools").replaceChildren(...rows);
+
+  const ups = info.upstream_servers || [];
+  if (ups.length) {
+    $("mcp-upstreams").replaceChildren(...ups.map((u) => el("span", u.name || String(u), { class: "op" })));
+  } else {
+    const msg = info.upstream_config_present
+      ? "Upstream servers are listed once T2-3 defines the config shape."
+      : "No upstream servers configured yet. Add them in config/mcp_servers.json (T2-3).";
+    $("mcp-upstreams").replaceChildren(el("p", msg, { class: "muted" }));
+  }
+}
+function loadMcp() {
+  call("/api/mcp").then(renderMcp).catch(() => {});
+}
 function loadReport() {
   call("/api/report").then((r) => {
     if (r.report) { $("report").textContent = r.report; $("tab-report").hidden = false; }
   }).catch(() => {});
 }
 clearView();
-poll().then(() => { loadReport(); initPresets(); });
+poll().then(() => { loadReport(); loadMcp(); initPresets(); });
 setInterval(poll, 500);
 </script>
 <script src="/guide.js" defer></script>

@@ -12,6 +12,23 @@ PAGE = Path(__file__).parents[2] / "dashboard" / "index.html"
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is unavailable")
+def test_ac_18_live_control_steps_and_transient_retry_copy():
+    script = r"""
+const fs=require('fs'),vm=require('vm'),page=fs.readFileSync(process.argv[1],'utf8');
+const section=(a,b)=>page.slice(page.indexOf(a),page.indexOf(b,page.indexOf(a)));
+const context={MAX_CALLS:10,STEP_LABEL:{get_user:'Lookup',update_email:'Update'}};
+vm.createContext(context);
+vm.runInContext(section('function stepState(ts, tool, o) {','function renderSteps(')+'\nthis.stepState=stepState;',context);
+const retry=context.stepState([{error_class:'E1',wire:[{path:'/users/lookup'}]},{error_class:'OK',wire:[{path:'/users/lookup'}]}],'get_user',{});
+if(retry.note!=='Transient retry · 2 requests') throw new Error(retry.note);
+if(!page.includes('const tools = CONTROL_TOOLS[liveRunScenario] || TOOLS;')) throw new Error('live stepper must use run scenario');
+if(!page.includes('cannot affect the current task. Start a new run')) throw new Error('late control selection note missing');
+if(!page.includes('h && h.fix ? "New input from tool registry" : sent.length + " request attempts · transient retry"')) throw new Error('retry is mislabeled as a registry patch');
+"""
+    subprocess.run(["node", "-e", script, str(PAGE)], check=True, capture_output=True, text=True)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is unavailable")
 def test_ac_56_stepper_keeps_task_context_and_failure_states():
     script = r"""
 const fs = require('fs');
@@ -28,6 +45,7 @@ const context = {
   SINGLE_TOOL_RUNS: {M8:['create_ticket'], 'M6-N':['set_manager']},
   CONTROL_TOOLS: {C2:['get_user'], C3:['get_user','update_email']},
   STEP_LABEL: {get_user:'Look up user', update_email:'Set email', set_manager:'Set manager', create_ticket:'Open ticket'},
+  liveRunScenario: null,
   document: {createElement: (tag) => ({tag, attrs:{}, children:[], setAttribute(k,v){this.attrs[k]=v;}, append(...nodes){this.children.push(...nodes);}})},
 };
 const source = section('function el(tag, text, attrs) {', 'function note(text)') +
@@ -55,7 +73,7 @@ context.renderSteps(box, tools, tools.map(tool => ({tool,error_class:tool === 'g
 if (box.children[0].attrs['data-k'] !== 'fail' || !box.children[0].attrs.class.includes('capped')) throw new Error('capped baseline failure must be red and non-pulsing');
 context.renderSteps(box, tools, tools.map(tool => ({tool,error_class:'OK'})), {done:true,details:{tickets:{checked:true,ok:false}}});
 if (box.children[3].attrs['data-k'] !== 'silent' || /nothing saved/i.test(box.children[3].children[2].textContent)) throw new Error('ticket mismatch must be reported');
-const elements = {};
+const elements = {'scenario-note':{textContent:''}};
 context.$ = (id) => elements[id] || (elements[id] = {className:'',textContent:'',hidden:false,children:[],replaceChildren(...children){this.children=children;}});
 context.exploreRes = null;
 context.TOOLS = tools;
