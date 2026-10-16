@@ -524,6 +524,25 @@ const Demo = (() => {
     refusals: [{ tool: "create_ticket", reason: "NO_SAFE_VALUE", ts_ms: Date.now() }],
     tokens: { jev: 0, llm: 0 }
   };
+  const DEMO_LIFECYCLE = {
+    rules: ["fp:users__get_user:M1"],
+    fixes: [
+      {
+        fix_id: 1,
+        tool: "get_user",
+        fingerprint: "fp:users__get_user:M1",
+        state: "rule",
+        ops: [{ op: "rename", from: "user_id", to: "customer_id" }],
+        tier: 0,
+        first_heal_tier: 1,
+        tier1_heals: 1,
+        tier0_replays: 2,
+        wins: 3
+      }
+    ],
+    snapshots: { count: 0, latest_ms: null },
+    unavailable: ["snapshots"]
+  };
   const d = { on: false, epoch: 1, eid: 0, mut: null, events: [], heals: [], runs: null, data: null, timer: null, idx: {}, errs: {}, fp: 0 };
   const fresh = () => ({ users: { "123": { email: "old@example.com", manager_id: null } }, tickets: [] });
   const idle = () => ({ status: "idle", final_text: "", tool_calls: 0, llm_tokens: 0, hit_limit: false, error: null });
@@ -726,6 +745,7 @@ const Demo = (() => {
     if (path === "/api/report") return Promise.resolve({ report: SAMPLE_REPORT });
     if (path === "/api/metrics/scorecard") return Promise.resolve(DEMO_SCORECARD);
     if (path === "/api/metrics/live") return Promise.resolve(DEMO_LIVE_METRICS);
+    if (path === "/api/metrics/lifecycle") return Promise.resolve(DEMO_LIFECYCLE);
     if (path === "/api/mcp") return Promise.resolve(DEMO_MCP);
     if (path === "/api/explorer/info") return fetch("/api/explorer/info").then(r => r.json()).catch(() => ({ predefined_queries: [], error_classes: [], mock_info: { tools: {} } }));
     if (path === "/api/explore") {
@@ -1601,6 +1621,7 @@ setInterval(poll, 500);
 <script src="/panels/registry.js"></script>
 <script src="/panels/scorecard.js" defer></script>
 <script src="/panels/live_safety.js" defer></script>
+<script src="/panels/lifecycle.js" defer></script>
 <script src="/ui.js" defer></script>
 <script src="/guide.js" defer></script>
 </body>

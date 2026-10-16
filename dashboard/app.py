@@ -32,7 +32,7 @@ from dashboard.explorer import (
     get_explorer_info,
     run_explore,
 )
-from dashboard.metrics_view import live_safety, scorecard
+from dashboard.metrics_view import fix_lifecycle, live_safety, scorecard
 from healer import metrics
 from healer.gateway import load_apis, load_config
 from healer.jev import from_env
@@ -597,6 +597,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def get_metrics_live() -> dict:
         audit = dash.store.audit_events()[dash.base_heal :]
         return live_safety(audit)
+
+    @app.get("/api/metrics/lifecycle")
+    async def get_metrics_lifecycle() -> dict:
+        return fix_lifecycle(dash.store)
 
     @app.post("/api/start")
     async def start(body: StartIn) -> dict:
