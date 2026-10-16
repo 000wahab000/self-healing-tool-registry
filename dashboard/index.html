@@ -197,6 +197,11 @@ mark.hit { background: var(--bad-bg); color: var(--bad); font-weight: 600; borde
 .cost-note { color: var(--muted); font-size: var(--fs-sm); margin: 10px 0 0; }
 @media (prefers-reduced-motion: reduce) { .call.broke, .call.healed, .call.healed .where { animation-duration: .01s; } .bar { transition: none; } }
 
+/* the agent's final reply to the user, after its tool calls */
+.final { margin-top: 12px; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--panel); padding: 12px 14px; animation: rise .3s ease-out; }
+.final small { display: block; font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+.final p { margin: 0; white-space: pre-wrap; font-size: var(--fs-base); line-height: 1.55; color: var(--ink); }
+.pane.baseline .final.failed { border-color: var(--bad); }
 /* patch log + metrics */
 .scroll { overflow-x: auto; }
 table.log { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
@@ -327,6 +332,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
         <p class="err" id="err-baseline" hidden></p>
         <div class="calls" id="p-calls-baseline"></div>
         <div class="calls-live" id="calls-baseline"></div>
+        <div class="final" id="final-baseline" hidden></div>
       </section>
       <section class="card pad pane healing" id="col-healing">
         <div class="pane-head"><h2>Self-healing agent</h2><span class="pill" id="status-healing">idle</span></div>
@@ -335,6 +341,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
         <p class="err" id="err-healing" hidden></p>
         <div class="calls" id="p-calls-healing"></div>
         <div class="calls-live" id="calls-healing"></div>
+        <div class="final" id="final-healing" hidden></div>
       </section>
     </div>
     <section class="card pad cost" id="cost" aria-labelledby="cost-h">
@@ -1143,6 +1150,7 @@ function replay(res) {
   setTimeout(tick, 250);
 }
 function finish(res, steps) {
+  res.replayDone = true;
   for (const a of AGENTS) {
     steps(a, true);
     if (!(res[a].traces || []).length) $("p-calls-" + a).replaceChildren(el("div", res[a].error || "No tool calls recorded.", { class: "empty" }));
@@ -1196,7 +1204,7 @@ function renderCost(res) {
     return box;
   }));
   const b = v.baseline, h = v.healing;
-  if (llm && b.tokens > h.tokens) {
+  if (llm && b.tokens > h.tokens && b.errors > h.errors) {
     $("cost-hero").textContent = Math.round(100 * (b.tokens - h.tokens) / Math.max(1, b.tokens)) + "% fewer tokens";
     $("cost-sub").textContent = "with self-healing: the baseline spends " + (b.tokens - h.tokens).toLocaleString() + " more tokens working around the broken API.";
   } else if (b.errors > h.errors) {
@@ -1204,7 +1212,9 @@ function renderCost(res) {
     $("cost-sub").textContent = "reach the agent with self-healing, so it does not retry, re-plan or give up.";
   } else {
     $("cost-hero").textContent = "";
-    $("cost-sub").textContent = "No drift in this run, so both agents did the same work.";
+    $("cost-sub").textContent = b.errors || h.errors
+      ? "Both agents hit the same errors in this run, so there is nothing to credit to self-healing."
+      : "No drift reached the agents in this run, so both did the same work; small token differences are normal model variation.";
   }
   $("cost-note").textContent = llm
     ? "Measured in this run. Every error the baseline sees costs an extra model turn; the healing agent never gets that error."
@@ -1302,6 +1312,16 @@ function renderRun(agent, s) {
   const err = $("err-" + agent);
   err.hidden = !shownRun.error;
   err.textContent = shownRun.error ? "Error: " + shownRun.error : "";
+  // The agent's last message to the user (LLM runs only; a scripted run has no chat).
+  // A replayed scenario shows it once the replay has finished.
+  const reply = (exploreRes && !exploreRes.replayDone) ? "" : (shownRun.final_text || "").trim();
+  const fin = $("final-" + agent);
+  if (fin.dataset.text !== reply) {
+    fin.dataset.text = reply;
+    fin.hidden = !reply;
+    fin.classList.toggle("failed", !!reply && (shownRun.hit_limit || shownRun.data_correct === false));
+    if (reply) fin.replaceChildren(el("small", "Agent's final answer"), el("p", reply));
+  }
 }
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
