@@ -1,9 +1,13 @@
-"""Postgres implementation of FixStore (requires the optional psycopg 3 package)."""
+"""Postgres implementation of FixStore (requires the optional psycopg 3 package).
+
+UNSUPPORTED: incomplete FixStore; do not use in production.
+"""
 
 from __future__ import annotations
 
 import json
 import time
+import warnings
 from collections.abc import Callable
 
 from healer import canonical
@@ -61,6 +65,11 @@ class PostgresStore:
     # shortcut: synchronous FixStore blocks callers; upgrade when async store support is introduced.
 
     def __init__(self, dsn: str, clock: Callable[[], float] = time.time) -> None:
+        warnings.warn(
+            "PostgresStore is incomplete and unsupported; do not use in production.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
         import psycopg
         from psycopg.rows import dict_row
 
@@ -88,6 +97,11 @@ class PostgresStore:
             cur.execute(f"SELECT {FIX_COLS} FROM fixes WHERE fix_id = %s", (fix_id,))
             row = cur.fetchone()
         return _fix(row) if row else None
+
+    def save_fix_and_audit(self, fix: Fix, event: AuditEvent) -> int:
+        raise NotImplementedError(
+            "PostgresStore: save_fix_and_audit not implemented yet, see plan.md (deferred)"
+        )
 
     def save_fix(self, fix: Fix) -> int:
         with self._db.transaction(), self._db.cursor() as cur:
@@ -206,6 +220,31 @@ class PostgresStore:
                 (after_id,),
             )
             return cur.fetchall()
+
+    def get_candidate(self, fp: str) -> Fix | None:
+        raise NotImplementedError(
+            "PostgresStore: get_candidate not implemented yet, see plan.md (deferred)"
+        )
+
+    def promote(self, fix_id: int) -> None:
+        raise NotImplementedError(
+            "PostgresStore: promote not implemented yet, see plan.md (deferred)"
+        )
+
+    def record_rule_win(self, pattern: str) -> int:
+        raise NotImplementedError(
+            "PostgresStore: record_rule_win not implemented yet, see plan.md (deferred)"
+        )
+
+    def is_rule(self, pattern: str) -> bool:
+        raise NotImplementedError(
+            "PostgresStore: is_rule not implemented yet, see plan.md (deferred)"
+        )
+
+    def get_rules(self) -> list[str]:
+        raise NotImplementedError(
+            "PostgresStore: get_rules not implemented yet, see plan.md (deferred)"
+        )
 
     def close(self) -> None:
         self._db.close()
