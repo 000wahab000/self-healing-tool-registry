@@ -459,7 +459,7 @@ Two teams of one person each. Each person runs two machines, so four agents work
 
 | Order | Item | Key tasks | Done when |
 |---|---|---|---|
-| T2-7 | Spec watcher | FR/AC first. `spec_watcher.py`: poll each `SpecSource` (OpenAPI and upstream MCP) on an interval, hash and snapshot changes, call `Healer.precompute(old, new)` once it exists (guarded until then); injected clock, bounded backoff, never blocks a call | A change is snapshotted within one interval; an unchanged spec causes no work |
+| T2-7 (done) | Spec watcher | FR/AC first. `spec_watcher.py`: poll each `SpecSource` (OpenAPI and upstream MCP) on an interval, hash and snapshot changes, call `Healer.precompute(old, new)` once it exists (guarded until then); injected clock, bounded backoff, never blocks a call | A change is snapshotted within one interval; an unchanged spec causes no work |
 | T2-8 | Demo agent | `demo/mcp_agent.py`: a LangGraph agent that connects only to our front door and uses tools from 2+ upstream mock servers in one task; a script triggers a mutation mid-task | The task finishes after a mid-task rename, with one heal event in the audit log |
 | T2-9 | Dashboard MCP view | Show upstream servers, their tools, live MCP calls and heal events; buttons for the MCP mutations through contract 8 | Dashboard tests pass; new buttons covered by the button-coverage test |
 | T2-10 | Client guides | `docs/mcp-clients.md` from `tests/mcp/client-handoff.md`: Claude Desktop, Cursor, Windsurf, stdio and HTTP, plus how to add an upstream server | A fresh user connects a client by following the guide |
@@ -516,4 +516,4 @@ Two teams of one person each. Each person runs two machines, so four agents work
 | 2026-10-15 | 13 step 0 | done | Two-person tracks and ownership (`AGENTS.md`); `OperationSpec`, `SpecSource`, `FixStore` contracts with `tests/integration/test_contracts.py` |
 | 2026-10-16 | 13 re-plan | done | Direction changed to an MCP gateway that heals upstream MCP servers; work split into two teams on four machines (T1-PS1, T1-PS2, T2-PS1, T2-PS2); old P1 to P4 items mapped to new ones |
 | 2026-10-16 | 13 T1-0 (S1) | done | S1 sibling-tool candidate propagation (AC-40) |
-
+| 2026-10-16 | 13 T2-7 | done | Spec watcher (FR-18, AC-55): polls a `SpecSource` list on an interval, saves hash changes to `FixStore.save_spec`, calls `Healer.precompute(old, new)` only when the healer provides it (contract 5), injected clock/sleep, bounded per-source backoff, runs as a background task; tests in `tests/t2ps2/` |
