@@ -1,4 +1,4 @@
-"""AC-57: the dashboard MCP view reports the front door's tools (T2-9, no T1-6)."""
+"""AC-68: the dashboard MCP view reports the front door's tools (T2-9, no T1-6)."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ async def _front_door_tools() -> list[dict]:
         store.close()
 
 
-async def test_ac_57_endpoint_lists_exactly_the_front_door_tools(client):
+async def test_ac_68_endpoint_lists_exactly_the_front_door_tools(client):
     info = (await client.get("/api/mcp")).json()
     served = info["front_door"]["tools"]
     expected = await _front_door_tools()
@@ -66,7 +66,7 @@ async def test_ac_57_endpoint_lists_exactly_the_front_door_tools(client):
         assert tool["parameters"]["type"] == "object"
 
 
-async def test_ac_57_reports_stdio_and_http_transports(client):
+async def test_ac_68_reports_stdio_and_http_transports(client):
     info = (await client.get("/api/mcp")).json()
     transports = info["front_door"]["transports"]
     assert transports["stdio"] is True
@@ -75,15 +75,17 @@ async def test_ac_57_reports_stdio_and_http_transports(client):
     assert transports["http"]["default_port"] == 8001
 
 
-async def test_ac_57_invents_no_upstreams_while_the_config_is_absent(client):
+async def test_ac_68_invents_no_upstreams_while_the_config_is_absent(client):
     info = (await client.get("/api/mcp")).json()
     assert isinstance(info["upstream_config_present"], bool)
     assert isinstance(info["upstream_servers"], list)
     if not info["upstream_config_present"]:
         assert info["upstream_servers"] == []
+    else:  # the shipped config lists the two mock drift servers
+        assert {"users", "tickets"} <= {s["name"] for s in info["upstream_servers"]}
 
 
-async def test_ac_57_view_uses_the_clean_spec_not_an_active_mutation(app, client):
+async def test_ac_68_view_uses_the_clean_spec_not_an_active_mutation(app, client):
     # A live mutation must not leak into the front door's frozen schemas.
     await app.state.dash.mutate("M5")
     tools = (await client.get("/api/mcp")).json()["front_door"]["tools"]
@@ -92,7 +94,7 @@ async def test_ac_57_view_uses_the_clean_spec_not_an_active_mutation(app, client
     assert "user_id" in by_name["get_user"]["parameters"]["properties"]
 
 
-def test_ac_57_page_has_the_mcp_tab_and_panel():
+def test_ac_68_page_has_the_mcp_tab_and_panel():
     page = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
     assert 'data-tab="mcp"' in page
     assert 'id="view-mcp"' in page

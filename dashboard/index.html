@@ -141,8 +141,9 @@ details[open] > summary .plus::after { transform: rotate(0deg); }
 #note:empty { display: none; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 0 0 12px; }
 .stat { background: var(--soft); border-radius: var(--r); padding: 6px 10px; min-width: 0; }
+.stat:nth-child(2) { grid-column: span 2; }
 .stat small { display: block; color: var(--muted); font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
-.stat b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.stat b { font-size: 13px; font-weight: 500; overflow-wrap: break-word; word-break: normal; font-variant-numeric: tabular-nums; }
 .err { color: var(--bad); font-size: 12.5px; margin: 0 0 8px; overflow-wrap: anywhere; }
 div.calls-live { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r); }
 div.calls-live .row { display: grid; grid-template-columns: 84px 1fr auto 58px; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
@@ -154,6 +155,38 @@ div.calls-live .empty { display: block; color: var(--muted); text-align: center;
 .time, .lat { color: var(--muted); font: 12px var(--mono); }
 .lat { text-align: right; }
 .calls-live .tool { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
+.run-note { margin: 0; color: var(--ink-2); font-size: 13px; }
+
+/* prompt box */
+.prompt-box { margin: 12px 0 4px; display: grid; gap: 6px; }
+.prompt-box label { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.prompt-box textarea { width: 100%; min-height: 56px; resize: vertical; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--panel); font-size: 14px; line-height: 1.45; }
+.prompt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* where it broke: a failing call shakes red; a healed one turns red -> green */
+.call.broke { animation: call-shake .45s ease-in-out 2, call-red 1.6s ease-out forwards; }
+.call.healed { animation: call-heal 2.2s ease-out forwards; }
+.call .where { font: 600 11px var(--mono); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.call.broke .where { background: var(--bad-bg); color: var(--bad); }
+.call.healed .where { background: var(--ok-bg); color: var(--ok); animation: where-swap 2.2s steps(1) forwards; }
+@keyframes call-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes call-red { 0% { box-shadow: 0 0 0 0 var(--bad); } 30% { box-shadow: 0 0 0 4px var(--bad-bg); border-color: var(--bad); } 100% { box-shadow: none; border-color: var(--bad); } }
+@keyframes call-heal { 0% { border-color: var(--bad); box-shadow: 0 0 0 4px var(--bad-bg); } 45% { border-color: var(--bad); box-shadow: 0 0 0 4px var(--bad-bg); } 70% { border-color: var(--ok); box-shadow: 0 0 0 5px var(--ok-bg); } 100% { border-color: var(--ok); box-shadow: none; } }
+@keyframes where-swap { 0% { background: var(--bad-bg); color: var(--bad); } 55% { background: var(--ok-bg); color: var(--ok); } }
+/* cost comparison: one bar pair per measure, each on its own scale (never a dual axis) */
+.cost { margin-top: 20px; }
+.cost-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.cost-head h3 { margin: 0; font-size: 18px; }
+.cost-hero { font-size: 34px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 16px; font-size: 13px; color: var(--ink-2); margin: 10px 0 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.cost-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 8px; }
+.cost-m small { display: block; font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+.bar-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; margin: 4px 0; }
+.bar-track { height: 14px; }
+.bar { height: 100%; width: 0; border-radius: 0 4px 4px 0; transition: width .9s cubic-bezier(.2,.8,.2,1); min-width: 2px; }
+.bar-row b { font: 500 13px var(--mono); color: var(--ink); min-width: 48px; text-align: right; }
+.cost-note { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+@media (prefers-reduced-motion: reduce) { .call.broke, .call.healed, .call.healed .where { animation-duration: .01s; } .bar { transition: none; } }
 
 /* patch log + metrics */
 .scroll { overflow-x: auto; }
@@ -168,6 +201,28 @@ tr.detail td { background: var(--soft); white-space: normal; }
 .chev { color: var(--muted); display: inline-block; transition: transform .12s; margin-right: 6px; }
 tr.open .chev { transform: rotate(90deg); }
 td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-space: normal; }
+/* "what changed": each fix op animates old -> new */
+.chg { margin: 2px 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
+.chg-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.chg-head b { font-size: 14px; }
+.chg-head button { margin-left: auto; border: 1px solid var(--line-2); background: var(--panel); border-radius: 8px; padding: 3px 10px; font-size: 12.5px; }
+.chg-row { display: grid; grid-template-columns: auto minmax(90px, max-content) minmax(70px, 1fr) minmax(90px, max-content); align-items: center; gap: 10px; padding: 6px 0; }
+.chg-row + .chg-cap { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; }
+.chg-verb { font: 600 10.5px var(--mono); letter-spacing: .06em; color: var(--muted); text-transform: uppercase; width: 74px; }
+.chg-from, .chg-to { font: 12.5px var(--mono); padding: 4px 9px; border-radius: var(--r-sm); white-space: nowrap; position: relative; }
+.chg-from { background: var(--bad-bg); color: var(--bad); }
+.chg-from::after { content: ""; position: absolute; left: 6px; right: 6px; top: 50%; height: 1.5px; background: currentColor; transform: scaleX(0); transform-origin: left; animation: chg-strike .35s ease-out forwards; animation-delay: calc(var(--d) + .15s); }
+.chg-to { background: var(--soft); color: var(--muted); opacity: .45; animation: chg-land .4s ease-out forwards; animation-delay: calc(var(--d) + .95s); }
+.chg-track { position: relative; height: 2px; background: var(--line-2); border-radius: 2px; }
+.chg-track i { position: absolute; top: -4px; left: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--accent-ink); opacity: 0; animation: chg-fly .8s cubic-bezier(.5,0,.3,1) forwards; animation-delay: calc(var(--d) + .3s); }
+.chg-track::after { content: "›"; position: absolute; right: -2px; top: -11px; color: var(--muted); font-size: 16px; }
+@keyframes chg-strike { to { transform: scaleX(1); } }
+@keyframes chg-fly { 0% { left: 0; opacity: 1; } 90% { opacity: 1; } 100% { left: calc(100% - 10px); opacity: 0; } }
+@keyframes chg-land { 0% { opacity: .45; } 60% { transform: scale(1.06); box-shadow: 0 0 0 4px var(--accent-bg); } 100% { opacity: 1; transform: none; background: var(--ok-bg); color: var(--ok); } }
+.chg-none { color: var(--ink-2); font-size: 13px; }
+tr.fresh td { animation: row-flash 1.6s ease-out; }
+@keyframes row-flash { 0% { background: var(--accent-bg); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .chg-from::after, .chg-to, .chg-track i, tr.fresh td { animation-duration: .01s; animation-delay: 0s !important; } }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .metric { padding: 16px; }
 .metric small { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); display: block; }
@@ -196,6 +251,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
     <div class="brand">Self-healing registry</div>
     <nav class="tabs" role="tablist" aria-label="Views">
       <a href="/">Home</a>
+      <a href="/connections">Connections</a>
       <button role="tab" aria-selected="true" data-tab="live">Live stream</button>
       <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
       <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
@@ -216,6 +272,14 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
       <div>
         <p class="eyebrow">Run a scenario on both agents</p>
         <div class="acts" id="acts"></div>
+        <div class="prompt-box">
+          <label for="prompt">Prompt sent to both agents</label>
+          <textarea id="prompt" rows="2" spellcheck="false"></textarea>
+          <div class="prompt-row">
+            <button class="btn primary small" id="send-prompt" type="button">Send prompt</button>
+            <span class="hint muted" id="prompt-hint">Uses the break that is active now; nothing else changes.</span>
+          </div>
+        </div>
         <div class="composer-foot">
           <div class="seg" role="radiogroup" aria-label="Agent mode">
             <label><input type="radio" name="mode" value="scripted" checked>Scripted</label>
@@ -236,11 +300,12 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <div class="groups" id="mutations"></div>
       </div>
       <div id="note" role="status"></div>
+      <p class="run-note" id="scenario-note" role="status" aria-live="polite"></p>
     </section>
     <div id="live-banner"></div>
     <div class="cols section">
       <section class="card pad pane baseline" id="col-baseline">
-        <div class="pane-head"><h2>Baseline agent</h2><span class="pill bad plain" id="cap-baseline" hidden>Iteration cap</span><span class="pill" id="status-baseline">idle</span></div>
+        <div class="pane-head"><h2>Baseline agent</h2><span class="pill" id="status-baseline">idle</span></div>
         <ol class="steps" id="steps-baseline"></ol>
         <div class="stats" id="stats-baseline"></div>
         <p class="err" id="err-baseline" hidden></p>
@@ -248,7 +313,7 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <div class="calls-live" id="calls-baseline"></div>
       </section>
       <section class="card pad pane healing" id="col-healing">
-        <div class="pane-head"><h2>Self-healing agent</h2><span class="pill bad plain" id="cap-healing" hidden>Iteration cap</span><span class="pill" id="status-healing">idle</span></div>
+        <div class="pane-head"><h2>Self-healing agent</h2><span class="pill" id="status-healing">idle</span></div>
         <ol class="steps" id="steps-healing"></ol>
         <div class="stats" id="stats-healing"></div>
         <p class="err" id="err-healing" hidden></p>
@@ -256,6 +321,12 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
         <div class="calls-live" id="calls-healing"></div>
       </section>
     </div>
+    <section class="card pad cost" id="cost" aria-labelledby="cost-h">
+      <div class="cost-head"><h3 id="cost-h">Why a self-healing registry</h3><span class="cost-hero" id="cost-hero"></span><span class="muted" id="cost-sub">Run a scenario or send a prompt to compare both agents.</span></div>
+      <div class="legend" aria-hidden="true"><span><i style="background:#c2410c"></i>Baseline agent</span><span><i style="background:#1d4ed8"></i>Self-healing agent</span></div>
+      <div class="cost-grid" id="cost-chart"></div>
+      <p class="cost-note" id="cost-note"></p>
+    </section>
   </div>
 
   <!-- PATCH LOG -->
@@ -308,7 +379,7 @@ const GROUPS = [
     ["M4", "Require bearer", "create_ticket"], ["M5", "Nest + tenant header", "get_user"], ["M7", "Silent ignore", "update_email"],
     ["M9", "Request wrapping", "update_email"], ["M10", "Prompt injection", "get_user"]]],
   ["Judgement", "ambiguous or unsafe", [["M6-D", "Ambiguous rename, described", "set_manager"], ["M6-N", "Ambiguous rename, bare", "set_manager"],
-    ["M8", "Unfillable field", "create_ticket"]]],
+    ["M8", "Unfillable field", "create_ticket"], ["M11", "Moved + renamed (LLM repair)", "get_user"]]],
   ["Control", "not drift", [["C1", "Transient 503", "get_user"], ["C2", "Unknown user 404", "get_user"],
     ["C3", "Invalid email 422", "update_email"]]],
 ];
@@ -319,6 +390,7 @@ const TASK_ARGS = { get_user: { user_id: "123" }, update_email: { user_id: "123"
 const TOOLS = Object.keys(TASK_ARGS);
 const STEP_LABEL = { get_user: "Look up user 123", update_email: "Set the new email", set_manager: "Set manager 456", create_ticket: "Open a ticket" };
 const CONTROL_TOOLS = { C2: ["get_user"], C3: ["get_user", "update_email"] };  // bench CONTROL_STEPS
+const SINGLE_TOOL_RUNS = { M8: ["create_ticket"], "M6-N": ["set_manager"] };
 const MAX_CALLS = 10;  // agents/common.py MAX_ITERATIONS
 // Offline stand-in for /api/mcp so the static demo shows the MCP view too.
 const DEMO_MCP = {
@@ -603,6 +675,8 @@ function opText(o) {
     case "cast": return ["CAST", path(o.path) + " → " + o.to];
     case "header": return ["HEADER", o.name + " ← config:" + o.src.key];
     case "route": return ["ROUTE", o.method + " " + o.path];
+    case "enum_map": return ["ENUM", path(o.path) + " " + Object.entries(o.mapping).map(([a, b]) => a + "→" + b).join(", ")];
+    case "encoding": return ["ENCODE", "send as " + o.content_type];
     default: return ["", JSON.stringify(o)];
   }
 }
@@ -619,6 +693,54 @@ function opChips(fix) {
   for (const o of fix.response_ops) wrap.appendChild(opChip(o, true));
   if (!fix.request_ops.length && !fix.response_ops.length) wrap.appendChild(el("span", "No operations", { class: "muted" }));
   return wrap;
+}
+// One animated row per operation: [verb] [old] --dot--> [new], plus a plain sentence.
+function changeRows(o, resp) {
+  const side = resp ? "response" : "request";
+  switch (o.op) {
+    case "move": return [[path(o.from), path(o.to), resp
+      ? "The API now returns " + path(o.from) + ". The fix moves it back to " + path(o.to) + ", where the agent expects it."
+      : "The agent sent " + path(o.from) + ". The API now wants " + path(o.to) + ", so the value is moved there."]];
+    case "cast": return [[path(o.path), path(o.path) + " as " + o.to, "The API now wants " + path(o.path) + " as " + o.to + ". The value is converted, and only when nothing is lost."]];
+    case "route": return [["old route", o.method + " " + o.path, "The operation moved. The call is re-routed to " + o.method + " " + o.path + "."]];
+    case "header": return [["no " + o.name, o.name + " ← config:" + o.src.key, "The API now requires the " + o.name + " header. It is filled from config key " + o.src.key + "; the value is never shown."]];
+    case "enum_map": return Object.entries(o.mapping).map(([a, b]) => [a, b, "The allowed values of " + path(o.path) + " changed. " + a + " maps to " + b + ", one to one."]);
+    case "encoding": return [[side + " body", o.content_type, "The API now takes " + o.content_type + ". The same fields are re-encoded."]];
+    default: return [["?", "?", JSON.stringify(o)]];
+  }
+}
+function changeView(h) {
+  const box = el("div", null, { class: "chg" });
+  const head = el("div", null, { class: "chg-head" });
+  head.append(el("b", "What changed"));
+  box.append(head);
+  const fix = h.fix;
+  const ops = fix ? [...fix.request_ops.map((o) => [o, false]), ...fix.response_ops.map((o) => [o, true])] : [];
+  if (!ops.length) {
+    box.append(el("p", fix ? "Nothing needed changing: the API came back to the shape the agent knows."
+      : h.reason === "NOT_DRIFT" ? "Nothing. The API's shape did not change, so this error is the agent's to handle and was passed through."
+      : "Nothing was patched. The registry refused (" + (h.reason || "no safe fix") + ") instead of guessing a value.", { class: "chg-none" }));
+    return box;
+  }
+  const rows = el("div");
+  const play = () => {
+    rows.replaceChildren();
+    let n = 0;
+    for (const [o, resp] of ops) for (const [from, to, cap] of changeRows(o, resp)) {
+      const row = el("div", null, { class: "chg-row" });
+      row.style.setProperty("--d", (n++ * 0.9) + "s");
+      const track = el("div", null, { class: "chg-track" });
+      track.append(el("i"));
+      row.append(el("span", (resp ? "resp " : "req ") + o.op.replace("_", " "), { class: "chg-verb" }), el("span", from, { class: "chg-from" }), track, el("span", to, { class: "chg-to" }));
+      rows.append(row, el("p", cap, { class: "chg-cap" }));
+    }
+  };
+  const again = el("button", "Replay", { type: "button" });
+  again.onclick = (e) => { e.stopPropagation(); play(); };
+  head.append(again);
+  box.append(rows);
+  play();
+  return box;
 }
 function badge(key, text) {
   const b = el("span", text === undefined ? key : text, { class: "badge", "data-k": key });
@@ -648,9 +770,14 @@ function stepState(ts, tool, o) {
     return { k: { good: "healed", warn: "refused", biz: "biz" }[k] || "fail", note: k === "warn" ? text + " · tool skipped" : text };
   }
   const last = ts[ts.length - 1];
+  if (o.capped && last.error_class !== "OK") return { k: "fail", note: "Iteration cap hit (" + o.total + "/" + MAX_CALLS + ")", capped: true };
   if (last.error_class === "OK") {
     const d = o.details && o.details[{ update_email: "email", set_manager: "manager", create_ticket: "tickets" }[tool]];
-    if (d && d.checked !== false && !d.ok && o.done) return { k: "silent", note: "200 OK, but nothing was saved" };
+    if (d && d.checked !== false && !d.ok && o.done) return { k: "silent", note: tool === "update_email" ? "200 OK, but the email was unchanged" : "200 OK, but final state does not match the task" };
+    if (ts.length > 1 && ts.some((t) => t.error_class === "E1")) {
+      const requests = ts.reduce((n, t) => n + (t.wire || []).filter((w) => w.path !== "/openapi.json" && !w.path.endsWith("/validate")).length, 0);
+      return { k: "done", note: "Transient retry · " + (requests || ts.length) + " requests" };
+    }
     return { k: "done", note: ts.length > 1 ? "OK after " + ts.length + " calls" : "OK" };
   }
   const code = (last.result && last.result.status_code) || last.error_class;
@@ -694,6 +821,7 @@ let presets = {}, expInfo = null, presetRun = 0, presetBusy = false, exploreRes 
 const presetCards = {};
 
 function selectPreset(id) {
+  if (presets[id]) $("prompt").value = presets[id].query;
   for (const [k, b] of Object.entries(presetCards)) b.setAttribute("aria-pressed", String(k === id));
   renderBanner($("live-banner"), id);
 }
@@ -721,6 +849,10 @@ async function initPresets() {
     return;
   }
   for (const p of expInfo.predefined_queries) presets[p.mutation || "CLEAN"] = p;
+  if (!$("prompt").value && presets.CLEAN) $("prompt").value = presets.CLEAN.query;
+  $("prompt-hint").textContent = expInfo.llm_available
+    ? "Sent to the live LLM (" + expInfo.llm_model + ") with the break that is active now; nothing else changes."
+    : "No NVIDIA_API_KEY: scripted agents follow a fixed script and ignore the prompt.";
   if (expInfo.llm_available) $("llm-status").textContent = "LLM: " + expInfo.llm_model;
   else {
     document.querySelector("input[name=mode][value=llm]").disabled = true;
@@ -732,18 +864,25 @@ async function initPresets() {
 
 async function runPreset(id) {
   if (presetBusy || !presets[id]) return;
+  selectPreset(id);
+  await runExplore(presets[id].query, id === "CLEAN" ? null : id, document.querySelector("input[name=mode]:checked").value);
+}
+// Send the box's prompt as is, against the break that is live now (or none).
+$("send-prompt").onclick = () => {
+  const q = $("prompt").value.trim();
+  if (!q) { note("Write a prompt first."); return; }
+  const agent = expInfo && expInfo.llm_available ? "llm" : "scripted";
+  runExplore(q, lastLiveMut || null, agent);
+};
+async function runExplore(query, mutation, agent) {
+  if (presetBusy) return;
   presetBusy = true;
   note("");
-  selectPreset(id);
   const status = $("preset-status");
   status.className = "pill warn";
   status.replaceChildren(el("span", null, { class: "spinner" }), " Running both agents");
   try {
-    const res = await call("/api/explore", {
-      query: presets[id].query,
-      mutation: id === "CLEAN" ? null : id,
-      agent: document.querySelector("input[name=mode]:checked").value,
-    });
+    const res = await call("/api/explore", { query, mutation, agent });
     status.className = "pill plain";
     status.textContent = "Replaying " + ((res.healing.traces || []).length + (res.baseline.traces || []).length) + " tool calls";
     replay(res);
@@ -774,12 +913,16 @@ function healBox(h) {
 }
 function callCard(t, healing, i) {
   const h = t.heal_event;
-  const d = el("details", null, { class: "call" });
+  const recovered = h && h.outcome === "RECOVERED";
+  const failed = t.error_class && t.error_class !== "OK";
+  const d = el("details", null, { class: "call" + (recovered ? " healed" : failed || h ? " broke" : "") });
   const sum = el("summary");
   const code = t.result && t.result.status_code;
   sum.append(el("span", String(i + 1).padStart(2, "0"), { class: "num" }), el("code", t.tool, { class: "tool" }), badge(t.error_class));
   if (code && code >= 400) sum.append(el("span", "HTTP " + code, { class: "tag bad" }));
   if (h) sum.append(outcomePill(h));
+  if (recovered) sum.append(el("span", "broke here → healed", { class: "where" }));
+  else if (failed || h) sum.append(el("span", "✕ broke here", { class: "where" }));
   sum.append(el("span", t.latency_ms + " ms", { class: "ms" }), el("span", null, { class: "plus", "aria-hidden": "true" }));
   const body = el("div", null, { class: "call-body" });
   body.append(block("Agent input", pre(t.args)));
@@ -791,7 +934,7 @@ function callCard(t, healing, i) {
     const head = el("div", null, { class: "wire-head" });
     head.append(el("span", w.method + " " + w.path, { class: "mono" }));
     for (const name of w.headers || []) head.append(el("span", "+ " + name, { class: "tag" }));
-    body.append(block("New input from tool registry", head, ...(w.body !== null && w.body !== undefined ? [pre(w.body)] : []), ...(h && h.fix ? [opChips(h.fix)] : [])));
+    body.append(block(h && h.fix ? "New input from tool registry" : sent.length + " request attempts · transient retry", head, ...(w.body !== null && w.body !== undefined ? [pre(w.body)] : []), ...(h && h.fix ? [opChips(h.fix)] : [])));
   }
   body.append(block("Final output", pre(t.result)));
   d.append(sum, body);
@@ -803,7 +946,7 @@ function replay(res) {
   const run = ++presetRun;
   exploreRes = res;
   for (const a of AGENTS) $("calls-" + a).hidden = true;  // the preset's own list replaces the live one
-  const tools = CONTROL_TOOLS[res.mutation] || TOOLS;
+  const tools = (res.agent === "llm" && SINGLE_TOOL_RUNS[res.mutation]) || CONTROL_TOOLS[res.mutation] || TOOLS;
   const shown = { healing: [], baseline: [] };
   const steps = (a, done) => renderSteps($("steps-" + a), tools, shown[a], {
     healing: a === "healing", details: res[a].correctness_details, done, total: shown[a].length,
@@ -837,7 +980,6 @@ function replay(res) {
 function finish(res, steps) {
   for (const a of AGENTS) {
     steps(a, true);
-    $("cap-" + a).hidden = !res[a].hit_limit;
     if (!(res[a].traces || []).length) $("p-calls-" + a).replaceChildren(el("div", res[a].error || "No tool calls recorded.", { class: "empty" }));
   }
   const h = res.healing, b = res.baseline;
@@ -847,11 +989,61 @@ function finish(res, steps) {
   const hs = { done: ["good", "Task complete"], refused: ["warn", "Finished · " + skipped.size + " tool skipped safely"], error: ["bad", "LLM error"] }[hStatus] || ["bad", "Incomplete"];
   $("status-healing").className = "pill " + hs[0];
   $("status-healing").textContent = hs[1];
-  const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "False success · data not saved"];
+  const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "Task incomplete · correctness check failed"];
   $("status-baseline").className = "pill " + bs[0];
   $("status-baseline").textContent = bs[1];
   $("preset-status").className = "pill good";
   $("preset-status").textContent = "Done";
+  renderCost(res);
+}
+const SERIES = [["baseline", "Baseline agent", "#c2410c"], ["healing", "Self-healing agent", "#1d4ed8"]];
+function costOf(r) {
+  const traces = r.traces || [];
+  return {
+    tokens: r.llm_tokens || 0,
+    calls: r.tool_calls || traces.length,
+    errors: traces.filter((t) => t.error_class && t.error_class !== "OK" && !(t.heal_event && t.heal_event.outcome === "RECOVERED")).length,
+  };
+}
+function renderCost(res) {
+  const v = { baseline: costOf(res.baseline), healing: costOf(res.healing) };
+  const llm = v.baseline.tokens + v.healing.tokens > 0;
+  const measures = [
+    ...(llm ? [["tokens", "LLM tokens spent"]] : []),
+    ["calls", "Tool calls made"],
+    ["errors", "Errors the agent had to handle"],
+  ];
+  $("cost-chart").replaceChildren(...measures.map(([k, label]) => {
+    const box = el("div", null, { class: "cost-m", role: "img" });
+    const max = Math.max(1, ...SERIES.map(([a]) => v[a][k]));
+    box.setAttribute("aria-label", label + ": " + SERIES.map(([a, name]) => name + " " + v[a][k]).join(", "));
+    box.append(el("small", label));
+    for (const [a, name, color] of SERIES) {
+      const row = el("div", null, { class: "bar-row", title: name + ": " + v[a][k].toLocaleString() });
+      const track = el("div", null, { class: "bar-track" });
+      const bar = el("div", null, { class: "bar" });
+      bar.style.background = color;
+      track.append(bar);
+      row.append(track, el("b", v[a][k].toLocaleString()));
+      box.append(row);
+      requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = (100 * v[a][k] / max) + "%"; }));
+    }
+    return box;
+  }));
+  const b = v.baseline, h = v.healing;
+  if (llm && b.tokens > h.tokens) {
+    $("cost-hero").textContent = Math.round(100 * (b.tokens - h.tokens) / Math.max(1, b.tokens)) + "% fewer tokens";
+    $("cost-sub").textContent = "with self-healing: the baseline spends " + (b.tokens - h.tokens).toLocaleString() + " more tokens working around the broken API.";
+  } else if (b.errors > h.errors) {
+    $("cost-hero").textContent = (b.errors - h.errors) + " fewer errors";
+    $("cost-sub").textContent = "reach the agent with self-healing, so it does not retry, re-plan or give up.";
+  } else {
+    $("cost-hero").textContent = "";
+    $("cost-sub").textContent = "No drift in this run, so both agents did the same work.";
+  }
+  $("cost-note").textContent = llm
+    ? "Measured in this run. Every error the baseline sees costs an extra model turn; the healing agent never gets that error."
+    : "Scripted run: no LLM tokens are spent. Send a prompt with a live model to compare token cost.";
 }
 
 /* ---------- live tab ---------- */
@@ -876,7 +1068,8 @@ $("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_
 $("start-llm").onclick = () => act("/api/start", { agent: "llm" });
 $("reset").onclick = () => act("/api/reset", {});
 
-let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut;
+let after = 0, epoch = null, healSig = "", busy = false, connected = false, lastLiveMut, liveRunScenario = null;
+const openHeals = new Set(); let seenHeals = 0;
 const counts = { healing: 0, baseline: 0 };
 const liveCalls = { healing: [], baseline: [] };
 
@@ -888,8 +1081,8 @@ function emptyCalls(agent) {
   list.replaceChildren(li);
 }
 function clearView() {
-  after = 0; healSig = "";
-  for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; emptyCalls(a); }
+  after = 0; healSig = ""; liveRunScenario = null; $("scenario-note").textContent = "";
+  for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; const list = $("calls-" + a); if (list) list.classList.remove("calls"); emptyCalls(a); }
 }
 // Scripted runs carry full traces, so each call becomes the same dropdown the presets show.
 function syncTraces(traces) {
@@ -925,25 +1118,35 @@ function renderRun(agent, s) {
   const run = s.runs[agent];
   if (!exploreRes) {
     const status = $("status-" + agent);
-    status.textContent = run.status;
-    status.className = "pill " + ({ running: "warn", done: "good", error: "bad" }[run.status] || "");
-    $("cap-" + agent).hidden = !run.hit_limit;
+    const incomplete = run.status === "done" && run.data_correct === false;
+    const correct = run.status === "done" && run.data_correct === true;
+    status.textContent = run.error ? "Run error" : run.hit_limit ? "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS : incomplete ? "Task incomplete · correctness check failed" : correct ? "Task complete" : run.status === "done" ? "Completed · correctness unavailable" : run.status;
+    status.className = "pill " + (run.error || run.hit_limit || incomplete || run.status === "error" ? "bad" : correct ? "good" : ({ running: "warn", done: "warn", iteration_cap: "bad" }[run.status] || ""));
     const heals = agent === "healing" ? Object.fromEntries(s.heals.map((h) => [h.tool, h])) : {};
-    renderSteps($("steps-" + agent), TOOLS, liveCalls[agent], { healing: agent === "healing", heals, total: counts[agent], capped: run.hit_limit });
+    const data = s.mocks[agent].data;
+    const emailMismatch = agent === "baseline" && run.status === "done" && run.data_correct === false && lastLiveMut === "M7" && data.users["123"].email !== TASK_ARGS.update_email.email;
+    const details = emailMismatch ? { email: { checked: true, ok: false } } : undefined;
+    const tools = CONTROL_TOOLS[liveRunScenario] || TOOLS;
+    renderSteps($("steps-" + agent), tools, liveCalls[agent], { healing: agent === "healing", heals, details, done: run.status === "done", total: counts[agent], capped: run.hit_limit });
   }
-  const data = s.mocks[agent].data, user = data.users["123"];
-  const stats = [stat("Tool calls", counts[agent]), stat("Email", user.email), stat("Manager", user.manager_id || "none"), stat("Tickets", data.tickets.length)];
-  if (run.llm_tokens) stats.push(stat("Tokens", run.llm_tokens));
+  const shownRun = exploreRes ? exploreRes[agent] : run;
+  const data = (exploreRes && shownRun.data_state) || s.mocks[agent].data, user = data.users["123"];
+  const stats = [stat("Tool calls", exploreRes ? shownRun.tool_calls : counts[agent]), stat("Email", user.email), stat("Manager", user.manager_id || "none"), stat("Tickets", data.tickets.length)];
+  if (shownRun.llm_tokens) stats.push(stat("Tokens", shownRun.llm_tokens));
   $("stats-" + agent).replaceChildren(...stats);
   const err = $("err-" + agent);
-  err.hidden = !run.error;
-  err.textContent = run.error ? "Error: " + run.error : "";
+  err.hidden = !shownRun.error;
+  err.textContent = shownRun.error ? "Error: " + shownRun.error : "";
 }
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
   const sig = heals.length + ":" + (heals.length ? heals[heals.length - 1].ts_ms : 0);
   if (sig === healSig) return;
   healSig = sig;
+  const fresh = heals.length > seenHeals ? seenHeals : heals.length;
+  if (heals.length < seenHeals) openHeals.clear();
+  if (heals.length > seenHeals) openHeals.add(heals[heals.length - 1].ts_ms + heals[heals.length - 1].tool);
+  seenHeals = heals.length;
   const body = $("heals");
   body.replaceChildren();
   if (!heals.length) {
@@ -951,8 +1154,9 @@ function renderHeals(heals) {
     return;
   }
   const cell = (child) => { const td = el("td"); td.append(child); return td; };
-  heals.forEach((h) => {
-    const tr = el("tr", null, { class: "row", tabindex: "0", "aria-expanded": "false" });
+  heals.forEach((h, idx) => {
+    const key = h.ts_ms + h.tool;
+    const tr = el("tr", null, { class: "row" + (idx >= fresh ? " fresh" : ""), tabindex: "0", "aria-expanded": "false" });
     const first = el("td"); first.append(el("span", "▸", { class: "chev" }), clock(h.ts_ms));
     const fixCell = el("td"); fixCell.append(opChips(h.fix));
     fixCell.style.whiteSpace = "normal"; fixCell.style.minWidth = "260px";
@@ -966,8 +1170,14 @@ function renderHeals(heals) {
     const grid = el("div", null, { class: "detail-grid" });
     const item = (key, v) => { const d = el("div"); d.append(el("small", key), el("code", v)); return d; };
     grid.append(item("Fingerprint", h.fingerprint || "-"), item("Raw code", String(h.raw_code ?? "-")), item("Fix id", String(h.fix_id ?? "-")), item("Jev tokens", String(h.jev_tokens ?? 0)));
-    dd.appendChild(grid); dt.appendChild(dd);
-    const toggle = () => { const open = dt.hidden; dt.hidden = !open; tr.classList.toggle("open", open); tr.setAttribute("aria-expanded", String(open)); };
+    dd.append(changeView(h), grid); dt.appendChild(dd);
+    const setOpen = (open) => { dt.hidden = !open; tr.classList.toggle("open", open); tr.setAttribute("aria-expanded", String(open)); };
+    const toggle = () => {
+      const open = dt.hidden;
+      if (open) { openHeals.add(key); dd.firstChild.replaceWith(changeView(h)); } else openHeals.delete(key);
+      setOpen(open);
+    };
+    if (openHeals.has(key)) setOpen(true);
     tr.onclick = toggle;
     tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
     body.append(tr, dt);
@@ -999,6 +1209,10 @@ function renderMetrics(m) {
   $("reasons-list").replaceChildren(...reasons.map(([k, v]) => el("span", k + " ×" + v, { class: "op" })));
 }
 function render(s) {
+  if (s.run_scenario !== undefined) liveRunScenario = s.run_scenario;
+  const selectedControl = ["C2", "C3"].includes(s.active_mutation) ? s.active_mutation : null;
+  $("scenario-note").textContent = selectedControl && selectedControl !== liveRunScenario
+    ? selectedControl + " selected after this run started; it cannot affect the current task. Start a new run to use it." : "";
   const chip = $("mutation-chip");
   chip.textContent = s.active_mutation ? "Live mutation " + s.active_mutation : "No mutation";
   chip.className = "pill " + (s.active_mutation ? "bad" : "plain");
@@ -1069,5 +1283,6 @@ clearView();
 poll().then(() => { loadReport(); loadMcp(); initPresets(); });
 setInterval(poll, 500);
 </script>
+<script src="/guide.js" defer></script>
 </body>
 </html>

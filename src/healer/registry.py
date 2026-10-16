@@ -19,6 +19,7 @@ from healer.jev import JevClient
 from healer.models import ErrorClass, Fix, Outcome, SpecSource
 from healer.openapi_loader import openapi_source
 from healer.ops import apply_ops
+from healer.repair import RepairAgent
 from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S, SPEC_MODE
 from healer.store import FixStore
 
@@ -84,6 +85,8 @@ class Registry:
         spec_mode: str = SPEC_MODE,
         spec_source: SpecSource | None = None,
         grpc_channel: object | None = None,
+        mcp_session: object | None = None,
+        repair: RepairAgent | None = None,
     ) -> None:
         if spec_mode not in (
             "on",
@@ -95,6 +98,7 @@ class Registry:
         self.cfg = cfg
         self.store = store
         self.grpc_channel = grpc_channel
+        self.mcp_session = mcp_session
         if spec_source is not None:
             self.spec_source = spec_source
         elif grpc_channel is not None:
@@ -119,6 +123,7 @@ class Registry:
                 clock=clock,
                 spec_mode=spec_mode,
                 tools=lambda: list(self.defs.values()),
+                repair=repair,
             )
             if store
             else None
@@ -189,6 +194,10 @@ class Registry:
             outcome = await graphql.send(
                 self.client, doc, timeout, spec_source=self.spec_source
             )
+        elif protocol == "MCP":
+            from healer.adapters import mcp_upstream
+
+            outcome = await mcp_upstream.send(self.mcp_session, doc, timeout)
         elif protocol == "GRPC":
             from healer.adapters import grpc
             from healer.grpc_loader import _pool, message_class
@@ -203,7 +212,9 @@ class Registry:
             try:
                 latest = await self.grpc_source()
                 service, method_name = tool.base_op["operation_id"].rsplit(".", 1)
-                pool = _pool([bytes.fromhex(item) for item in latest.raw["descriptors"]])
+                pool = _pool(
+                    [bytes.fromhex(item) for item in latest.raw["descriptors"]]
+                )
                 method = pool.FindServiceByName(service).methods_by_name[method_name]
                 outcome = await grpc.send(
                     self.grpc_channel,
@@ -237,12 +248,19 @@ class Registry:
             return {"error": "AGENT_ARG_ERROR", "tool": name, "retry": False}
         t0 = self._clock()
         base = self.base_doc(tool, args)
-        outcome = await retry.with_retries(
-            lambda: self._attempt(tool, base, tool.active_fix),
-            remaining=lambda: HEAL_DEADLINE_S - (self._clock() - t0),
-            sleep=self._sleep,
-            jitter=self._jitter,
-        )
+        cfg = tool.config
+        if cfg.get("write") and not (
+            cfg.get("idempotent") or cfg.get("idempotency_key")
+        ):
+            # A 5xx after a non-idempotent write may already have committed: never resend it.
+            outcome = await self._attempt(tool, base, tool.active_fix)
+        else:
+            outcome = await retry.with_retries(
+                lambda: self._attempt(tool, base, tool.active_fix),
+                remaining=lambda: HEAL_DEADLINE_S - (self._clock() - t0),
+                sleep=self._sleep,
+                jitter=self._jitter,
+            )
         if outcome.cls is ErrorClass.OK:
             return outcome.data
         if outcome.cls in (ErrorClass.BUSINESS, ErrorClass.E1) or self.healer is None:

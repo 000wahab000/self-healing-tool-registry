@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import sys
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from healer import canonical
+from healer import canonical, jev, repair
+from healer.gateway import Gateway, connect_upstreams
 from healer.openapi_loader import openapi_source
 from healer.registry import Registry
 from healer.settings import REQUEST_TIMEOUT_S
@@ -81,7 +83,9 @@ def create_http_app(
     if bearer_token is not None and not bearer_token:
         raise ValueError("bearer token must not be empty")
     if not local and (not bearer_token or not allowed_hosts):
-        raise ValueError("remote HTTP binding requires a bearer token and allowed hosts")
+        raise ValueError(
+            "remote HTTP binding requires a bearer token and allowed hosts"
+        )
     hosts = (
         allowed_hosts
         if allowed_hosts is not None
@@ -108,13 +112,12 @@ def create_http_app(
     ] + hosts
     if any("*" in origin for origin in origins):
         raise ValueError("wildcard origins are not allowed")
-    if any(
-        "*" in allowed_host.removesuffix(":*")
-        for allowed_host in hosts
-    ):
+    if any("*" in allowed_host.removesuffix(":*") for allowed_host in hosts):
         raise ValueError("allowed hosts may only wildcard the port")
     if any(allowed_host.startswith(("0.0.0.0", "[::]")) for allowed_host in hosts):
-        raise ValueError("allowed hosts must name request hosts, not wildcard bind addresses")
+        raise ValueError(
+            "allowed hosts must name request hosts, not wildcard bind addresses"
+        )
 
     app = create_server(registry).streamable_http_app(
         json_response=True,
@@ -151,6 +154,18 @@ def _arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--token-env")
+    parser.add_argument(
+        "--mcp-servers",
+        help="upstream MCP servers and APIs config (config/mcp_servers.json)",
+    )
+    parser.add_argument(
+        "--no-rest", action="store_true", help="serve only the upstream MCP tools"
+    )
+    parser.add_argument(
+        "--repair",
+        action="store_true",
+        help="enable the tier-2 repair agent for upstream MCP tools (needs NVIDIA_API_KEY)",
+    )
     parser.add_argument("--allowed-host", action="append")
     parser.add_argument("--allowed-origin", action="append")
     return parser.parse_args(argv)
@@ -168,43 +183,77 @@ async def _serve(args: argparse.Namespace) -> None:
     try:
         store = Store(args.db)
         try:
-            registry = Registry(
-                client,
-                tools_config,
-                os.environ,
-                store,
-                spec_source=openapi_source(client, args.spec_path),
-            )
-            await registry.load()
-            if getattr(args, "transport", "stdio") == "http":
-                import uvicorn
-
-                token_name = getattr(args, "token_env", None)
-                token = os.environ.get(token_name) if token_name else None
-                if token_name and not token:
-                    raise ValueError("configured bearer-token environment variable is empty")
-                app = create_http_app(
-                    registry,
-                    host=args.host,
-                    bearer_token=token,
-                    allowed_hosts=getattr(args, "allowed_host", None),
-                    allowed_origins=getattr(args, "allowed_origin", None),
-                )
-                config = uvicorn.Config(
-                    app,
-                    host=args.host,
-                    port=args.port,
-                    access_log=False,
-                )
-                await uvicorn.Server(config).serve()
-            else:
-                server = create_server(registry)
-                async with stdio.stdio_server() as (read_stream, write_stream):
-                    await server.run(
-                        read_stream,
-                        write_stream,
-                        server.create_initialization_options(),
+            async with AsyncExitStack() as stack:
+                registries = []
+                if not getattr(args, "no_rest", False):
+                    rest_registry = Registry(
+                        client,
+                        tools_config,
+                        # Only the header-source variables: the whole environment would let any env
+                        # var become a header value and would garble audit redaction.
+                        {
+                            v: os.environ[v]
+                            for v in tools_config.get("header_sources", {}).values()
+                            if v in os.environ
+                        },
+                        store,
+                        spec_source=openapi_source(client, args.spec_path),
                     )
+                    await rest_registry.load()
+                    registries.append(rest_registry)
+                if getattr(args, "mcp_servers", None):
+                    agent = (
+                        repair.from_env() if getattr(args, "repair", False) else None
+                    )
+                    if getattr(args, "repair", False) and agent is None:
+                        raise ValueError(
+                            "--repair needs NVIDIA_API_KEY in the environment"
+                        )
+                    registries += await stack.enter_async_context(
+                        connect_upstreams(
+                            args.mcp_servers,
+                            store,
+                            # Jev picks among tier-1 candidates and triages refusals for repair.
+                            jev=jev.from_env(),
+                            repair=agent,
+                        )
+                    )
+                if not registries:
+                    raise ValueError("nothing to serve: --no-rest needs --mcp-servers")
+                registry = (
+                    registries[0] if len(registries) == 1 else Gateway(registries)
+                )
+                if getattr(args, "transport", "stdio") == "http":
+                    import uvicorn
+
+                    token_name = getattr(args, "token_env", None)
+                    token = os.environ.get(token_name) if token_name else None
+                    if token_name and not token:
+                        raise ValueError(
+                            "configured bearer-token environment variable is empty"
+                        )
+                    app = create_http_app(
+                        registry,
+                        host=args.host,
+                        bearer_token=token,
+                        allowed_hosts=getattr(args, "allowed_host", None),
+                        allowed_origins=getattr(args, "allowed_origin", None),
+                    )
+                    config = uvicorn.Config(
+                        app,
+                        host=args.host,
+                        port=args.port,
+                        access_log=False,
+                    )
+                    await uvicorn.Server(config).serve()
+                else:
+                    server = create_server(registry)
+                    async with stdio.stdio_server() as (read_stream, write_stream):
+                        await server.run(
+                            read_stream,
+                            write_stream,
+                            server.create_initialization_options(),
+                        )
         finally:
             store.close()
     finally:

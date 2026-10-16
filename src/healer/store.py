@@ -1,4 +1,5 @@
-"""SQLite store (WAL) plus the in-memory active-fix and negative caches (FR-5)."""
+"""SQLite store (WAL) plus the in-memory active-fix cache (FR-5)."""
+# Negative cache is persisted in SQLite (negative_cache table).
 
 from __future__ import annotations
 
@@ -108,6 +109,10 @@ CREATE TABLE IF NOT EXISTS rules (
     created_ms INTEGER NOT NULL,
     last_used_ms INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS negative_cache (
+    fingerprint TEXT PRIMARY KEY,
+    expires_ms INTEGER NOT NULL
+);
 """
 
 FIX_COLS = (
@@ -209,8 +214,11 @@ class Store:
             r["pattern"]
             for r in self._db.execute("SELECT pattern FROM rules WHERE promoted = 1")
         }
-        # ponytail: expiry is checked on read, entries are never purged (bounded by distinct fingerprints)
-        self._neg: dict[str, float] = {}  # fingerprint -> expiry, clock seconds
+        # Persisted negative cache; expiry is still checked on read, so stale rows are harmless.
+        self._neg = {
+            r["fingerprint"]: r["expires_ms"] / 1000.0
+            for r in self._db.execute("SELECT fingerprint, expires_ms FROM negative_cache")
+        }
 
     def _now_ms(self) -> int:
         return int(self._clock() * 1000)
@@ -303,15 +311,6 @@ class Store:
                 cached.status = FixStatus.retired
                 self._active.pop(fp, None)
                 self._candidates.pop(fp, None)
-        if won:
-            sig_row = self._db.execute(
-                "SELECT signature FROM fixes WHERE fix_id = ?", (fix_id,)
-            ).fetchone()
-            if sig_row:
-                sig_data = json.loads(sig_row["signature"])
-                pat = sig_data.get("abstract")
-                if pat:
-                    self.record_rule_win(pat)
 
     def audit(self, event: AuditEvent) -> None:
         with self._db:
@@ -348,7 +347,14 @@ class Store:
         return self._neg.get(fp, 0) > self._clock()
 
     def add_negative(self, fp: str) -> None:
-        self._neg[fp] = self._clock() + NEG_CACHE_TTL_S
+        expires = self._clock() + NEG_CACHE_TTL_S
+        self._neg[fp] = expires
+        with self._db:
+            self._db.execute(
+                "INSERT INTO negative_cache (fingerprint, expires_ms) VALUES (?, ?)"
+                " ON CONFLICT(fingerprint) DO UPDATE SET expires_ms = excluded.expires_ms",
+                (fp, int(expires * 1000)),
+            )
 
     def save_spec(self, spec_hash: str, spec: dict) -> None:
         with self._db:

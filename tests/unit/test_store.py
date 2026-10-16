@@ -263,11 +263,11 @@ def test_negative_cache_expires_with_injected_clock(open_store, clock):
     assert store.is_negative(FP)
 
 
-def test_negative_cache_is_not_persisted(open_store):
+def test_negative_cache_is_persisted(open_store):
     store = open_store()
     store.add_negative(FP)
     store.close()
-    assert not open_store().is_negative(FP)
+    assert open_store().is_negative(FP)
 
 
 @pytest.mark.parametrize(

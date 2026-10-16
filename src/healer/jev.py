@@ -31,6 +31,8 @@ _OPS: dict[str, Callable[[dict], str]] = {
     # Config key only: the value is a secret and never leaves the process.
     "header": lambda o: f"header {o['name']} from config {o['src']['key']}",
     "route": lambda o: f"route {o['method']} {o['path']}",
+    "enum_map": lambda o: f"map values of {_dotted(o['path'])} {o['mapping']}",
+    "encoding": lambda o: f"send as {o['content_type']}",
 }
 
 

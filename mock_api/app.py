@@ -31,6 +31,7 @@ MUTATIONS = (
     "M8",
     "M9",
     "M10",
+    "M11",
     "C1",
     "C2",
     "C3",
@@ -271,6 +272,7 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
     lookup_in = {
         "M1": CustomerRef,
         "M10": CustomerRefM10,
+        "M11": CustomerRef,
         "M5": TargetRef,
         "S1": CustomerRef,
     }.get(mid, UserRef)
@@ -305,9 +307,9 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
         "create_ticket", ticket_in, [Depends(require_bearer)] if mid == "M4" else []
     )
 
-    @app.post(
-        "/users/lookup",
-        operation_id="get_user",
+    @app.post(  # M11: moved to another route and renamed, with its field renamed too
+        "/customers/lookup" if mid == "M11" else "/users/lookup",
+        operation_id="find_customer" if mid == "M11" else "get_user",
         response_model=UserEnvelope if mid == "M3" else User,
         dependencies=lookup_deps,
     )
@@ -318,7 +320,7 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
             raise HTTPException(503, "Service unavailable")
         uid = (
             body.customer_id
-            if mid in ("M1", "M10", "S1")
+            if mid in ("M1", "M10", "M11", "S1")
             else str(body.target.id)
             if mid == "M5"
             else body.user_id

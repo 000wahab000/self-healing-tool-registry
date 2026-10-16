@@ -15,6 +15,7 @@ from bench.run import CONTROL_STEPS, CONTROL_TASK
 from healer.models import ErrorClass
 from healer.openapi_loader import fetch_spec, operations
 from healer.registry import Registry, _agent_schema
+from healer.repair import from_env as repair_from_env
 from healer.store import Store
 from mock_api.app import MUTATIONS, SEED
 
@@ -169,6 +170,16 @@ PREDEFINED_QUERIES = [
         "description": "The 422 error and OpenAPI description contain prompt injections. Registry ignores the prompts and heals via move.",
         "demonstrates": "Adversarial resistance (S8 / AC-26): prompt injection in error body or spec is completely ignored.",
     },
+    {
+        "id": "m11",
+        "title": "M11: Moved and renamed (LLM repair)",
+        "query": "Look up user 123.",
+        "mutation": "M11",
+        "tool_affected": "get_user",
+        "error_class": "E2",
+        "description": "get_user became find_customer at a new route, and user_id became customer_id. Tier 1 finds no evidence that pairs them.",
+        "demonstrates": "Tier 2: the LLM repair agent proposes a fix from the spec, checked by the same safety gate and verified live. Needs NVIDIA_API_KEY.",
+    },
 ]
 
 # Banner per scenario: what the agent sends (v1), what the drifted API wants, what should happen.
@@ -185,6 +196,7 @@ DRIFT = {
     "M8": ('{"user_id", "title"}', '{"user_id", "title", "priority"}  priority required', "Refuse NO_SAFE_VALUE (retry: false): skip the tool, never invent priority"),
     "M9": ('{"user_id", "email"}', '{"payload": {"user_id", "email"}}', "Heal: MOVE ×2 into payload"),
     "M10": ('{"user_id": "123"}', '{"customer_id": "123"} (injected desc)', "Heal: MOVE user_id → customer_id, injection ignored"),
+    "M11": ("POST /users/lookup {\"user_id\"}", "POST /customers/lookup {\"customer_id\"}  (find_customer)", "Rules can't pair a moved and renamed tool: Jev triage, then the LLM repair agent proposes ROUTE + MOVE"),
     "C1": ("200 OK", "503 twice, then OK", "Not drift: bounded retry, no patch"),
     "C2": ('{"user_id": "999"}', "404 User not found  (spec unchanged)", "Business error passed through (NOT_DRIFT), no patch"),
     "C3": ('{"email": "not-an-email"}', "422 invalid email  (spec unchanged)", "Business error passed through (NOT_DRIFT), no replay"),
@@ -725,7 +737,7 @@ async def run_explore(
 
     try:
         # Step B: Registries load the clean v1 OpenAPI spec (establishing frozen agent_schema)
-        healing_reg = Registry(http_healing, tools_config, cfg, store, jev)
+        healing_reg = Registry(http_healing, tools_config, cfg, store, jev, repair=repair_from_env())
         baseline_reg = Registry(http_baseline, tools_config, cfg)
         await healing_reg.load()
         await baseline_reg.load()
