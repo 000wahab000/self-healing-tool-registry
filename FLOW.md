@@ -73,7 +73,7 @@ flowchart TD
     CAND -- "no safe candidate" --> TRI["tier 2: _triage"]
     TRI -- allowed --> REP["repair.py proposal<br/>then repair.check"] --> GATE
     TRI -- no --> RF["REFUSE with reason"]
-    GATE["safety gate<br/>(safety.check)"] --> PV["preverify dry run<br/>(only to confirm a Jev pick on a write tool)"]
+    GATE["safety gate (safety.check)<br/>DSL ops only, values from the call or spec,<br/>local dry run on the agent's own arguments"] --> PV["preverify on a side-effect-free route<br/>(only to confirm a Jev pick on a write tool)"]
     PV --> VER["one live replay,<br/>or local remap for E5"]
     VER --> CT{"contract.check:<br/>OK?"}
     CT -- yes --> COM["commit: save fix,<br/>wire_schema, version + 1,<br/>one audit row RECOVERED"]
