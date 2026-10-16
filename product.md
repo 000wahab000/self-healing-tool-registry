@@ -705,7 +705,23 @@ The opt-in test implementation now exists in `tests/mcp/test_client_config.py`; 
 
 ## 20. Track T2-PS2: Watcher, Demo, Dashboard and Docs
 
-T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59.
+T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59. AC-55 is T2-7 (spec watcher), AC-58 is T2-10 (client guides); AC-56 and AC-59 stay for T2-8 and T2-11.
+
+### Dashboard MCP view (T2-9)
+
+#### Functional requirements
+
+- **FR-20.1** The dashboard serves `GET /api/mcp` with the MCP front door's exposed tools: each tool's `name`, `description` and frozen `inputSchema` (the `agent_schema`), taken from `Registry.tools()` so it can never drift from what the front door serves.
+- **FR-20.2** `GET /api/mcp` reports the front door's transports: stdio, and Streamable HTTP on `/mcp` (default host `127.0.0.1`, default port `8001`).
+- **FR-20.3** `GET /api/mcp` reports the configured upstream servers when `config/mcp_servers.json` (T2-3) is present, and reports `upstream_config_present: false` with an empty list when it is not. It must not invent upstream entries.
+- **FR-20.4** The live page has an `mcp` tab that renders the front door's tools, transports and upstream section, and the static demo answers `/api/mcp` offline.
+- **FR-20.5** *(deferred)* Buttons that trigger the MCP mutations through contract 8, and their button-coverage test, arrive with T1-6 (`mock_api/mcp_drift_server.py`); live per-call MCP traces and the upstream server list arrive with T2-3/T2-5.
+
+#### Acceptance criteria
+
+| ID | Criterion | Verification |
+|---|---|---|
+| AC-57 | The dashboard exposes the MCP front-door view: `GET /api/mcp` lists exactly the front door's `Registry.tools()` (name, description, input schema), reports the stdio and Streamable HTTP (`/mcp`) transports, and reports no upstream servers while `config/mcp_servers.json` is absent without inventing any; the live page has an `mcp` tab that renders it and the offline demo answers `/api/mcp`. Mutation buttons (contract 8) are deferred to T1-6. | Unit (`tests/dashboard/test_ac_57_mcp_view.py`) |
 
 ## 21. P3 additions (built before the re-plan)
 
