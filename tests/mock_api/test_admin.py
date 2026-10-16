@@ -10,7 +10,7 @@ import uvicorn
 
 from mock_api.app import create_app
 
-IDS = ["M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9", "C1", "C2", "C3"]
+IDS = ["M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9", "M10", "C1", "C2", "C3"]
 SEED_USERS = {
     "123": {"name": "Ada", "email": "ada@example.com", "manager_id": None},
     "456": {"name": "Bob", "email": "bob@example.com", "manager_id": None},

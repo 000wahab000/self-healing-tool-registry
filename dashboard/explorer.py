@@ -159,6 +159,16 @@ PREDEFINED_QUERIES = [
         "description": "The agent sends 'not-an-email'. The API answers 422, but the spec is unchanged: the value is wrong, not the schema.",
         "demonstrates": "Registry reclassifies the 422 as BUSINESS / NOT_DRIFT, audits it and returns it unchanged. No patch, no replay.",
     },
+    {
+        "id": "m10",
+        "title": "M10: Prompt-Injection Resistance",
+        "query": "Look up user 123.",
+        "mutation": "M10",
+        "tool_affected": "get_user",
+        "error_class": "E2",
+        "description": "The 422 error and OpenAPI description contain prompt injections. Registry ignores the prompts and heals via move.",
+        "demonstrates": "Adversarial resistance (S8 / AC-26): prompt injection in error body or spec is completely ignored.",
+    },
 ]
 
 # Banner per scenario: what the agent sends (v1), what the drifted API wants, what should happen.
@@ -174,6 +184,7 @@ DRIFT = {
     "M7": ('{"email": "ada.new@…"}', '{"email_address": …}  old field silently ignored, 200 OK', "Echo postcheck catches E6, MOVE email → email_address"),
     "M8": ('{"user_id", "title"}', '{"user_id", "title", "priority"}  priority required', "Refuse NO_SAFE_VALUE (retry: false): skip the tool, never invent priority"),
     "M9": ('{"user_id", "email"}', '{"payload": {"user_id", "email"}}', "Heal: MOVE ×2 into payload"),
+    "M10": ('{"user_id": "123"}', '{"customer_id": "123"} (injected desc)', "Heal: MOVE user_id → customer_id, injection ignored"),
     "C1": ("200 OK", "503 twice, then OK", "Not drift: bounded retry, no patch"),
     "C2": ('{"user_id": "999"}', "404 User not found  (spec unchanged)", "Business error passed through (NOT_DRIFT), no patch"),
     "C3": ('{"email": "not-an-email"}', "422 invalid email  (spec unchanged)", "Business error passed through (NOT_DRIFT), no replay"),
