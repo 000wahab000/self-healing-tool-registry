@@ -863,7 +863,7 @@ function emptyCalls(agent) {
 }
 function clearView() {
   after = 0; healSig = "";
-  for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; emptyCalls(a); }
+  for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; const list = $("calls-" + a); if (list) list.classList.remove("calls"); emptyCalls(a); }
 }
 // Scripted runs carry full traces, so each call becomes the same dropdown the presets show.
 function syncTraces(traces) {
