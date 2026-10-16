@@ -87,7 +87,11 @@ AUDIT_OUTCOME = {
 
 
 def _layer_reason(detail: str) -> Reason:
+<<<<<<< HEAD
     if detail in (Reason.UNSAFE_REPLAY.value, "unsafe_replay"):
+=======
+    if detail == Reason.UNSAFE_REPLAY.value:
+>>>>>>> 59d60c9236144eb80cbf8d119a18900340fef15a
         return Reason.UNSAFE_REPLAY
     return Reason.UNSAFE_PATCH
 
@@ -269,7 +273,11 @@ class Healer:
             fix={"request_ops": fix.request_ops, "response_ops": fix.response_ops},
             original_failure=h.outcome.cls, cfg=self._cfg, tool_cfg=h.tool.config,
             original_status=h.outcome.raw_code,
+<<<<<<< HEAD
             no_side_effect=h.outcome.raw_code in {"400", "422", "-32602", "-32601", "isError"},
+=======
+            no_side_effect=h.outcome.raw_code in {"400", "422"},
+>>>>>>> 59d60c9236144eb80cbf8d119a18900340fef15a
         )
         failed = next((row for row in h.layers if row["status"] == "fail"), None)
         if failed:

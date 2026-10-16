@@ -8,6 +8,7 @@ import re
 import sqlite3
 import time
 from collections.abc import Callable, Iterable
+from dataclasses import replace
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
@@ -32,10 +33,16 @@ SAFE_LAYER_NAMES = {
     "invariants", "replay_safety",
 }
 SAFE_LAYER_DETAILS = {
+<<<<<<< HEAD
     "ok", "spec_unavailable", "protocol_schema", "schema_invalid", "postcheck_failed",
     "not_configured", "invariant_failed", "unsafe_replay", "readback_failed",
     "readback_mismatch", "readback_unavailable", "not_healed_write", "not_reached",
     "preflight_passed", "replay_failed", "deadline",
+=======
+    "ok", "spec_unavailable", "schema_invalid", "postcheck_failed",
+    "not_configured", "invariant_failed", "unsafe_replay", "readback_failed",
+    "deadline",
+>>>>>>> 59d60c9236144eb80cbf8d119a18900340fef15a
 }
 # ponytail: header-shaped `name: value` / `"name": "value"` text, to the end of the line or JSON
 # string. A JSON-escaped multi-header string is redacted whole, never leaked.
@@ -348,7 +355,11 @@ class Store:
                     fix.wins, fix.losses, fix.created_ms or self._now_ms(), fix.last_used_ms,
                 ),
             )
+<<<<<<< HEAD
             self._insert_audit(event)
+=======
+            self._insert_audit(replace(event, fix_id=cur.lastrowid))
+>>>>>>> 59d60c9236144eb80cbf8d119a18900340fef15a
         fix.fix_id = cur.lastrowid
         if fix.status is FixStatus.active:
             self._active[fix.fingerprint] = fix

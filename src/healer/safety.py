@@ -46,10 +46,16 @@ def check(
                 mapping = op.get("mapping", {})
                 if len(set(mapping.values())) != len(mapping):
                     return Reason.UNSAFE_PATCH
+<<<<<<< HEAD
                 if spec_enums is not None:
                     allowed = spec_enums.get(tuple(op["path"]))
                     if allowed is None or not set(mapping.values()) <= allowed:
                         return Reason.UNSAFE_PATCH
+=======
+                allowed = spec_enums.get(tuple(op["path"])) if spec_enums is not None else None
+                if allowed is None or not set(mapping.values()) <= allowed:
+                    return Reason.UNSAFE_PATCH
+>>>>>>> 59d60c9236144eb80cbf8d119a18900340fef15a
             if name in (OpName.move, OpName.cast, OpName.enum_map) and spec_paths is not None:
                 dest = op["to"] if name == OpName.move else op["path"]
                 if tuple(dest) not in spec_paths:
