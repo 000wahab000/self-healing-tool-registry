@@ -171,6 +171,7 @@ class AuditEvent:
     jev_tokens: int = 0
     llm_tokens: int = 0
     raw_error: str = ""
+    layers: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass

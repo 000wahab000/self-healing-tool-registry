@@ -7,4 +7,3 @@ __pycache__/
 *.egg-info/
 bench/results*
 .claude/
-graphify-out/

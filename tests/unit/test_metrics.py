@@ -187,6 +187,16 @@ def test_false_patch_rate_counts_healed_runs_with_a_wrong_final_state():
     assert false_patch_rate(rows) == {"false_patches": 1, "healed": 2}
 
 
+def test_false_patch_rate_counts_wrong_accepted_oracle_even_when_state_is_ok():
+    rows = [
+        {"state_ok": True, "heals": [{"outcome": "RECOVERED"}], "oracle": "WRONG_ACCEPTED"},
+        {"state_ok": False, "heals": [{"outcome": "RECOVERED"}], "oracle": "CORRECT"},
+        {"state_ok": False, "heals": [{"outcome": "RECOVERED"}], "oracle": "REJECTED"},
+    ]
+
+    assert false_patch_rate(rows) == {"false_patches": 1, "healed": 3}
+
+
 def test_false_patch_rate_of_nothing_is_empty():
     assert false_patch_rate([]) == {"false_patches": 0, "healed": 0}
 

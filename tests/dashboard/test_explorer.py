@@ -270,6 +270,16 @@ async def test_every_scenario_has_a_preset_with_a_banner(client):
     for p in presets.values():
         assert p["before"] and p["after"] and p["expect"]
 
+    assert presets["W1"]["error_class"] == "E6"
+    assert "200" in presets["W1"]["after"] and "unchanged" in presets["W1"]["after"]
+    assert "does not" in presets["W1"]["expect"]
+    assert presets["U1"]["error_class"] == "OK"
+    assert "125000" in presets["U1"]["after"]
+    assert "not configured" in presets["U1"]["expect"]
+    assert presets["D1"]["error_class"] == "E1"
+    assert "created" in presets["D1"]["after"] and "503" in presets["D1"]["after"]
+    assert "no schema heal" in presets["D1"]["expect"]
+
 
 async def test_explore_refused_tool_is_skipped_and_the_task_continues(client):
     """M6-N refuses set_manager (step 3); the agent still opens the ticket (step 4)."""

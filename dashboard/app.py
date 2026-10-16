@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import tempfile
+import time
 import uuid
 from collections.abc import Awaitable, Sequence
 from contextlib import asynccontextmanager
@@ -31,6 +32,7 @@ from dashboard.explorer import (
     get_explorer_info,
     run_explore,
 )
+from dashboard.metrics_view import scorecard
 from healer import metrics
 from healer.gateway import load_apis, load_config
 from healer.jev import from_env
@@ -103,19 +105,39 @@ class Dashboard:
         self.epoch = 0
         self.mutation: str | None = None
         self.run_scenario: str | None = None
-        self.base_event = 0  # the view starts after the last start / reset
+        # The live view starts empty on a fresh server: calls kept in the db from an earlier
+        # process have no recorded traces, so they could not open as call cards.
+        events = self.store.call_events()
+        self.base_event = events[-1]["event_id"] if events else 0
         self.base_heal = 0
+<<<<<<< HEAD
         self.base_call = 0  # the Metrics tab counts calls since the last Reset
         # The measured LLM token pair (baseline, healing) stays for the session, so a
         # later scripted run does not erase a figure an earlier LLM run measured.
         self._llm_tokens: tuple[int, int] | None = None
+=======
+        self.base_call = self.base_event  # Metrics counts calls since the last Reset or restart
+        # The measured LLM token pair (baseline, healing) stays for the session, so a
+        # later scripted run does not erase a figure an earlier LLM run measured.
+        self._llm_tokens: tuple[int, int] | None = None
+        self.drifts: list[tuple[int, str | None]] = []  # (ms, mutation) as it went live
+>>>>>>> c56e4c177f6348b6c3d415ba79b00fb0f7c21ae4
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
         self._mcp_info: dict | None = None
 
+    def _not_busy(self) -> None:
+        """A scenario (and a live-LLM one can take minutes) holds the lock for its whole run.
+        Say so at once instead of letting clicks queue up and hang the browser."""
+        if self.lock.locked():
+            raise ValueError(
+                "A scenario is still running on both agents. Wait for it to finish, then try again."
+            )
+
     async def start(self, kind: str, step_delay: float) -> None:
         if kind == "llm" and not os.environ.get("NVIDIA_API_KEY"):
             raise ValueError("llm agents need NVIDIA_API_KEY")
+        self._not_busy()
         async with self.lock:
             await self._stop()
             mutation = self.mutation  # a drift picked before Start applies to this run
@@ -139,6 +161,7 @@ class Dashboard:
                 for mock in self.mocks.values():
                     mock.set_mutation(mutation)
                 self.mutation = mutation
+                self._drift(mutation)
             run_id = uuid.uuid4().hex[:8]
             if kind == "scripted":
                 heal_exec, self.traces["healing"] = _recording_executor(
@@ -256,12 +279,15 @@ class Dashboard:
     async def mutate(self, mid: str | None) -> None:
         if mid is not None and mid not in MUTATIONS and mid not in ALIASES:
             raise ValueError(f"unknown mutation {mid!r}")
+        self._not_busy()
         async with self.lock:
             for mock in self.mocks.values():
                 mock.set_mutation(mid)
             self.mutation = mid
+            self._drift(mid)
 
     async def reset(self) -> None:
+        self._not_busy()
         async with self.lock:
             await self._stop()
             self._clear()
@@ -281,9 +307,11 @@ class Dashboard:
         known = (*MUTATIONS, *ALIASES, CUSTOM)
         if mutation is not None and mutation not in known:
             raise ValueError(f"unknown mutation {mutation!r}")
+        self._not_busy()
         async with self.lock:
             await self._stop()
             self._clear()
+            self._drift(mutation)
             return await run_explore(
                 self.mocks["healing"],
                 self.mocks["baseline"],
@@ -393,9 +421,22 @@ class Dashboard:
             },
         }
 
+    def _drift(self, mutation: str | None) -> None:
+        self.drifts.append((time.time_ns() // 1_000_000, mutation))
+
     def _heal(self, e: AuditEvent) -> dict:
         fix = self.store.get_fix(e.fix_id) if e.fix_id is not None else None
+        # The break that was live when this heal happened, for the "what broke" line.
+        drift = next((m for ms, m in reversed(self.drifts) if ms <= e.ts_ms), None)
+        try:
+            raw = json.loads(e.raw_error) if e.raw_error else None
+        except ValueError:
+            raw = None
+        tool_cfg = self.tools["tools"].get(e.tool, {})
         return {
+            "drift": drift,
+            "raw_error": raw,
+            "write": bool(tool_cfg.get("write")),
             "ts_ms": e.ts_ms,
             "tool": e.tool,
             "class": e.cls,
@@ -501,6 +542,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def guide() -> FileResponse:
         return FileResponse(HERE / "guide.js", headers={"Cache-Control": "no-cache"})
 
+    @app.get("/ui.js", include_in_schema=False)
+    async def ui() -> FileResponse:
+        return FileResponse(HERE / "ui.js", headers={"Cache-Control": "no-cache"})
+
     @app.get("/theme.css", include_in_schema=False)
     async def theme() -> FileResponse:
         return FileResponse(HERE / "theme.css", headers={"Cache-Control": "no-cache"})
@@ -508,6 +553,19 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.get("/live", include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(HERE / "index.html", headers={"Cache-Control": "no-cache"})
+
+    @app.get("/panels/{filename:path}", include_in_schema=False)
+    async def panel_file(filename: str) -> FileResponse:
+        panels_dir = (HERE / "panels").resolve()
+        target = (panels_dir / filename).resolve()
+        if not target.is_relative_to(panels_dir) or not target.is_file():
+            raise HTTPException(404, "Panel file not found")
+        media_type = "text/javascript" if target.suffix == ".js" else None
+        return FileResponse(
+            target,
+            media_type=media_type,
+            headers={"Cache-Control": "no-cache"},
+        )
 
     @app.get("/api/state")
     async def get_state(after: int = 0) -> dict:
@@ -537,6 +595,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
         except FileNotFoundError:
             text = None
         return {"report": text}
+
+    @app.get("/api/metrics/scorecard")
+    async def get_scorecard() -> dict:
+        return scorecard()
 
     @app.post("/api/start")
     async def start(body: StartIn) -> dict:

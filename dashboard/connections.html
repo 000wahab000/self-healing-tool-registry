@@ -4,21 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Connections - Self-healing registry</title>
+<script>try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/theme.css">
 <style>
   .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
   @media (min-width: 900px) { .grid { grid-template-columns: 1.2fr 1fr; align-items: start; } }
   .row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
   .row:first-child { border-top: 0; }
-  .row .name { font: 500 14px var(--mono); }
-  .row .url { flex: 1; min-width: 160px; font: 13px var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
-  .empty { color: var(--muted); font-size: 14px; padding: 6px 0; }
-  label { display: block; font-size: 13px; color: var(--ink-2); margin: 12px 0 4px; }
-  input, select { width: 100%; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--bg); }
-  .hint { font-size: 12.5px; color: var(--muted); margin: 4px 0 0; }
+  .row .name { font: 500 var(--fs-base) var(--mono); }
+  .row .url { flex: 1; min-width: 160px; font: var(--fs-sm) var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+  .empty { color: var(--muted); font-size: var(--fs-base); padding: 6px 0; }
+  label { display: block; font-size: var(--fs-sm); color: var(--ink-2); margin: 12px 0 4px; }
+  input, select { width: 100%; }
+  .hint { font-size: var(--fs-xs); color: var(--muted); margin: 4px 0 0; }
   .actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
-  #result { margin-top: 14px; font-size: 14px; }
-  #result ul { margin: 8px 0 0; padding-left: 18px; font: 12.5px var(--mono); max-height: 180px; overflow: auto; }
+  #result { margin-top: 14px; font-size: var(--fs-base); }
+  #result ul { margin: 8px 0 0; padding-left: 18px; font: var(--fs-xs) var(--mono); max-height: 180px; overflow: auto; }
   .note { margin-top: 18px; }
 </style>
 </head>
@@ -29,8 +33,14 @@
     <nav class="tabs" aria-label="Views">
       <a href="/">Home</a>
       <a href="/live">Live stream</a>
-      <a href="/connections" aria-current="page" style="background:var(--panel);border-color:var(--line-2);color:var(--ink)">Connections</a>
+      <a href="/live#heals">Patch log</a>
+      <a href="/live#metrics">Metrics</a>
+      <a href="/live#mcp">MCP</a>
+      <a href="/live#report">Report</a>
+      <a href="/connections" aria-current="page">Connections</a>
     </nav>
+    <span class="spacer"></span>
+    <button type="button" class="btn small" data-theme-toggle>Theme: Auto</button>
   </div>
 </header>
 <main>
@@ -203,6 +213,7 @@ $("form").onsubmit = async (ev) => {
 
 load().then(syncType).catch((e) => say(false, e.message));
 </script>
+<script src="/ui.js" defer></script>
 <script src="/guide.js" defer></script>
 </body>
 </html>

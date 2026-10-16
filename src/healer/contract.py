@@ -30,7 +30,9 @@ def _passes(pc: dict, data: Any, base_doc: dict) -> bool:
     try:
         got = get(data, pc["response"])
         if PostcheckType(pc["type"]) is PostcheckType.echo:
-            return str(got) == str(get(base_doc, pc["request"]))
+            return str(got).strip().casefold() == str(
+                get(base_doc, pc["request"])
+            ).strip().casefold()
         return bool(got)
     except KeyError:  # a missing path is a failed check
         return False

@@ -120,7 +120,7 @@ async def test_m1_first_call_heals_then_active_fix_serves_next_call(
     assert len(calls_to(api, "/openapi.json")) == spec_fetches + 1
 
 
-async def test_tier0_repeat_break_uses_stored_fix_without_spec_fetch(
+async def test_tier0_repeat_validates_stored_fix_against_fresh_spec(
     api, store, tmp_path, make_registry
 ):
     first = await make_registry()
@@ -137,7 +137,7 @@ async def test_tier0_repeat_break_uses_stored_fix_without_spec_fetch(
 
     assert await reg.call("get_user", GET_USER) == USER
 
-    assert len(calls_to(api, "/openapi.json")) == spec_fetches
+    assert len(calls_to(api, "/openapi.json")) == spec_fetches + 1
     healed_again = restarted.audit_events()[1]
     assert (healed_again.outcome, healed_again.tier, healed_again.path) == (
         HealOutcome.RECOVERED,
@@ -146,6 +146,7 @@ async def test_tier0_repeat_break_uses_stored_fix_without_spec_fetch(
     )
     assert healed_again.fingerprint == healed.fingerprint
     assert healed_again.fix_id == healed.fix_id
+    assert healed_again.layers[1]["status"] == "pass"
     assert restarted.get_active(healed.fingerprint).wins == 1
     restarted.close()
 
@@ -534,11 +535,16 @@ async def test_stale_stored_fix_records_loss_and_is_negative_cached(
     api.set_mutation("M1")
     stale = m1_fix([])  # a stored fix that no longer fixes anything
     store.save_fix(stale)
+    tool = reg.defs["get_user"]
+    before = (tool.active_fix, tool.version, tool.wire_op.copy())
 
     unrecoverable(await reg.call("get_user", GET_USER), Reason.VERIFY_FAILED)
 
+    assert (tool.active_fix, tool.version, tool.wire_op) == before
     assert store.get_active(stale.fingerprint).losses == 1
     (event,) = store.audit_events()
+    assert len(store.audit_events()) == 1
+    assert event.layers[1]["status"] == "fail"
     assert (event.outcome, event.tier, event.path, event.fix_id) == (
         HealOutcome.VERIFY_FAILED,
         Tier.T0,
@@ -600,8 +606,11 @@ async def test_transient_replay_failure_is_not_negative_cached(
 
     wire.handle_async_request = flaky
 
-    unrecoverable(await reg.call("get_user", GET_USER), Reason.VERIFY_FAILED)
-    assert not store.is_negative(store.audit_events()[0].fingerprint)
+    result = await reg.call("get_user", GET_USER)
+    assert (result["error"], result["class"]) == ("API_ERROR", "E1")
+    transient, = store.audit_events()
+    assert transient.reason is None and transient.outcome is HealOutcome.ABORTED
+    assert not store.is_negative(transient.fingerprint)
     assert await reg.call("get_user", GET_USER) == USER
 
 
@@ -827,13 +836,15 @@ async def test_fr_5_3_mttr_runs_from_the_first_failure_and_heal_ms_from_this_hea
 
     wire.handle_async_request = timed
 
-    unrecoverable(await reg.call("get_user", GET_USER), Reason.VERIFY_FAILED)
+    result = await reg.call("get_user", GET_USER)
+    assert (result["error"], result["class"]) == ("API_ERROR", "E1")
     clock.t = 10.0
     slow_spec.append(True)
     assert await reg.call("get_user", GET_USER) == USER
 
     failed, healed = store.audit_events()
     assert (failed.mttr_ms, failed.heal_ms) == (2000, 2000)
+    assert failed.reason is None and failed.outcome is HealOutcome.ABORTED
     assert healed.fingerprint == failed.fingerprint
     assert healed.heal_ms == 300  # this heal: detected at 10.0, done at 10.3
     assert healed.mttr_ms == 10300  # the break was first seen at 0.0
@@ -843,7 +854,7 @@ async def test_fr_5_3_mttr_runs_from_the_first_failure_and_heal_ms_from_this_hea
     reg.defs["get_user"].active_fix = None
     assert await reg.call("get_user", GET_USER) == USER
     again = store.audit_events()[-1]
-    assert (again.tier, again.mttr_ms, again.heal_ms) == (Tier.T0, 0, 0)
+    assert (again.tier, again.mttr_ms, again.heal_ms) == (Tier.T0, 300, 300)
 
 
 async def test_fr_6_4_spec_mode_off_diagnoses_from_the_error_alone(

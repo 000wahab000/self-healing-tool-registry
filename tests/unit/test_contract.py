@@ -77,3 +77,9 @@ def test_schema_failure_wins_over_postcheck_and_keeps_data():
 def test_non_ok_outcome_is_untouched():
     out = check({}, {"required": ["id"]}, [ECHO_ID], cls=C.E2)
     assert (out.cls, out.violations) == (C.E2, [])
+
+
+@pytest.mark.parametrize("got", [123, " 123 ", "123"])
+def test_echo_compares_trimmed_casefolded_string_values(got):
+    out = check({"id": got}, None, [ECHO_ID])
+    assert out.cls is C.OK

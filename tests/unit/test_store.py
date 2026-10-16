@@ -223,6 +223,40 @@ def test_audit_round_trip(open_store):
     assert open_store().audit_events() == events
 
 
+def test_audit_layers_round_trip_and_redaction(open_store):
+    store = open_store()
+    layers = [
+        {"layer": "L1", "name": "safety", "status": "pass", "detail": "ok"},
+        {"layer": "L2", "name": "request_schema", "status": "fail", "detail": "tenant-77"},
+    ]
+    event = make_event(raw_error="Authorization: Bearer secret-value", layers=layers)
+    store.audit(event)
+    loaded = store.audit_events()[0]
+    assert loaded.layers == [layers[0], {**layers[1], "detail": "[REDACTED]"}]
+    assert "secret-value" not in loaded.raw_error
+
+
+def test_audit_layers_column_migrates_existing_database(tmp_path: Path):
+    db_path = str(tmp_path / "legacy.db")
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "CREATE TABLE heal_events (event_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "ts_ms INTEGER NOT NULL, tool TEXT NOT NULL, fingerprint TEXT NOT NULL, "
+        "class TEXT NOT NULL, raw_code TEXT NOT NULL, tier INTEGER NOT NULL, path TEXT, "
+        "fix_id INTEGER, outcome TEXT NOT NULL, reason TEXT, mttr_ms INTEGER NOT NULL, "
+        "heal_ms INTEGER NOT NULL, jev_tokens INTEGER NOT NULL, llm_tokens INTEGER NOT NULL, "
+        "raw_error TEXT NOT NULL)"
+    )
+    conn.commit()
+    conn.close()
+
+    store = Store(db_path)
+    assert rows(db_path, "PRAGMA table_info(heal_events)")[-1][1:6] == (
+        "layers", "TEXT", 1, "'[]'", 0
+    )
+    store.close()
+
+
 def test_heal_ms_is_its_own_column(open_store, db_path):
     store = open_store()
     store.audit(make_event(mttr_ms=900, heal_ms=140))
@@ -299,6 +333,24 @@ def test_failed_save_keeps_existing_active_fix(open_store, db_path):
         store.save_fix(make_fix(tier=7))
     assert store.get_active(FP) is good
     assert rows(db_path, "SELECT status FROM fixes") == [("active",)]
+
+
+def test_fix_and_audit_commit_atomically(open_store, db_path):
+    store = open_store()
+    original = make_fix()
+    store.save_fix(original)
+    replacement = make_fix(schema_hash="new")
+    with pytest.raises(sqlite3.IntegrityError):
+        store.save_fix_and_audit(replacement, make_event(outcome="bogus"))
+    assert store.get_active(FP) is original
+    assert rows(db_path, "SELECT status FROM fixes") == [("active",)]
+    assert store.audit_events() == []
+
+    event = make_event()
+    fix_id = store.save_fix_and_audit(replacement, event)
+    assert store.get_active(FP) is replacement
+    assert replacement.fix_id == fix_id
+    assert store.audit_events() == [event]
 
 
 def test_spec_snapshot_round_trip(open_store):
@@ -464,5 +516,3 @@ def test_rule_mining_promotes_after_three_wins(tmp_path: Path):
     restarted = Store(str(tmp_path / "test.db"))
     assert restarted.is_rule(pattern) is True
     assert restarted.get_rules() == [pattern]
-
-

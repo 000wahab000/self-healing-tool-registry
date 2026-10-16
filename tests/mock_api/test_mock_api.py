@@ -466,13 +466,52 @@ async def test_idempotency_key_returns_same_ticket(client, api):
     assert len(api.state()["tickets"]) == 4
 
 
+async def test_w1_successful_email_write_does_not_persist_even_after_readback(client, api):
+    api.set_mutation("W1")
+    response = await client.patch(
+        EMAIL, json={"user_id": "123", "email": "ada.new@example.com"}
+    )
+    assert (response.status_code, response.json()) == (
+        200,
+        {"id": "123", "email": "ada.new@example.com"},
+    )
+    readback = await client.post(LOOKUP, json={"user_id": "123"})
+    assert readback.json()["email"] == "ada@example.com"
+    assert api.state()["users"]["123"]["email"] == "ada@example.com"
+
+
+async def test_u1_response_is_valid_but_returns_dollars_as_cents(client, api):
+    api.set_mutation("U1")
+    spec = await get_spec(client)
+    assert operation(spec, "create_payment")[:2] == ("POST", "/payments")
+    response = await client.post("/payments", json={"amount_cents": 1250})
+    assert response.status_code == 200
+    assert response.json() == {"amount_cents": 125000}
+
+
+async def test_d1_side_effect_before_503_is_not_duplicated_on_replay(client, api):
+    api.set_mutation("D1")
+    body = {"user_id": "123", "title": "once"}
+    headers = {"Idempotency-Key": "d1-replay"}
+    first = await client.post(TICKETS, json=body, headers=headers)
+    replay = await client.post(TICKETS, json=body, headers=headers)
+    assert first.status_code == 503
+    assert replay.status_code == 200
+    assert len(api.state()["tickets"]) == 1
+
+
 async def test_request_log_records_what_clients_sent(client, api):
-    await client.post(LOOKUP, json={"user_id": "123"}, headers={"X-Tenant-Id": "t-1"})
+    await client.post(
+        LOOKUP,
+        json={"user_id": "123"},
+        headers={"X-Tenant-Id": "t-1", "Authorization": f"Bearer {TOKEN}"},
+    )
     await client.get("/openapi.json")
     first, second = api.requests
     assert (first["method"], first["path"]) == ("POST", LOOKUP)
     assert first["body"] == {"user_id": "123"}
     assert first["headers"]["x-tenant-id"] == "t-1"
+    assert first["headers"]["authorization"] == f"Bearer {TOKEN}"
     assert all(k == k.lower() for k in first["headers"])
     assert (second["method"], second["path"], second["body"]) == (
         "GET",

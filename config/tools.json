@@ -14,9 +14,13 @@
     "update_email": {
       "idempotent": true,
       "write": true,
+      "readback": {"method": "POST", "route": "/users/lookup", "key_from": ["body", "user_id"], "compare": ["email"]},
       "postchecks": [
         {"type": "echo", "response": ["id"], "request": ["body", "user_id"]},
         {"type": "echo", "response": ["email"], "request": ["body", "email"]}
+      ],
+      "invariants": [
+        {"type": "id_equals_request", "response": ["id"], "request": ["body", "user_id"]}
       ]
     },
     "set_manager": {

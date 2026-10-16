@@ -200,8 +200,9 @@ async def test_ac_11_tier0_repeat_and_restart(mid, api, store, tmp_path, make_re
     api.set_mutation(mid)
     spec_fetches = len(calls_to(api, "/openapi.json"))
     await run(mid, 2, api, repeat)
-    assert len(calls_to(api, "/openapi.json")) == spec_fetches
+    assert len(calls_to(api, "/openapi.json")) == spec_fetches + 1
     again = store.audit_events()[1]
+    assert again.layers[1]["status"] == "pass"
 
     # A restart: a new store on the same DB file.
     api.set_mutation(None)

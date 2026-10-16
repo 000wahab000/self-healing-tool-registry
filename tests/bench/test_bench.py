@@ -12,6 +12,7 @@ import json
 import pytest
 
 from bench import run as bench_run
+from bench.oracle import classify_request, classify_run
 from healer.metrics import (
     false_patch_rate,
     safe_refusal,
@@ -115,6 +116,77 @@ def test_m8_is_refused_and_no_priority_is_invented(main):
     assert healing["invented_sent"] is False
     assert healing["must_refuse"] is True
     assert healing["expectation_met"] is True
+    assert healing["oracle"] == "REJECTED"
+    assert not any(
+        request["path"] == "/tickets" and "priority" in (request["body"] or {})
+        for request in healing["requests"]
+    )
+
+
+def test_m7_original_successful_request_is_wrong_even_if_response_is_200(main):
+    row = one(main, "M7", "healing")
+    assert row["oracle"] == "CORRECT"
+    assert row["oracle"] != "WRONG_ACCEPTED"
+    assert all(set(request["headers"].values()) <= {True, False} for request in row["requests"])
+
+
+def test_m7_accepted_original_body_is_wrong_according_to_request_oracle():
+    from mock_api.app import EXPECTED_CANONICAL
+
+    expected = EXPECTED_CANONICAL["M7"]
+    request = {
+        "method": "PATCH",
+        "path": "/users/email",
+        "body": {"user_id": "123", "email": "ada.new@example.com"},
+        "query": {},
+        "headers": {},
+    }
+    received = {**request, "status": 200, "headers": {}}
+
+    assert classify_request(expected, request, 200, {}) == "WRONG_ACCEPTED"
+    assert classify_run(expected, [request], [received], {}) == "WRONG_ACCEPTED"
+
+
+@pytest.mark.parametrize(
+    ("scenario", "header", "value"),
+    [("M4", "authorization", "Bearer expected"), ("M5", "x-tenant-id", "tenant-expected")],
+)
+def test_oracle_resolves_secret_references_without_serializing_values(scenario, header, value):
+    from mock_api.app import EXPECTED_CANONICAL
+
+    cfg = {"OAUTH_BEARER": "Bearer expected", "TENANT_ID": "tenant-expected"}
+    expected = EXPECTED_CANONICAL[scenario]
+    request = {
+        "method": expected["method"],
+        "path": expected["path"],
+        "body": expected["body"],
+        "query": expected["query"],
+        "headers": {header: value},
+    }
+
+    assert classify_request(expected, request, 200, cfg) == "CORRECT"
+    row = one(
+        [
+            {
+                "scenario": scenario,
+                "agent": "healing",
+                "phase": "main",
+                "oracle": classify_request(expected, request, 200, cfg),
+                "requests": [{"headers": {header: True}}],
+            }
+        ],
+        scenario,
+        "healing",
+    )
+    assert value not in json.dumps(row)
+
+
+def test_bench_rows_have_only_secret_safe_request_metadata(main):
+    for row in main:
+        for request in row["requests"]:
+            assert set(request["headers"].values()) <= {True, False}
+            assert "Bearer test-token" not in json.dumps(request)
+        assert row["oracle"] in {"CORRECT", "WRONG_ACCEPTED", "REJECTED"}
 
 
 def test_m6_n_aborts_low_confidence_without_a_write_when_jev_is_absent(main):

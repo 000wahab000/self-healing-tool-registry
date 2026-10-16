@@ -4,19 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Self-healing tool registry</title>
+<script>try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Chivo+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="/theme.css">
 <style>
 
 /* tags, badges, ops */
-.tag { display: inline-block; padding: 1px 7px; border-radius: var(--r-sm); font: 11.5px/1.6 var(--mono); background: var(--soft); color: var(--ink-2); white-space: nowrap; }
+.tag { display: inline-block; padding: 0 8px; border-radius: var(--r-sm); font: 500 var(--fs-xs)/20px var(--sans); background: var(--soft); color: var(--ink-2); white-space: nowrap; }
 .tag.good { background: var(--ok-bg); color: var(--ok); }
 .tag.bad { background: var(--bad-bg); color: var(--bad); }
 .tag.warn { background: var(--warn-bg); color: var(--warn); }
-.tag.biz { background: var(--biz-bg); color: var(--biz); }
-.badge { display: inline-block; min-width: 3.2em; text-align: center; padding: 1px 7px; border-radius: var(--r-sm); font: 500 11.5px/1.6 var(--mono); background: var(--soft); color: var(--ink-2); }
+.tag.biz { background: var(--info-bg); color: var(--info); }
+.badge { display: inline-block; min-width: 3.2em; text-align: center; padding: 0 8px; border-radius: var(--r-sm); font: 500 var(--fs-xs)/20px var(--sans); background: var(--soft); color: var(--ink-2); }
 [data-k="OK"], [data-k="RECOVERED"] { background: var(--ok-bg); color: var(--ok); }
 [data-k="BUSINESS"], [data-k="NOT_DRIFT"] { background: var(--biz-bg); color: var(--biz); }
 [data-k="E1"] { background: var(--e1-bg); color: var(--e1); }
@@ -27,27 +28,27 @@
 [data-k="E5"] { background: var(--e5-bg); color: var(--e5); }
 [data-k="E6"] { background: var(--e6-bg); color: var(--e6); }
 .ops { display: flex; flex-wrap: wrap; gap: 6px; }
-.op { font: 12px/1.6 var(--mono); background: var(--panel); border: 1px solid var(--line-2); padding: 1px 8px; border-radius: var(--r-sm); color: var(--ink); }
+.op { font: 500 var(--fs-xs)/20px var(--mono); background: var(--panel); border: 1px solid var(--line-2); padding: 0 8px; border-radius: var(--r-sm); color: var(--ink); }
 .op b { font-weight: 600; }
 .op.resp { border-left: 3px solid var(--e5); }
-pre { margin: 0; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); }
+pre { margin: 0; overflow: auto; font: var(--fs-xs)/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); }
 
 
 /* composer: storyboard acts, scenario chips, custom drift, prompt */
 .acts { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
 .act { text-align: left; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r); background: color-mix(in srgb, var(--panel) 60%, transparent); display: grid; gap: 2px; }
-.act:hover { background: var(--panel); border-color: var(--ink-2); }
-.act small { font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.act b { font-weight: 500; font-size: 15px; }
-.act span { font-size: 13px; color: var(--ink-2); }
-.act[aria-pressed="true"] { border-color: var(--ink); background: var(--panel); box-shadow: inset 0 0 0 1px var(--ink); }
+.act:hover { background: var(--soft); border-color: var(--ink-2); }
+.act small { font: 500 var(--fs-xs) var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.act b { font-weight: 500; font-size: var(--fs-base); }
+.act span { font-size: var(--fs-sm); color: var(--ink-2); }
+.act[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-bg); box-shadow: inset 0 0 0 1px var(--accent); }
 .composer-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: var(--r); background: var(--soft); }
-.seg label { padding: 4px 10px; border-radius: var(--r-sm); font-size: 13px; cursor: pointer; }
+.seg label { padding: 4px 10px; border-radius: var(--r-sm); font-size: var(--fs-sm); cursor: pointer; }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
 .seg label:has(input:checked) { background: var(--panel); box-shadow: 0 0 0 1px var(--line-2); }
 .seg label:has(input:disabled) { opacity: .45; cursor: default; }
-.seg label:has(input:focus-visible) { outline: 2px solid var(--ink); }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); }
 
 /* drift banner */
 .banner { margin-top: 16px; padding: 16px 18px; border-radius: var(--r-lg); border: 1px solid var(--line-2); background: var(--panel); display: grid; gap: 10px; }
@@ -57,11 +58,11 @@ pre { margin: 0; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wr
 .diff { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: stretch; }
 .diff > div { border-radius: var(--r); padding: 8px 12px; min-width: 0; border: 1px solid var(--line); background: var(--soft); }
 .diff .after { background: var(--bad-bg); border-color: transparent; }
-.diff small { display: block; font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
-.diff code { font-size: 13px; overflow-wrap: anywhere; }
+.diff small { display: block; font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.diff code { font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .diff .after code { color: var(--bad); }
-.diff .arrow { align-self: center; color: var(--muted); font-size: 18px; border: 0; background: none; padding: 0; }
-.expect { font-size: 14px; }
+.diff .arrow { align-self: center; color: var(--muted); font-size: var(--fs-md); border: 0; background: none; padding: 0; }
+.expect { font-size: var(--fs-base); }
 .expect b { font-weight: 550; }
 
 /* agent panes */
@@ -73,9 +74,9 @@ pre { margin: 0; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wr
 .pane.baseline { border-top: 3px solid var(--bad); }
 .steps { list-style: none; margin: 14px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; grid-auto-flow: column; }
 .step { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; background: var(--soft); min-width: 0; display: grid; gap: 1px; transition: background .25s, border-color .25s; }
-.step .step-n { font: 500 10.5px var(--mono); letter-spacing: .08em; color: var(--muted); }
-.step b { font: 500 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.step small { font-size: 12px; color: var(--ink-2); line-height: 1.3; }
+.step .step-n { font: 500 var(--fs-xs) var(--sans); letter-spacing: .08em; color: var(--muted); }
+.step b { font: 500 var(--fs-xs) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step small { font-size: var(--fs-xs); color: var(--ink-2); line-height: 1.3; }
 .step[data-k="done"], .step[data-k="healed"] { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
 .step[data-k="healed"] small, .step[data-k="done"] small { color: var(--ok); }
 .step[data-k="fail"] { background: var(--bad-bg); border-color: var(--bad); animation: pulse 1.1s ease-in-out infinite; }
@@ -89,25 +90,25 @@ pre { margin: 0; overflow: auto; font: 12px/1.6 var(--mono); white-space: pre-wr
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 22%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .step[data-k="fail"] { animation: none; } }
 .calls { position: relative; display: grid; gap: 6px; max-height: 620px; overflow-y: auto; padding-right: 2px; }
-.calls .empty { color: var(--muted); text-align: center; padding: 26px 12px; border: 1px dashed var(--line-2); border-radius: var(--r); font-size: 14px; }
+.calls .empty { color: var(--muted); text-align: center; padding: 26px 12px; border: 1px dashed var(--line-2); border-radius: var(--r); font-size: var(--fs-base); }
 
 /* one tool call = one accordion row, numbered like cofounder's "1.1 … +" */
 details.call { border: 1px solid var(--line-2); border-radius: var(--r); background: color-mix(in srgb, var(--panel) 70%, transparent); animation: rise .25s ease-out; }
 details.call[open] { background: var(--panel); }
 details.call > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 9px 12px; flex-wrap: wrap; }
 details.call > summary::-webkit-details-marker { display: none; }
-details.call .num { font: 500 12px var(--mono); color: var(--muted); }
-details.call .tool { font-size: 13.5px; font-weight: 500; }
-details.call .ms { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
+details.call .num { font: 500 var(--fs-xs) var(--mono); color: var(--muted); }
+details.call .tool { font-size: var(--fs-sm); font-weight: 500; }
+details.call .ms { margin-left: auto; font: var(--fs-xs) var(--mono); color: var(--muted); }
 .plus { width: 16px; height: 16px; position: relative; flex: none; color: var(--muted); }
 .plus::before, .plus::after { content: ""; position: absolute; left: 3px; right: 3px; top: 7.5px; height: 1.5px; background: currentColor; transition: transform .2s; }
 .plus::after { transform: rotate(90deg); }
 details[open] > summary .plus::after { transform: rotate(0deg); }
 .call-body { padding: 2px 12px 12px; display: grid; gap: 8px; }
 .blk { display: grid; gap: 4px; }
-.blk > small { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.blk > small { font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .blk > pre { background: var(--soft); border: 1px solid var(--line); border-radius: var(--r); padding: 6px 10px; max-height: 260px; }
-.wire-head { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; font-size: 12.5px; }
+.wire-head { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; font-size: var(--fs-xs); }
 .heal { border-radius: var(--r); padding: 10px 12px; display: grid; gap: 6px; border: 1px solid transparent; }
 .heal.good { background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 30%, transparent); }
 .heal.warn { background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
@@ -115,8 +116,8 @@ details[open] > summary .plus::after { transform: rotate(0deg); }
 .heal.bad { background: var(--bad-bg); }
 .heal-title { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
 .heal-title b { font-weight: 550; }
-.heal-facts { font: 11.5px var(--mono); color: var(--ink-2); }
-.hint { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.heal-facts { font: var(--fs-xs) var(--mono); color: var(--ink-2); }
+.hint { margin: 0; font-size: var(--fs-xs); color: var(--ink-2); }
 .hint.bad { color: var(--bad); }
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
 @media (prefers-reduced-motion: reduce) { details.call { animation: none; } }
@@ -127,24 +128,24 @@ details[open] > summary .plus::after { transform: rotate(0deg); }
 .run { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .run .hint { margin-left: 4px; }
 .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-.group-label { font: 500 11px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+.group-label { font: 500 var(--fs-xs) var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
 .group-label span { text-transform: none; letter-spacing: 0; margin-left: 6px; font-family: var(--sans); }
 .muts { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
 .mut { text-align: left; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: none; display: grid; gap: 1px; }
-.mut:hover { border-color: var(--ink-2); }
-.mut b { font: 500 12px var(--mono); color: var(--muted); }
-.mut span { font-size: 13px; line-height: 1.25; }
-.mut i { font: normal 11px var(--mono); color: var(--muted); }
+.mut:hover { border-color: var(--ink-2); background: var(--soft); }
+.mut b { font: 500 var(--fs-xs) var(--mono); color: var(--muted); }
+.mut span { font-size: var(--fs-sm); line-height: 1.25; }
+.mut i { font: normal var(--fs-xs) var(--mono); color: var(--muted); }
 .mut[aria-pressed="true"] { border-color: var(--bad); background: var(--bad-bg); }
 .mut[aria-pressed="true"] b { color: var(--bad); }
-#note { color: var(--bad); font-size: 13px; }
+#note { color: var(--bad); font-size: var(--fs-sm); }
 #note:empty { display: none; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 0 0 12px; }
 .stat { background: var(--soft); border-radius: var(--r); padding: 6px 10px; min-width: 0; }
 .stat:nth-child(2) { grid-column: span 2; }
-.stat small { display: block; color: var(--muted); font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
-.stat b { font-size: 13px; font-weight: 500; overflow-wrap: break-word; word-break: normal; font-variant-numeric: tabular-nums; }
-.err { color: var(--bad); font-size: 12.5px; margin: 0 0 8px; overflow-wrap: anywhere; }
+.stat small { display: block; color: var(--muted); font: var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; }
+.stat b { font-size: var(--fs-sm); font-weight: 500; overflow-wrap: break-word; word-break: normal; font-variant-numeric: tabular-nums; }
+.err { color: var(--bad); font-size: var(--fs-xs); margin: 0 0 8px; overflow-wrap: anywhere; }
 div.calls-live { list-style: none; margin: 0; padding: 0; height: 280px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r); }
 div.calls-live .row { display: grid; grid-template-columns: 84px 1fr auto 58px; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
 div.calls-live .row:last-child { border-bottom: 0; }
@@ -152,20 +153,28 @@ div.calls-live[hidden] { display: none; }
 div.calls-live.calls { height: auto; min-height: 280px; max-height: 620px; border: 0; }
 div.calls-live .row.emptyrow { display: block; }
 div.calls-live .empty { display: block; color: var(--muted); text-align: center; padding: 28px 12px; }
-.time, .lat { color: var(--muted); font: 12px var(--mono); }
+.time, .lat { color: var(--muted); font: var(--fs-xs) var(--mono); }
 .lat { text-align: right; }
-.calls-live .tool { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
-.run-note { margin: 0; color: var(--ink-2); font-size: 13px; }
+.calls-live .tool { font: var(--fs-xs) var(--mono); overflow: hidden; text-overflow: ellipsis; }
+.run-note { margin: 0; color: var(--ink-2); font-size: var(--fs-sm); }
 
 /* prompt box */
 .prompt-box { margin: 12px 0 4px; display: grid; gap: 6px; }
-.prompt-box label { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-.prompt-box textarea { width: 100%; min-height: 56px; resize: vertical; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--panel); font-size: 14px; line-height: 1.45; }
+.prompt-box label { font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.prompt-box textarea { width: 100%; min-height: 56px; resize: vertical; }
 .prompt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* where it broke: a failing call shakes red; a healed one turns red -> green */
 .call.broke { animation: call-shake .45s ease-in-out 2, call-red 1.6s ease-out forwards; }
 .call.healed { animation: call-heal 2.2s ease-out forwards; }
-.call .where { font: 600 11px var(--mono); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.call .where { font: 500 var(--fs-xs)/20px var(--sans); padding: 0 8px; border-radius: var(--r-pill); white-space: nowrap; }
+.why { border-left: 3px solid var(--bad); background: var(--bad-bg); border-radius: 0 var(--r) var(--r) 0; padding: 8px 12px; font-size: var(--fs-sm); color: var(--ink); line-height: 1.5; }
+.why.fixed { border-left-color: var(--ok); background: var(--ok-bg); }
+.why b { font-weight: 600; }
+.why code, mark.hit { font-family: var(--mono); font-size: .95em; }
+mark.hit { background: var(--bad-bg); color: var(--bad); font-weight: 600; border-radius: 3px; padding: 0 3px; outline: 1px solid var(--bad); animation: hit-blink 1.1s ease-in-out infinite; }
+/* the same red pulse as the "broke here" badge, so the eye goes straight to the broken field */
+@keyframes hit-blink { 0%, 100% { box-shadow: 0 0 0 0 transparent; opacity: 1; } 50% { box-shadow: 0 0 0 3px var(--bad-bg); opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { mark.hit { animation: none; } }
 .call.broke .where { background: var(--bad-bg); color: var(--bad); }
 .call.healed .where { background: var(--ok-bg); color: var(--ok); animation: where-swap 2.2s steps(1) forwards; }
 @keyframes call-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
@@ -175,60 +184,71 @@ div.calls-live .empty { display: block; color: var(--muted); text-align: center;
 /* cost comparison: one bar pair per measure, each on its own scale (never a dual axis) */
 .cost { margin-top: 20px; }
 .cost-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
-.cost-head h3 { margin: 0; font-size: 18px; }
-.cost-hero { font-size: 34px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.legend { display: flex; gap: 16px; font-size: 13px; color: var(--ink-2); margin: 10px 0 6px; }
-.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.cost-head h3 { margin: 0; font-size: var(--fs-md); }
+.cost-hero { font-size: var(--fs-xl); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 16px; font-size: var(--fs-sm); color: var(--ink-2); margin: 10px 0 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: var(--r-sm); margin-right: 6px; vertical-align: -1px; }
 .cost-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 8px; }
-.cost-m small { display: block; font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+.cost-m small { display: block; font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 8px; }
 .bar-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; margin: 4px 0; }
 .bar-track { height: 14px; }
-.bar { height: 100%; width: 0; border-radius: 0 4px 4px 0; transition: width .9s cubic-bezier(.2,.8,.2,1); min-width: 2px; }
-.bar-row b { font: 500 13px var(--mono); color: var(--ink); min-width: 48px; text-align: right; }
-.cost-note { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+.bar { height: 100%; width: 0; border-radius: 0 var(--r-sm) var(--r-sm) 0; transition: width .9s cubic-bezier(.2,.8,.2,1); min-width: 2px; }
+.bar-row b { font: 500 var(--fs-sm) var(--mono); color: var(--ink); min-width: 48px; text-align: right; }
+.cost-note { color: var(--muted); font-size: var(--fs-sm); margin: 10px 0 0; }
 @media (prefers-reduced-motion: reduce) { .call.broke, .call.healed, .call.healed .where { animation-duration: .01s; } .bar { transition: none; } }
 
+/* the agent's final reply to the user, after its tool calls */
+.final { margin-top: 12px; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--panel); padding: 12px 14px; animation: rise .3s ease-out; }
+.final small { display: block; font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+.final p { margin: 0; white-space: pre-wrap; font-size: var(--fs-base); line-height: 1.55; color: var(--ink); }
+.pane.baseline .final.failed { border-color: var(--bad); }
 /* patch log + metrics */
 .scroll { overflow-x: auto; }
-table.log { border-collapse: collapse; width: 100%; font-size: 13px; }
-table.log th, table.log td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
-table.log th { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--soft); position: sticky; top: 0; }
+table.log { border-collapse: collapse; width: 100%; font-size: var(--fs-sm); }
+table.log th, table.log td { text-align: left; padding: 8px 12px; height: 36px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+table.log th { font: 500 var(--fs-xs) var(--sans); letter-spacing: .02em; color: var(--ink-2); background: var(--soft); position: sticky; top: 0; }
 tr.row { cursor: pointer; }
-tr.row:hover td { background: var(--soft); }
+tr.row:hover td { background: var(--soft); } /* --raised equals the surface in light mode, so hover uses --soft (= raised in dark) */
 tr.detail td { background: var(--soft); white-space: normal; }
 .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-.detail-grid small { color: var(--muted); display: block; font: 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.detail-grid small { color: var(--muted); display: block; font: var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; }
 .chev { color: var(--muted); display: inline-block; transition: transform .12s; margin-right: 6px; }
 tr.open .chev { transform: rotate(90deg); }
 td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-space: normal; }
 /* "what changed": each fix op animates old -> new */
 .chg { margin: 2px 0 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
 .chg-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.chg-head b { font-size: 14px; }
-.chg-head button { margin-left: auto; border: 1px solid var(--line-2); background: var(--panel); border-radius: 8px; padding: 3px 10px; font-size: 12.5px; }
+.chg-head b { font-size: var(--fs-base); }
+.chg-head button { margin-left: auto; height: 32px; border: 1px solid var(--line-2); background: var(--panel); border-radius: var(--r-sm); padding: 0 12px; font-size: var(--fs-sm); font-weight: 500; }
+.chg-head button:hover { background: var(--soft); }
 .chg-row { display: grid; grid-template-columns: auto minmax(90px, max-content) minmax(70px, 1fr) minmax(90px, max-content); align-items: center; gap: 10px; padding: 6px 0; }
-.chg-row + .chg-cap { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; }
-.chg-verb { font: 600 10.5px var(--mono); letter-spacing: .06em; color: var(--muted); text-transform: uppercase; width: 74px; }
-.chg-from, .chg-to { font: 12.5px var(--mono); padding: 4px 9px; border-radius: var(--r-sm); white-space: nowrap; position: relative; }
+.chg-row + .chg-cap { margin: 0 0 8px; color: var(--ink-2); font-size: var(--fs-sm); }
+.chg-verb { font: 600 var(--fs-xs) var(--sans); letter-spacing: .04em; color: var(--muted); text-transform: uppercase; width: 74px; }
+.chg-from, .chg-to { font: var(--fs-xs) var(--mono); padding: 4px 9px; border-radius: var(--r-sm); white-space: nowrap; position: relative; }
 .chg-from { background: var(--bad-bg); color: var(--bad); }
 .chg-from::after { content: ""; position: absolute; left: 6px; right: 6px; top: 50%; height: 1.5px; background: currentColor; transform: scaleX(0); transform-origin: left; animation: chg-strike .35s ease-out forwards; animation-delay: calc(var(--d) + .15s); }
 .chg-to { background: var(--soft); color: var(--muted); opacity: .45; animation: chg-land .4s ease-out forwards; animation-delay: calc(var(--d) + .95s); }
 .chg-track { position: relative; height: 2px; background: var(--line-2); border-radius: 2px; }
 .chg-track i { position: absolute; top: -4px; left: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--accent-ink); opacity: 0; animation: chg-fly .8s cubic-bezier(.5,0,.3,1) forwards; animation-delay: calc(var(--d) + .3s); }
-.chg-track::after { content: "›"; position: absolute; right: -2px; top: -11px; color: var(--muted); font-size: 16px; }
+.chg-track::after { content: "›"; position: absolute; right: -2px; top: -11px; color: var(--muted); font-size: var(--fs-md); }
 @keyframes chg-strike { to { transform: scaleX(1); } }
 @keyframes chg-fly { 0% { left: 0; opacity: 1; } 90% { opacity: 1; } 100% { left: calc(100% - 10px); opacity: 0; } }
 @keyframes chg-land { 0% { opacity: .45; } 60% { transform: scale(1.06); box-shadow: 0 0 0 4px var(--accent-bg); } 100% { opacity: 1; transform: none; background: var(--ok-bg); color: var(--ok); } }
-.chg-none { color: var(--ink-2); font-size: 13px; }
+.chg-none { color: var(--ink-2); font-size: var(--fs-sm); }
+.broke-line { display: block; margin-top: 3px; font: var(--fs-xs) var(--sans); color: var(--ink-2); white-space: normal; max-width: 300px; }
+.broke-line b { color: var(--bad); font-weight: 600; }
+.story { margin: 0 0 12px; padding: 12px 16px; border-left: 3px solid var(--bad); background: var(--panel); border-radius: 0 var(--r) var(--r) 0; font-size: var(--fs-sm); color: var(--ink-2); }
+.story b { color: var(--ink); }
+.story pre { margin: 8px 0 0; max-height: 140px; overflow: auto; font-size: var(--fs-xs); background: var(--soft); padding: 8px 10px; border-radius: var(--r-sm); }
 tr.fresh td { animation: row-flash 1.6s ease-out; }
 @keyframes row-flash { 0% { background: var(--accent-bg); } 100% { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .chg-from::after, .chg-to, .chg-track i, tr.fresh td { animation-duration: .01s; animation-delay: 0s !important; } }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .metric { padding: 16px; }
-.metric small { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); display: block; }
-.metric .v { font-size: 30px; font-weight: 400; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
-.metric .v em { font-size: 13px; font-style: normal; color: var(--muted); margin-left: 4px; }
-.metric .s { color: var(--ink-2); font-size: 12.5px; }
+.metric small { font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); display: block; }
+.metric .v { font-size: var(--fs-xl); font-weight: 400; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: 4px 0 2px; }
+.metric .v em { font-size: var(--fs-sm); font-style: normal; color: var(--muted); margin-left: 4px; }
+.metric .s { color: var(--ink-2); font-size: var(--fs-xs); }
 .reasons { margin-top: 16px; padding: 16px; }
 .reasons .ops { margin-top: 8px; }
 #report { max-height: 72vh; }
@@ -249,24 +269,25 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
 <header class="top">
   <div class="top-in">
     <div class="brand">Self-healing registry</div>
-    <nav class="tabs" role="tablist" aria-label="Views">
+    <nav class="tabs" aria-label="Views">
       <a href="/">Home</a>
+      <button type="button" aria-pressed="true" data-tab="live">Live stream</button>
+      <button type="button" aria-pressed="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
+      <button type="button" aria-pressed="false" data-tab="metrics">Metrics</button>
+      <button type="button" aria-pressed="false" data-tab="mcp">MCP</button>
+      <button type="button" aria-pressed="false" data-tab="report" id="tab-report">Report</button>
       <a href="/connections">Connections</a>
-      <button role="tab" aria-selected="true" data-tab="live">Live stream</button>
-      <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
-      <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
-      <button role="tab" aria-selected="false" data-tab="mcp">MCP</button>
-      <button role="tab" aria-selected="false" data-tab="report" id="tab-report" hidden>Report</button>
     </nav>
     <span class="spacer"></span>
     <span class="pill plain" id="mutation-chip">No mutation</span>
     <span class="pill warn" id="conn-chip">Connecting</span>
+    <button type="button" class="btn small" data-theme-toggle>Theme: Auto</button>
   </div>
 </header>
 
 <main>
   <!-- LIVE -->
-  <div id="view-live" role="tabpanel">
+  <div id="view-live">
     <div class="head"><div><p class="eyebrow">Real-time</p><h2>Break the API while both agents are running</h2></div></div>
     <section class="card pad controls">
       <div>
@@ -286,7 +307,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
             <label id="llm-label"><input type="radio" name="mode" value="llm">Live LLM</label>
           </div>
           <span class="pill plain" id="preset-status">Ready</span>
-          <span class="muted" id="llm-status" style="font-size:12.5px"></span>
+          <span class="muted" id="llm-status" style="font-size:var(--fs-xs)"></span>
         </div>
       </div>
       <div class="run">
@@ -311,6 +332,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
         <p class="err" id="err-baseline" hidden></p>
         <div class="calls" id="p-calls-baseline"></div>
         <div class="calls-live" id="calls-baseline"></div>
+        <div class="final" id="final-baseline" hidden></div>
       </section>
       <section class="card pad pane healing" id="col-healing">
         <div class="pane-head"><h2>Self-healing agent</h2><span class="pill" id="status-healing">idle</span></div>
@@ -319,18 +341,19 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
         <p class="err" id="err-healing" hidden></p>
         <div class="calls" id="p-calls-healing"></div>
         <div class="calls-live" id="calls-healing"></div>
+        <div class="final" id="final-healing" hidden></div>
       </section>
     </div>
     <section class="card pad cost" id="cost" aria-labelledby="cost-h">
       <div class="cost-head"><h3 id="cost-h">Why a self-healing registry</h3><span class="cost-hero" id="cost-hero"></span><span class="muted" id="cost-sub">Run a scenario or send a prompt to compare both agents.</span></div>
-      <div class="legend" aria-hidden="true"><span><i style="background:#c2410c"></i>Baseline agent</span><span><i style="background:#1d4ed8"></i>Self-healing agent</span></div>
+      <div class="legend" aria-hidden="true"><span><i style="background:var(--series-baseline)"></i>Baseline agent</span><span><i style="background:var(--series-healing)"></i>Self-healing agent</span></div>
       <div class="cost-grid" id="cost-chart"></div>
       <p class="cost-note" id="cost-note"></p>
     </section>
   </div>
 
   <!-- PATCH LOG -->
-  <div id="view-heals" role="tabpanel" hidden>
+  <div id="view-heals" hidden>
     <div class="head"><div><p class="eyebrow">Audit</p><h2>Patch log <span class="dim">· one row per heal attempt, written before the agent sees the result</span></h2></div></div>
     <section class="card scroll">
       <table class="log">
@@ -341,7 +364,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
   </div>
 
   <!-- METRICS -->
-  <div id="view-metrics" role="tabpanel" hidden>
+  <div id="view-metrics" hidden>
     <div class="head"><div><p class="eyebrow">Since the last reset</p><h2>Metrics</h2></div></div>
     <div class="cards" id="metrics"></div>
     <div class="head" style="margin-top:36px"><div><p class="eyebrow">Agent &amp; token impact</p><h3 style="margin:0">What the registry kept away from the agents</h3></div></div>
@@ -349,7 +372,11 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
     <p class="cost-note" id="impact-note"></p>
     <section class="card pad cost" id="impact-cost" aria-labelledby="impact-cost-h">
       <div class="cost-head"><h3 id="impact-cost-h">Baseline agent vs self-healing agent</h3><span class="cost-hero" id="impact-hero"></span><span class="muted" id="impact-sub">Run a scenario to compare both agents.</span></div>
+<<<<<<< HEAD
       <div class="legend" aria-hidden="true"><span><i style="background:#c2410c"></i>Baseline agent</span><span><i style="background:#1d4ed8"></i>Self-healing agent</span></div>
+=======
+      <div class="legend" aria-hidden="true"><span><i style="background:var(--series-baseline)"></i>Baseline agent</span><span><i style="background:var(--series-healing)"></i>Self-healing agent</span></div>
+>>>>>>> c56e4c177f6348b6c3d415ba79b00fb0f7c21ae4
       <div class="cost-grid" id="impact-chart"></div>
       <p class="cost-note" id="impact-chart-note"></p>
     </section>
@@ -357,16 +384,20 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
       <h3>Refusal reasons</h3>
       <div class="ops" id="reasons-list"></div>
     </section>
+<<<<<<< HEAD
+=======
+    <div id="panels-container"></div>
+>>>>>>> c56e4c177f6348b6c3d415ba79b00fb0f7c21ae4
   </div>
 
   <!-- REPORT -->
-  <div id="view-report" role="tabpanel" hidden>
+  <div id="view-report" hidden>
     <div class="head"><div><p class="eyebrow">bench/report.md</p><h2>Benchmark report</h2></div></div>
-    <section class="card pad"><pre id="report"></pre></section>
+    <section class="card pad"><p id="report-empty" class="muted">No benchmark report is available yet. Run <code>python -m bench.run --agent scripted --n 3</code> to generate one.</p><pre id="report"></pre></section>
   </div>
 
   <!-- MCP FRONT DOOR -->
-  <div id="view-mcp" role="tabpanel" hidden>
+  <div id="view-mcp" hidden>
     <div class="head"><div><p class="eyebrow">MCP gateway</p><h2>Front door <span class="dim">· the frozen tools any MCP client sees</span></h2></div></div>
     <div class="cards" id="mcp-transports"></div>
     <section class="card scroll">
@@ -392,6 +423,8 @@ const GROUPS = [
     ["M8", "Unfillable field", "create_ticket"], ["M11", "Moved + renamed (LLM repair)", "get_user"]]],
   ["Control", "not drift", [["C1", "Transient 503", "get_user"], ["C2", "Unknown user 404", "get_user"],
     ["C3", "Invalid email 422", "update_email"]]],
+  ["Data integrity", "write behavior", [["W1", "200, email unchanged", "update_email"], ["U1", "Amount units changed", "make_payment"],
+    ["D1", "Ticket created, then 503", "create_ticket"]]],
 ];
 const AGENTS = ["healing", "baseline"];
 const CLASS_NAMES = { OK: "OK", BUSINESS: "Business error", E1: "Transient", E2: "Rejected", E3: "Undecodable", E4: "Soft error", E5: "Shape drift", E6: "Silent ignore" };
@@ -450,7 +483,45 @@ const Demo = (() => {
     C3: ["update_email", "BUSINESS", 422, null, [], "NOT_DRIFT"],
   };
   const SEQ = ["get_user", "update_email", "set_manager", "create_ticket"];
-  const SAMPLE_REPORT = "Demo mode: simulated data, no backend connected.\n\nRun `python -m bench` to generate bench/report.md and it will appear here.";
+  const SAMPLE_REPORT = "Demo mode: simulated data, no backend connected.\n\nRun `python -m bench.run --agent scripted --n 3` to generate bench/report.md and it will appear here.";
+  const DEMO_SCORECARD = {
+    available: true,
+    source: "bench/report.md (demo)",
+    generated_at: new Date().toISOString(),
+    ztar: { healing: { adapted: 21, runs: 21 }, baseline: { adapted: 3, runs: 21 } },
+    false_patch: { false_patches: 0, healed: 24 },
+    safe_refusal: { refused: 6, runs: 6 },
+    per_scenario: [
+      { scenario: "M1", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: null },
+      { scenario: "M2", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: null },
+      { scenario: "M3", healing: "3/3", baseline: "3/3", baseline_failure: null, refusal_reason: null },
+      { scenario: "M4", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: null },
+      { scenario: "M5", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: null },
+      { scenario: "M6-D", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: null },
+      { scenario: "M6-N", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: "LOW_CONFIDENCE x3" },
+      { scenario: "M7", healing: "3/3", baseline: "0/3", baseline_failure: "ended incomplete 3/3", refusal_reason: null },
+      { scenario: "M8", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: "NO_SAFE_VALUE x3" },
+      { scenario: "M9", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: null },
+      { scenario: "C1", healing: "3/3", baseline: "3/3", baseline_failure: null, refusal_reason: null },
+      { scenario: "C2", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: "NOT_DRIFT x3" },
+      { scenario: "C3", healing: "3/3", baseline: "0/3", baseline_failure: "hit cap 3/3", refusal_reason: "NOT_DRIFT x3" }
+    ],
+    tokens: [
+      { scenario: "M1", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M2", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M3", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M4", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M5", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M6-D", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M6-N", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M7", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M8", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "M9", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "C1", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "C2", healing_overhead: 0, baseline_wasted: 0 },
+      { scenario: "C3", healing_overhead: 0, baseline_wasted: 0 }
+    ]
+  };
   const d = { on: false, epoch: 1, eid: 0, mut: null, events: [], heals: [], runs: null, data: null, timer: null, idx: {}, errs: {}, fp: 0 };
   const fresh = () => ({ users: { "123": { email: "old@example.com", manager_id: null } }, tickets: [] });
   const idle = () => ({ status: "idle", final_text: "", tool_calls: 0, llm_tokens: 0, hit_limit: false, error: null });
@@ -651,6 +722,7 @@ const Demo = (() => {
     if (path === "/api/start") { start(); return Promise.resolve(state(0)); }
     if (path === "/api/reset") { reset(); return Promise.resolve(state(0)); }
     if (path === "/api/report") return Promise.resolve({ report: SAMPLE_REPORT });
+    if (path === "/api/metrics/scorecard") return Promise.resolve(DEMO_SCORECARD);
     if (path === "/api/mcp") return Promise.resolve(DEMO_MCP);
     if (path === "/api/explorer/info") return fetch("/api/explorer/info").then(r => r.json()).catch(() => ({ predefined_queries: [], error_classes: [], mock_info: { tools: {} } }));
     if (path === "/api/explore") {
@@ -689,7 +761,7 @@ async function act(path, body) {
 
 /* ---------- tabs ---------- */
 function showTab(name) {
-  for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  for (const b of document.querySelectorAll("nav.tabs button[data-tab]")) b.setAttribute("aria-pressed", String(b.dataset.tab === name));
   for (const v of ["live", "heals", "metrics", "mcp", "report"]) $("view-" + v).hidden = v !== name;
 }
 for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => showTab(b.dataset.tab);
@@ -737,6 +809,48 @@ function changeRows(o, resp) {
     case "encoding": return [[side + " body", o.content_type, "The API now takes " + o.content_type + ". The same fields are re-encoded."]];
     default: return [["?", "?", JSON.stringify(o)]];
   }
+}
+// Plain-English account of a heal row: which break, what the API did, what the registry did.
+const DRIFT_LABEL = Object.fromEntries(GROUPS.flatMap(([, , items]) => items.map(([id, label]) => [id, label])));
+const ERROR_TEXT = {
+  E1: (c) => "a temporary failure (" + c + ")",
+  E2: (c) => "the API rejected the call (HTTP " + c + ")",
+  E3: (c) => "an answer that could not be read (HTTP " + c + ")",
+  E4: (c) => "an error inside a success reply, or a missing login (HTTP " + c + ")",
+  E5: (c) => "HTTP " + c + " OK, but the answer came back in a new shape",
+  E6: (c) => "HTTP " + c + " OK, but the change was silently ignored (the check after the call failed)",
+  BUSINESS: (c) => "a normal business error (HTTP " + c + ")",
+};
+const KIND_TEXT = { postcheck: "sent but not saved", missing: "missing", route: "endpoint moved or gone", auth: "login required", rejected: "rejected", type: "wrong type" };
+function brokeFields(h) {
+  const v = (h.raw_error && h.raw_error.violations) || [];
+  return v.filter(([, p]) => p && p.length).map(([side, p, kind]) => (side === "resp" ? "reply " : "") + p.join(".") + " (" + (KIND_TEXT[kind] || kind) + ")");
+}
+function brokeShort(h) {
+  const err = (ERROR_TEXT[h.class] || ((c) => h.class + " " + c))(h.raw_code);
+  const fields = brokeFields(h);
+  return (h.drift ? h.drift + " · " + (DRIFT_LABEL[h.drift] || "") + ": " : "") + err + (fields.length ? ": " + fields.join(", ") : "");
+}
+function brokeRow(h) {  // the short version for the table row
+  const fields = brokeFields(h);
+  const what = fields.length ? fields.slice(0, 2).join(", ") + (fields.length > 2 ? " +" + (fields.length - 2) + " more" : "") : (CLASS_NAMES[h.class] || h.class) + " (" + h.raw_code + ")";
+  return (h.drift ? h.drift + " · " + (DRIFT_LABEL[h.drift] || "") + ": " : "") + what;
+}
+// Field names the audit row recorded as broken, for the red highlight.
+function brokenNames(h) {
+  return ((h.raw_error && h.raw_error.violations) || []).map(([, p]) => p && p.length ? String(p[p.length - 1]) : "").filter(Boolean);
+}
+function storyView(h) {
+  const box = el("div", null, { class: "story" });
+  const did = h.outcome === "RECOVERED"
+    ? "The registry patched the call" + (h.tier === 0 ? " with a fix it had already verified" : h.path === "repair" ? " with a fix proposed by the LLM repair agent and checked like any other" : "") + ", sent it once more and checked the answer before the agent saw it."
+    : h.reason === "NOT_DRIFT" ? "Nothing about the API's shape changed, so the error went back to the agent unchanged."
+    : "The registry refused (" + (h.reason || "no safe fix") + ") and sent nothing it could not justify; the agent got a clear error instead.";
+  const write = h.write ? " " + h.tool + " changes data, so the patched request was sent at most once." : " " + h.tool + " only reads data.";
+  box.append(el("b", "What broke: "), brokeShort(h) + ". ", el("b", "What we did: "), did + write);
+  const body = h.raw_error && h.raw_error.body;
+  if (body !== null && body !== undefined) { box.append(el("br")); box.append(el("small", "The API's own error:", { class: "muted" }), preHighlight(body, brokenNames(h))); }
+  return box;
 }
 function changeView(h) {
   const box = el("div", null, { class: "chg" });
@@ -940,6 +1054,79 @@ function healBox(h) {
   if (k === "biz") box.append(el("p", "The spec is unchanged, so the error is the agent's to handle. No patch, no replay.", { class: "hint" }));
   return box;
 }
+// Why a call broke, from the error's structure only (field paths and error types). The API's
+// free-text message is never echoed: it is untrusted and, in M10, an injection attempt.
+const TYPE_WHY = { missing: "is required but was not sent", extra_forbidden: "is no longer accepted",
+  string_type: "must be text", int_type: "must be a whole number", int_parsing: "must be a whole number",
+  float_type: "must be a number", bool_type: "must be true or false", enum: "must be one of the new allowed values",
+  literal_error: "must be one of the new allowed values", string_pattern_mismatch: "has the wrong format",
+  model_attributes_type: "must be an object" };
+const STATUS_WHY = { 401: "the API now requires a login", 403: "the API refused access", 404: "the endpoint moved or no longer exists",
+  405: "the endpoint no longer accepts this method", 409: "the request conflicts with existing data", 415: "the API wants a different body format",
+  422: "the API rejected the shape of the request", 429: "too many requests (temporary)" };
+function breakInfo(t, h) {
+  const res = t.result || {}, body = res.body;
+  // A healed call's final result is the good one: the original failure lives on the heal event.
+  const code = h && h.outcome === "RECOVERED" ? Number(h.raw_code) || undefined : res.status_code;
+  const detail = body && Array.isArray(body.detail) ? body.detail : [];
+  const fields = detail.filter((d) => Array.isArray(d.loc)).map((d) => ({ path: d.loc.join("."), name: String(d.loc[d.loc.length - 1]), why: TYPE_WHY[d.type] || "was rejected (" + d.type + ")" }));
+  const sent = Object.keys(t.args || {});
+  let lead = code >= 500 ? "the API had a server error (temporary)" : STATUS_WHY[code] || (code ? "the API answered HTTP " + code : "the call failed");
+  const cls = (h && h.class) || t.error_class;
+  if (cls === "E5") lead = "the API answered 200 OK, but the reply came back in a different shape";
+  if (cls === "E6") lead = "the API answered 200 OK, but silently ignored the change";
+  return { lead, fields, sent };
+}
+function whyBox(t, h) {
+  const { lead, fields, sent } = breakInfo(t, h);
+  // No error body (a healed call): name the fields from the fix's own moves instead.
+  const moves = (h && h.fix ? h.fix.request_ops : []).filter((o) => o.op === "move");
+  if (!fields.length && moves.length) {
+    const box = el("div", null, { class: "why" + (h.outcome === "RECOVERED" ? " fixed" : "") });
+    box.append(el("b", "Why it broke: "), lead + ": the API now expects ");
+    moves.forEach((o, k) => { if (k) box.append(", "); box.append(el("code", o.to.join(".")), " instead of ", el("code", o.from.join("."))); });
+    box.append(".", el("br"), el("b", "How it was healed: "), [...h.fix.request_ops, ...h.fix.response_ops].map((o) => opText(o).join(" ")).join("; ") + ".");
+    return { box, terms: moves.flatMap((o) => [o.to[o.to.length - 1], o.from[o.from.length - 1]]).map(String) };
+  }
+  const box = el("div", null, { class: "why" + (h && h.outcome === "RECOVERED" ? " fixed" : "") });
+  box.append(el("b", "Why it broke: "), lead + (fields.length ? ": " : "."));
+  fields.slice(0, 3).forEach((f, k) => { if (k) box.append(", "); box.append(el("code", f.path), " " + f.why); });
+  if (fields.length) {
+    const missing = fields.filter((f) => f.why.startsWith("is required")).map((f) => f.name);
+    const gone = sent.filter((a) => !fields.some((f) => f.name === a) && missing.length);
+    box.append(". ");
+    const typed = fields.filter((f) => f.why.startsWith("must be") && t.args && f.name in t.args);
+    if (typed.length) {
+      box.append("The agent sent ");
+      typed.forEach((f, k) => {
+        const v = t.args[f.name];
+        if (k) box.append(", ");
+        box.append(el("code", JSON.stringify(v)), " (" + (typeof v === "string" ? "text" : typeof v) + ")");
+      });
+      box.append(". ");
+    }
+    if (missing.length && gone.length) box.append("The agent sent ", el("code", gone.join(", ")), " (the old name), so nothing matched.");
+  }
+  if (h && h.outcome === "RECOVERED" && h.fix) {
+    const ops = [...h.fix.request_ops, ...h.fix.response_ops].map((o) => opText(o).join(" ")).join("; ");
+    box.append(el("br"), el("b", "How it was healed: "), ops || "replayed unchanged", ".");
+  } else if (h && h.outcome !== "RECOVERED") {
+    box.append(el("br"), el("b", "Why not healed: "), (h.reason === "NOT_DRIFT" ? "the API's shape did not change, so the error belongs to the agent." : "no safe fix (" + (h.reason || "refused") + "); the registry never guesses a value."));
+  }
+  return { box, terms: fields.map((f) => f.name) };
+}
+// A JSON block with the broken field names marked, built with text nodes only.
+function preHighlight(v, terms) {
+  const text = formatJson(v), node = el("pre");
+  terms = terms.filter((x) => /^\w+$/.test(x));  // field names only: nothing to escape
+  if (!terms.length) { node.textContent = text; return node; }
+  // The name, plus its value when one follows, so a wrong-type value is marked too.
+  const re = new RegExp('"(' + terms.join("|") + ')"(?:: (?:"[^"]*"|-?\\d+(?:\\.\\d+)?|true|false|null))?', "g");
+  let last = 0, m;
+  while ((m = re.exec(text))) { node.append(text.slice(last, m.index), el("mark", m[0], { class: "hit" })); last = m.index + m[0].length; }
+  node.append(text.slice(last));
+  return node;
+}
 function callCard(t, healing, i) {
   const h = t.heal_event;
   const recovered = h && h.outcome === "RECOVERED";
@@ -954,9 +1141,12 @@ function callCard(t, healing, i) {
   else if (failed || h) sum.append(el("span", "✕ broke here", { class: "where" }));
   sum.append(el("span", t.latency_ms + " ms", { class: "ms" }), el("span", null, { class: "plus", "aria-hidden": "true" }));
   const body = el("div", null, { class: "call-body" });
-  body.append(block("Agent input", pre(t.args)));
+  const broken = (t.error_class && t.error_class !== "OK") || h;
+  const why = broken ? whyBox(t, h) : null;
+  if (why) body.append(why.box);
+  body.append(block("Agent input", why ? preHighlight(t.args, why.terms) : pre(t.args)));
   if (h) body.append(block("Error", healBox(h)));
-  else if (t.error_class !== "OK") body.append(block("Error", pre(t.result)));
+  else if (t.error_class !== "OK") body.append(block("Error", preHighlight(t.result, why.terms)));
   const sent = (t.wire || []).filter((w) => w.path !== "/openapi.json" && !w.path.endsWith("/validate"));
   if (healing && sent.length > 1) {
     const w = sent[sent.length - 1];
@@ -997,6 +1187,8 @@ function replay(res) {
       shown[a].push(traces[i]);
       const list = $("p-calls-" + a);
       const card = list.appendChild(callCard(traces[i], a === "healing", i));
+      // Open the first break in each column so the "why it broke" line is visible at once.
+      if (card.matches(".broke, .healed") && !list.querySelector("details.call[open]")) card.open = true;
       list.scrollTop = card.offsetTop - 4;
       steps(a, false);
       more = more || i + 1 < traces.length;
@@ -1007,6 +1199,7 @@ function replay(res) {
   setTimeout(tick, 250);
 }
 function finish(res, steps) {
+  res.replayDone = true;
   for (const a of AGENTS) {
     steps(a, true);
     if (!(res[a].traces || []).length) $("p-calls-" + a).replaceChildren(el("div", res[a].error || "No tool calls recorded.", { class: "empty" }));
@@ -1025,7 +1218,7 @@ function finish(res, steps) {
   $("preset-status").textContent = "Done";
   renderCost(res);
 }
-const SERIES = [["baseline", "Baseline agent", "#c2410c"], ["healing", "Self-healing agent", "#1d4ed8"]];
+const SERIES = [["baseline", "Baseline agent", "var(--series-baseline)"], ["healing", "Self-healing agent", "var(--series-healing)"]];
 function costOf(r) {
   const traces = r.traces || [];
   return {
@@ -1060,7 +1253,7 @@ function renderCost(res) {
     return box;
   }));
   const b = v.baseline, h = v.healing;
-  if (llm && b.tokens > h.tokens) {
+  if (llm && b.tokens > h.tokens && b.errors > h.errors) {
     $("cost-hero").textContent = Math.round(100 * (b.tokens - h.tokens) / Math.max(1, b.tokens)) + "% fewer tokens";
     $("cost-sub").textContent = "with self-healing: the baseline spends " + (b.tokens - h.tokens).toLocaleString() + " more tokens working around the broken API.";
   } else if (b.errors > h.errors) {
@@ -1068,7 +1261,9 @@ function renderCost(res) {
     $("cost-sub").textContent = "reach the agent with self-healing, so it does not retry, re-plan or give up.";
   } else {
     $("cost-hero").textContent = "";
-    $("cost-sub").textContent = "No drift in this run, so both agents did the same work.";
+    $("cost-sub").textContent = b.errors || h.errors
+      ? "Both agents hit the same errors in this run, so there is nothing to credit to self-healing."
+      : "No drift reached the agents in this run, so both did the same work; small token differences are normal model variation.";
   }
   $("cost-note").textContent = llm
     ? "Measured in this run. Every error the baseline sees costs an extra model turn; the healing agent never gets that error."
@@ -1166,7 +1361,18 @@ function renderRun(agent, s) {
   const err = $("err-" + agent);
   err.hidden = !shownRun.error;
   err.textContent = shownRun.error ? "Error: " + shownRun.error : "";
+  // The agent's last message to the user (LLM runs only; a scripted run has no chat).
+  // A replayed scenario shows it once the replay has finished.
+  const reply = (exploreRes && !exploreRes.replayDone) ? "" : (shownRun.final_text || "").trim();
+  const fin = $("final-" + agent);
+  if (shownReply[agent] !== reply) {
+    shownReply[agent] = reply;
+    fin.hidden = !reply;
+    fin.className = "final" + (reply && (shownRun.hit_limit || shownRun.data_correct === false) ? " failed" : "");
+    if (reply) fin.replaceChildren(el("small", "Agent's final answer"), el("p", reply));
+  }
 }
+const shownReply = {};
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
   const sig = heals.length + ":" + (heals.length ? heals[heals.length - 1].ts_ms : 0);
@@ -1192,18 +1398,22 @@ function renderHeals(heals) {
     const [k, text] = outcomeInfo(h);
     const outcome = el("td"); outcome.append(el("span", k === "warn" ? "Safe refusal · 0 invented values" : k === "biz" ? "Business error pass-through" : text.split(" · ")[0], { class: "tag " + k }));
     if (h.reason && h.reason !== "NOT_DRIFT") outcome.append(" ", el("span", h.reason, { class: "tag" }));
-    tr.append(first, el("td", h.tool, { class: "mono" }), cell(badge(h.class)), el("td", String(h.tier)), el("td", h.path || "-"), outcome,
+    const toolCell = el("td", null, { class: "mono" });
+    const short = el("span", null, { class: "broke-line" });
+    short.append(el("b", h.outcome === "RECOVERED" ? "Fixed: " : h.reason === "NOT_DRIFT" ? "Passed on: " : "Refused: "), brokeRow(h));
+    toolCell.append(h.tool, short);
+    tr.append(first, toolCell, cell(badge(h.class)), el("td", String(h.tier)), el("td", h.path || "-"), outcome,
       el("td", h.mttr_ms + " ms"), el("td", h.heal_ms === undefined || h.heal_ms === null ? "-" : h.heal_ms + " ms"), fixCell);
     const dt = el("tr", null, { class: "detail", hidden: "" });
     const dd = el("td", null, { colspan: "9" });
     const grid = el("div", null, { class: "detail-grid" });
     const item = (key, v) => { const d = el("div"); d.append(el("small", key), el("code", v)); return d; };
     grid.append(item("Fingerprint", h.fingerprint || "-"), item("Raw code", String(h.raw_code ?? "-")), item("Fix id", String(h.fix_id ?? "-")), item("Jev tokens", String(h.jev_tokens ?? 0)));
-    dd.append(changeView(h), grid); dt.appendChild(dd);
+    dd.append(storyView(h), changeView(h), grid); dt.appendChild(dd);
     const setOpen = (open) => { dt.hidden = !open; tr.classList.toggle("open", open); tr.setAttribute("aria-expanded", String(open)); };
     const toggle = () => {
       const open = dt.hidden;
-      if (open) { openHeals.add(key); dd.firstChild.replaceWith(changeView(h)); } else openHeals.delete(key);
+      if (open) { openHeals.add(key); dd.children[1].replaceWith(changeView(h)); } else openHeals.delete(key);
       setOpen(open);
     };
     if (openHeals.has(key)) setOpen(true);
@@ -1333,6 +1543,7 @@ async function poll() {
     const s = await call("/api/state?after=" + after);
     if (s.epoch !== epoch) { epoch = s.epoch; clearView(); }
     render(s);
+    if (window.HealerPanels) HealerPanels.refresh(s);
     connected = true;
     $("conn-chip").textContent = Demo.on ? "Demo data" : "Live";
     $("conn-chip").className = "pill " + (Demo.on ? "warn" : "good");
@@ -1376,13 +1587,17 @@ function loadMcp() {
 }
 function loadReport() {
   call("/api/report").then((r) => {
-    if (r.report) { $("report").textContent = r.report; $("tab-report").hidden = false; }
+    $("report").textContent = r.report || "";
+    $("report-empty").hidden = Boolean(r.report);
   }).catch(() => {});
 }
 clearView();
 poll().then(() => { loadReport(); loadMcp(); initPresets(); });
 setInterval(poll, 500);
 </script>
+<script src="/panels/registry.js"></script>
+<script src="/panels/scorecard.js" defer></script>
+<script src="/ui.js" defer></script>
 <script src="/guide.js" defer></script>
 </body>
 </html>
