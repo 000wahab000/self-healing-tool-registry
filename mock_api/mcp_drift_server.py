@@ -239,6 +239,10 @@ class McpDriftServer:
         self.server_name = name or f"mock-drift-{profile}"
         self.data: dict[str, Any] = {}
         self._current_mutation: str | None = None
+        # Demo hook (see `--drift`): apply `_drift_name` after `_drift_after` successful app calls.
+        self._drift_name: str | None = None
+        self._drift_after = 0
+        self._app_calls = 0
         self.reset()
         self.server: Server = self._build_lowlevel_server()
 
@@ -256,6 +260,15 @@ class McpDriftServer:
         if name not in MUTATIONS:
             raise ValueError(f"Unknown mutation: {name!r}. Supported: {list(MUTATIONS)}")
         self._current_mutation = name
+
+    def schedule_drift(self, name: str, after: int) -> None:
+        """Apply mutation `name` once `after` application calls have succeeded.
+
+        Used by the demo, whose front door hides the admin tools (contract 8 is unchanged).
+        """
+        if name not in MUTATIONS:
+            raise ValueError(f"Unknown mutation: {name!r}. Supported: {list(MUTATIONS)}")
+        self._drift_name, self._drift_after, self._app_calls = name, after, 0
 
     def reset(self) -> None:
         self.data = copy.deepcopy(SEED)
@@ -399,6 +412,9 @@ class McpDriftServer:
             # Application tool logic
             try:
                 result = self._execute_tool(name, args)
+                self._app_calls += 1
+                if self._drift_name and self._app_calls == self._drift_after:
+                    self.apply_mutation(self._drift_name)
                 return CallToolResult(
                     content=[TextContent(type="text", text=canonical.dumps(result))],
                     structuredContent=result,
@@ -553,9 +569,13 @@ def main() -> None:
     parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8001)
+    parser.add_argument("--drift", choices=MUTATIONS, help="mutation to apply mid-run (demo)")
+    parser.add_argument("--drift-after", type=int, default=1, help="apply it after N calls")
     args = parser.parse_args()
 
     drift_server = create_drift_server(profile=args.profile)
+    if args.drift:
+        drift_server.schedule_drift(args.drift, args.drift_after)
 
     if args.transport == "stdio":
         asyncio.run(drift_server.run_stdio())
