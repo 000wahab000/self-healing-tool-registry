@@ -1,35 +1,34 @@
 /* In-place product tour: a spotlight walks through the real page, one step at a time.
    Opens by itself on a page's first visit; the "Guide" button reopens it. No dependencies. */
 (() => {
+  // Plain words for a first-time, non-technical visitor. One idea per step.
   const STEPS = {
     "/": [
-      { title: "Welcome", text: "This is a self-healing tool registry. It sits between an AI agent and the APIs and MCP servers it calls. When an API changes shape, it repairs the call so the agent keeps working, without a new prompt or a redeploy." },
-      { sel: "#hero-h", title: "The problem it solves", text: "APIs drift: a field is renamed, a type changes, a tool moves. A normal agent breaks on the next call. Here, the registry notices the break and patches the call in memory." },
-      { sel: "section[aria-label='Animated flow diagram']", title: "How a heal works", text: "The agent's call fails. The registry reads the new API spec, diffs it against the old one, builds a fix from that evidence only, retries once and checks the result. No values are invented." },
-      { sel: "section[aria-label='Benchmark results']", title: "Measured, not claimed", text: "These numbers come from the benchmark report. The Report tab shows the full run." },
-      { sel: "header nav.tabs", title: "Where to go next", text: "Live stream runs two agents side by side. Patch log lists every heal. Connections adds your own MCP servers and APIs." },
-      { sel: "header .btn.primary", title: "Try it", text: "Open the live demo. A short guide there shows how to break the API and watch it heal." },
+      { title: "Welcome", text: "AI assistants get work done by calling other services, like a booking system or a customer database. This tool keeps those calls working when the services change." },
+      { sel: "#hero-h", title: "The problem", text: "Services change over time: a box gets renamed, a number becomes text. An assistant that still sends the old form simply fails. This tool notices and fixes the call for it." },
+      { sel: "section[aria-label='Animated flow diagram']", title: "How it fixes things", text: "When a call fails, it checks what the service now expects, adjusts the call using only what the assistant already sent, tries once more and checks the answer. It never makes up information." },
+      { sel: "section[aria-label='Benchmark results']", title: "Real results", text: "These numbers come from real test runs, not promises. The Report page has the details." },
+      { sel: "header nav.tabs", title: "Find your way", text: "Live stream is the hands-on demo. Patch log lists every fix. Connections is where you add your own services." },
+      { sel: "header .btn.primary", title: "Try it yourself", text: "Open the live demo. A short tour there shows you what to click." },
     ],
     "/live": [
-      { title: "The live demo", text: "Two agents do the same task against the same mock API. One calls it directly. The other goes through the self-healing registry. You break the API and compare." },
-      { sel: "#mutations", title: "1. Break the API", text: "Each button is a real kind of API drift: a renamed field, a changed type, a wrapped response, a new required value. Click one; if no run is going, a quick run starts so the break is actually hit." },
-      { sel: "#start-scripted", title: "2. Or start a run first", text: "A scripted run makes the same tool calls every time, with no LLM cost. Start it, then break the API mid-run to see a live heal." },
-      { sel: "#col-baseline", title: "Without healing", text: "The baseline agent sees the raw error and its task fails or goes off track." },
-      { sel: "#col-healing", title: "With healing", text: "The same call fails here too, but the registry detects the drift, patches the call and the agent gets a normal answer." },
-      { sel: "#mutation-chip", title: "What is broken right now", text: "The active drift. Use Clear mutation or Reset to go back to the original API." },
-      { sel: "[data-tab='heals']", tab: "heals", title: "3. The patch log", text: "Every heal attempt writes exactly one row: what broke, how it was fixed, how long it took. Refusals are logged too." },
-      { sel: "#view-heals", tab: "heals", title: "See what changed", text: "Click a row to open it. An animation shows each change the fix made, for example the API now nesting a field under data and the registry moving it back where the agent expects it." },
-      { sel: "[data-tab='metrics']", tab: "metrics", title: "4. Metrics", text: "Recovered heals, safe refusals and time to recover, split by tier: tier 1 builds a fix, tier 0 reuses a stored one instantly." },
-      { title: "That's it", tab: "live", text: "Reopen this guide any time with the Guide button in the corner." },
+      { title: "The live demo", text: "Two assistants do the same job. The one on the left talks to the service directly. The one on the right goes through this tool. You will break the service and compare." },
+      { sel: "#prompt", title: "1. What you ask", text: "This is the request both assistants receive. You can change it to anything you like and press Send prompt. Nothing else on the page changes." },
+      { sel: "#acts", title: "Or pick a ready-made story", text: "Each card is a short scenario. Clicking one fills in the request and runs both assistants for you." },
+      { sel: "#mutations", title: "2. Break the service", text: "Each button changes the service in a realistic way, like renaming a field. Click one; the assistants run, and you watch what happens." },
+      { sel: "#col-baseline", title: "Without this tool", text: "Watch for a red shake and \"broke here\": that is the exact step where the service rejected the assistant." },
+      { sel: "#col-healing", title: "With this tool", text: "The same step breaks here too, then turns green: \"broke here, healed\". The assistant never had to deal with the error." },
+      { sel: "#cost", title: "3. Why it matters", text: "After each run, this chart compares the two. Every error costs the plain assistant extra work, extra AI time and money. Here you see the difference." },
+      { sel: "[data-tab='heals']", tab: "heals", title: "4. The fix list", text: "Every fix is written down here: what broke, what was changed and how long it took. Click a row to see the change animated." },
+      { title: "You're ready", tab: "live", text: "Press TOUR at the top any time to see this again." },
     ],
     "/connections": [
-      { title: "Connections", text: "Add the MCP servers and APIs the gateway should call and heal. Saved entries load the next time the gateway starts." },
-      { sel: "#servers", title: "MCP servers", text: "Servers from config/mcp_servers.json. Ones started by a local command are file-only and read-only here, for safety." },
-      { sel: "#apis", title: "Other APIs", text: "Non-MCP APIs: OpenAPI 3, Swagger 2.0 or GraphQL. They are healed the same way." },
-      { sel: "#type", title: "1. Pick the kind", text: "An MCP server over HTTP, or an API described by an OpenAPI, Swagger or GraphQL spec." },
-      { sel: "#url", title: "2. Where it lives", text: "For MCP, the server's endpoint URL. For an API, its base URL. Only http and https are accepted." },
-      { sel: "#token", title: "3. Credentials, safely", text: "Type the NAME of an environment variable that holds the token, for example BILLING_TOKEN. The token itself never goes into this page or the config file." },
-      { sel: "#test", title: "4. Test, then save", text: "Test connection connects once and lists the tools it found. Save writes the entry. Tools appear as name__tool." },
+      { title: "Your services", text: "Here you tell the tool which services your assistant uses, so it can protect those calls too." },
+      { sel: "#servers", title: "Connected services", text: "Services the tool already knows. Ones marked 'configured in file' were set up by an administrator." },
+      { sel: "#type", title: "1. What kind of service", text: "If your service speaks MCP (an AI tool standard), pick that. Most other web services publish an OpenAPI or Swagger description; pick the one your provider names." },
+      { sel: "#url", title: "2. Its web address", text: "Paste the address your provider gave you. It starts with https://" },
+      { sel: "#token", title: "3. Keep passwords out", text: "Never paste a password or key here. Type only the name your administrator stored it under, like BILLING_TOKEN." },
+      { sel: "#test", title: "4. Check it, then save", text: "Test connection shows the actions the service offers. If that looks right, press Save." },
     ],
   };
 
@@ -43,36 +42,31 @@
 
   const css = document.createElement("style");
   css.textContent = `
-  .g-launch { position: fixed; right: 18px; bottom: 18px; z-index: 60; display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line-2, #b9c6b3); background: var(--panel, #fff); box-shadow: 0 4px 16px rgba(0,0,0,.08); font: 500 13.5px var(--sans, sans-serif); }
-  .g-launch b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--ink, #000); color: var(--on-ink, #fff); font-size: 11px; }
+  .g-launch { position: fixed; right: 18px; bottom: 18px; z-index: 60; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--ink, #000); background: var(--panel, #fff); font: 500 12.5px var(--mono, monospace); letter-spacing: .12em; text-transform: uppercase; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+  .g-launch.in-bar { position: static; box-shadow: none; padding: 5px 12px; }
   .g-shade { position: fixed; inset: 0; z-index: 70; }
-  .g-spot { position: fixed; z-index: 71; border-radius: 12px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(10,14,8,.55); transition: all .38s cubic-bezier(.2,.8,.2,1); }
-  .g-spot::after { content: ""; position: absolute; inset: -4px; border-radius: 14px; border: 2px solid var(--accent, #19e76e); animation: g-pulse 1.6s ease-out infinite; }
-  .g-spot.center { left: 50% !important; top: 42% !important; width: 0 !important; height: 0 !important; }
-  .g-spot.center::after { display: none; }
-  @keyframes g-pulse { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.06); } }
-  .g-card { position: fixed; z-index: 72; width: min(360px, calc(100vw - 32px)); background: var(--panel, #fff); color: var(--ink, #000); border: 1px solid var(--line-2, #b9c6b3); border-radius: 14px; padding: 16px 18px 14px; box-shadow: 0 18px 50px rgba(0,0,0,.22); transition: left .38s cubic-bezier(.2,.8,.2,1), top .38s cubic-bezier(.2,.8,.2,1), opacity .2s; }
-  .g-card small { font: 11px var(--mono, monospace); letter-spacing: .06em; color: var(--muted, #7d8778); text-transform: uppercase; }
-  .g-card h3 { margin: 4px 0 6px; font-size: 17px; }
-  .g-card p { margin: 0 0 14px; color: var(--ink-2, #3b4237); font-size: 14px; line-height: 1.5; }
-  .g-row { display: flex; align-items: center; gap: 8px; }
-  .g-dots { display: flex; gap: 5px; flex: 1; }
-  .g-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2, #b9c6b3); transition: all .25s; }
-  .g-dots i.on { width: 18px; border-radius: 3px; background: var(--ink, #000); }
-  .g-card button { border-radius: 8px; padding: 6px 12px; border: 1px solid var(--line-2, #b9c6b3); background: var(--panel, #fff); font-size: 13.5px; }
-  .g-card button.next { background: var(--ink, #000); color: var(--on-ink, #fff); border-color: var(--ink, #000); }
-  .g-card button.skip { border: 0; background: none; color: var(--muted, #7d8778); padding: 6px 4px; }
+  .g-spot { position: fixed; z-index: 71; border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(10,14,8,.6); outline: 2px solid #fff; transition: all .38s cubic-bezier(.2,.8,.2,1); }
+  .g-spot.center { left: 50% !important; top: 42% !important; width: 0 !important; height: 0 !important; outline: 0; }
+  .g-card { position: fixed; z-index: 72; width: min(420px, calc(100vw - 32px)); background: var(--panel, #fff); color: var(--ink, #000); border: 2px solid #1d4ed8; border-radius: 6px; padding: 20px 22px 18px; box-shadow: 0 20px 60px rgba(0,0,0,.3); transition: left .38s cubic-bezier(.2,.8,.2,1), top .38s cubic-bezier(.2,.8,.2,1); }
+  .g-card small { font: 14px var(--serif, Georgia, serif); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2, #3b4237); }
+  .g-card h3 { margin: 6px 0 10px; font: 400 28px/1.1 var(--serif, Georgia, serif); letter-spacing: .03em; text-transform: uppercase; }
+  .g-card p { margin: 0 0 18px; color: var(--ink-2, #3b4237); font-size: 15.5px; line-height: 1.55; }
+  .g-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .g-card button { border-radius: 4px; padding: 10px 18px; border: 1px solid var(--ink, #000); background: var(--panel, #fff); font: 500 13px var(--mono, monospace); letter-spacing: .12em; text-transform: uppercase; }
+  .g-card button.next { background: var(--ink, #000); color: var(--on-ink, #fff); }
   .g-in { animation: g-in .3s ease-out; }
   @keyframes g-in { from { opacity: 0; transform: translateY(6px); } }
-  @media (prefers-reduced-motion: reduce) { .g-spot, .g-card { transition: none; } .g-spot::after, .g-in { animation: none; } }`;
+  @media (prefers-reduced-motion: reduce) { .g-spot, .g-card { transition: none; } .g-in { animation: none; } }`;
   document.head.appendChild(css);
 
   const launch = document.createElement("button");
   launch.className = "g-launch";
   launch.type = "button";
-  launch.setAttribute("aria-label", "Open the guide");
-  launch.innerHTML = "<b>?</b>Guide";
-  document.body.appendChild(launch);
+  launch.setAttribute("aria-label", "Start the guided tour");
+  launch.textContent = "Tour";
+  // In the top bar when the page has one (next to the views), else a floating button.
+  const bar = document.querySelector("header .top-in nav.tabs");
+  if (bar) { launch.classList.add("in-bar"); bar.after(launch); } else document.body.appendChild(launch);
 
   let i = 0, shade, spot, card;
   const visible = (s) => {
@@ -132,15 +126,11 @@
     p.textContent = s.text;
     const row = document.createElement("div");
     row.className = "g-row";
-    const dots = document.createElement("div");
-    dots.className = "g-dots";
-    page.forEach((_, j) => { const d = document.createElement("i"); if (j === i) d.className = "on"; dots.appendChild(d); });
     const btn = (label, cls, fn) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.className = cls; b.onclick = fn; return b; };
-    row.append(dots, btn("Skip", "skip", close));
     if (i > 0) row.append(btn("Back", "", () => show(i - 1)));
     const last = i === page.length - 1;
     const nb = btn(last ? "Done" : "Next", "next", () => (last ? close() : show(i + 1)));
-    row.append(nb);
+    row.append(nb, btn("Skip tour", "", close));
     card.append(meta, h, p, row);
     card.classList.remove("g-in"); void card.offsetWidth; card.classList.add("g-in");
     place();

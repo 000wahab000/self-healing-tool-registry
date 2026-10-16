@@ -34,6 +34,7 @@ from healer import metrics
 from healer.jev import from_env
 from healer.models import AuditEvent
 from healer.registry import Registry
+from healer.repair import from_env as repair_from_env
 from healer.store import Store
 from mock_api.app import ALIASES, CUSTOM, MUTATIONS
 from mock_api.app import create_app as create_mock
@@ -112,8 +113,8 @@ class Dashboard:
                 for a, m in self.mocks.items()
             }
             self.clients = list(http.values())
-            healing = Registry(
-                http["healing"], self.tools, self.cfg, self.store, self.jev
+            healing = Registry(  # repair: the tier-2 LLM agent, when NVIDIA_API_KEY is set
+                http["healing"], self.tools, self.cfg, self.store, self.jev, repair=repair_from_env()
             )
             baseline = Registry(http["baseline"], self.tools, self.cfg)  # v1 specs only
             await healing.load()

@@ -156,6 +156,37 @@ div.calls-live .empty { display: block; color: var(--muted); text-align: center;
 .lat { text-align: right; }
 .calls-live .tool { font: 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
 
+/* prompt box */
+.prompt-box { margin: 12px 0 4px; display: grid; gap: 6px; }
+.prompt-box label { font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.prompt-box textarea { width: 100%; min-height: 56px; resize: vertical; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--panel); font-size: 14px; line-height: 1.45; }
+.prompt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* where it broke: a failing call shakes red; a healed one turns red -> green */
+.call.broke { animation: call-shake .45s ease-in-out 2, call-red 1.6s ease-out forwards; }
+.call.healed { animation: call-heal 2.2s ease-out forwards; }
+.call .where { font: 600 11px var(--mono); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.call.broke .where { background: var(--bad-bg); color: var(--bad); }
+.call.healed .where { background: var(--ok-bg); color: var(--ok); animation: where-swap 2.2s steps(1) forwards; }
+@keyframes call-shake { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes call-red { 0% { box-shadow: 0 0 0 0 var(--bad); } 30% { box-shadow: 0 0 0 4px var(--bad-bg); border-color: var(--bad); } 100% { box-shadow: none; border-color: var(--bad); } }
+@keyframes call-heal { 0% { border-color: var(--bad); box-shadow: 0 0 0 4px var(--bad-bg); } 45% { border-color: var(--bad); box-shadow: 0 0 0 4px var(--bad-bg); } 70% { border-color: var(--ok); box-shadow: 0 0 0 5px var(--ok-bg); } 100% { border-color: var(--ok); box-shadow: none; } }
+@keyframes where-swap { 0% { background: var(--bad-bg); color: var(--bad); } 55% { background: var(--ok-bg); color: var(--ok); } }
+/* cost comparison: one bar pair per measure, each on its own scale (never a dual axis) */
+.cost { margin-top: 20px; }
+.cost-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+.cost-head h3 { margin: 0; font-size: 18px; }
+.cost-hero { font-size: 34px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 16px; font-size: 13px; color: var(--ink-2); margin: 10px 0 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.cost-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 8px; }
+.cost-m small { display: block; font: 500 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 8px; }
+.bar-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; margin: 4px 0; }
+.bar-track { height: 14px; }
+.bar { height: 100%; width: 0; border-radius: 0 4px 4px 0; transition: width .9s cubic-bezier(.2,.8,.2,1); min-width: 2px; }
+.bar-row b { font: 500 13px var(--mono); color: var(--ink); min-width: 48px; text-align: right; }
+.cost-note { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+@media (prefers-reduced-motion: reduce) { .call.broke, .call.healed, .call.healed .where { animation-duration: .01s; } .bar { transition: none; } }
+
 /* patch log + metrics */
 .scroll { overflow-x: auto; }
 table.log { border-collapse: collapse; width: 100%; font-size: 13px; }
@@ -239,6 +270,14 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
       <div>
         <p class="eyebrow">Run a scenario on both agents</p>
         <div class="acts" id="acts"></div>
+        <div class="prompt-box">
+          <label for="prompt">Prompt sent to both agents</label>
+          <textarea id="prompt" rows="2" spellcheck="false"></textarea>
+          <div class="prompt-row">
+            <button class="btn primary small" id="send-prompt" type="button">Send prompt</button>
+            <span class="hint muted" id="prompt-hint">Uses the break that is active now; nothing else changes.</span>
+          </div>
+        </div>
         <div class="composer-foot">
           <div class="seg" role="radiogroup" aria-label="Agent mode">
             <label><input type="radio" name="mode" value="scripted" checked>Scripted</label>
@@ -279,6 +318,12 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
         <div class="calls-live" id="calls-healing"></div>
       </section>
     </div>
+    <section class="card pad cost" id="cost" aria-labelledby="cost-h">
+      <div class="cost-head"><h3 id="cost-h">Why a self-healing registry</h3><span class="cost-hero" id="cost-hero"></span><span class="muted" id="cost-sub">Run a scenario or send a prompt to compare both agents.</span></div>
+      <div class="legend" aria-hidden="true"><span><i style="background:#c2410c"></i>Baseline agent</span><span><i style="background:#1d4ed8"></i>Self-healing agent</span></div>
+      <div class="cost-grid" id="cost-chart"></div>
+      <p class="cost-note" id="cost-note"></p>
+    </section>
   </div>
 
   <!-- PATCH LOG -->
@@ -315,7 +360,7 @@ const GROUPS = [
     ["M4", "Require bearer", "create_ticket"], ["M5", "Nest + tenant header", "get_user"], ["M7", "Silent ignore", "update_email"],
     ["M9", "Request wrapping", "update_email"], ["M10", "Prompt injection", "get_user"]]],
   ["Judgement", "ambiguous or unsafe", [["M6-D", "Ambiguous rename, described", "set_manager"], ["M6-N", "Ambiguous rename, bare", "set_manager"],
-    ["M8", "Unfillable field", "create_ticket"]]],
+    ["M8", "Unfillable field", "create_ticket"], ["M11", "Moved + renamed (LLM repair)", "get_user"]]],
   ["Control", "not drift", [["C1", "Transient 503", "get_user"], ["C2", "Unknown user 404", "get_user"],
     ["C3", "Invalid email 422", "update_email"]]],
 ];
@@ -742,6 +787,7 @@ let presets = {}, expInfo = null, presetRun = 0, presetBusy = false, exploreRes 
 const presetCards = {};
 
 function selectPreset(id) {
+  if (presets[id]) $("prompt").value = presets[id].query;
   for (const [k, b] of Object.entries(presetCards)) b.setAttribute("aria-pressed", String(k === id));
   renderBanner($("live-banner"), id);
 }
@@ -769,6 +815,10 @@ async function initPresets() {
     return;
   }
   for (const p of expInfo.predefined_queries) presets[p.mutation || "CLEAN"] = p;
+  if (!$("prompt").value && presets.CLEAN) $("prompt").value = presets.CLEAN.query;
+  $("prompt-hint").textContent = expInfo.llm_available
+    ? "Sent to the live LLM (" + expInfo.llm_model + ") with the break that is active now; nothing else changes."
+    : "No NVIDIA_API_KEY: scripted agents follow a fixed script and ignore the prompt.";
   if (expInfo.llm_available) $("llm-status").textContent = "LLM: " + expInfo.llm_model;
   else {
     document.querySelector("input[name=mode][value=llm]").disabled = true;
@@ -780,18 +830,25 @@ async function initPresets() {
 
 async function runPreset(id) {
   if (presetBusy || !presets[id]) return;
+  selectPreset(id);
+  await runExplore(presets[id].query, id === "CLEAN" ? null : id, document.querySelector("input[name=mode]:checked").value);
+}
+// Send the box's prompt as is, against the break that is live now (or none).
+$("send-prompt").onclick = () => {
+  const q = $("prompt").value.trim();
+  if (!q) { note("Write a prompt first."); return; }
+  const agent = expInfo && expInfo.llm_available ? "llm" : "scripted";
+  runExplore(q, lastLiveMut || null, agent);
+};
+async function runExplore(query, mutation, agent) {
+  if (presetBusy) return;
   presetBusy = true;
   note("");
-  selectPreset(id);
   const status = $("preset-status");
   status.className = "pill warn";
   status.replaceChildren(el("span", null, { class: "spinner" }), " Running both agents");
   try {
-    const res = await call("/api/explore", {
-      query: presets[id].query,
-      mutation: id === "CLEAN" ? null : id,
-      agent: document.querySelector("input[name=mode]:checked").value,
-    });
+    const res = await call("/api/explore", { query, mutation, agent });
     status.className = "pill plain";
     status.textContent = "Replaying " + ((res.healing.traces || []).length + (res.baseline.traces || []).length) + " tool calls";
     replay(res);
@@ -822,12 +879,16 @@ function healBox(h) {
 }
 function callCard(t, healing, i) {
   const h = t.heal_event;
-  const d = el("details", null, { class: "call" });
+  const recovered = h && h.outcome === "RECOVERED";
+  const failed = t.error_class && t.error_class !== "OK";
+  const d = el("details", null, { class: "call" + (recovered ? " healed" : failed || h ? " broke" : "") });
   const sum = el("summary");
   const code = t.result && t.result.status_code;
   sum.append(el("span", String(i + 1).padStart(2, "0"), { class: "num" }), el("code", t.tool, { class: "tool" }), badge(t.error_class));
   if (code && code >= 400) sum.append(el("span", "HTTP " + code, { class: "tag bad" }));
   if (h) sum.append(outcomePill(h));
+  if (recovered) sum.append(el("span", "broke here → healed", { class: "where" }));
+  else if (failed || h) sum.append(el("span", "✕ broke here", { class: "where" }));
   sum.append(el("span", t.latency_ms + " ms", { class: "ms" }), el("span", null, { class: "plus", "aria-hidden": "true" }));
   const body = el("div", null, { class: "call-body" });
   body.append(block("Agent input", pre(t.args)));
@@ -899,6 +960,56 @@ function finish(res, steps) {
   $("status-baseline").textContent = bs[1];
   $("preset-status").className = "pill good";
   $("preset-status").textContent = "Done";
+  renderCost(res);
+}
+const SERIES = [["baseline", "Baseline agent", "#c2410c"], ["healing", "Self-healing agent", "#1d4ed8"]];
+function costOf(r) {
+  const traces = r.traces || [];
+  return {
+    tokens: r.llm_tokens || 0,
+    calls: r.tool_calls || traces.length,
+    errors: traces.filter((t) => t.error_class && t.error_class !== "OK" && !(t.heal_event && t.heal_event.outcome === "RECOVERED")).length,
+  };
+}
+function renderCost(res) {
+  const v = { baseline: costOf(res.baseline), healing: costOf(res.healing) };
+  const llm = v.baseline.tokens + v.healing.tokens > 0;
+  const measures = [
+    ...(llm ? [["tokens", "LLM tokens spent"]] : []),
+    ["calls", "Tool calls made"],
+    ["errors", "Errors the agent had to handle"],
+  ];
+  $("cost-chart").replaceChildren(...measures.map(([k, label]) => {
+    const box = el("div", null, { class: "cost-m", role: "img" });
+    const max = Math.max(1, ...SERIES.map(([a]) => v[a][k]));
+    box.setAttribute("aria-label", label + ": " + SERIES.map(([a, name]) => name + " " + v[a][k]).join(", "));
+    box.append(el("small", label));
+    for (const [a, name, color] of SERIES) {
+      const row = el("div", null, { class: "bar-row", title: name + ": " + v[a][k].toLocaleString() });
+      const track = el("div", null, { class: "bar-track" });
+      const bar = el("div", null, { class: "bar" });
+      bar.style.background = color;
+      track.append(bar);
+      row.append(track, el("b", v[a][k].toLocaleString()));
+      box.append(row);
+      requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = (100 * v[a][k] / max) + "%"; }));
+    }
+    return box;
+  }));
+  const b = v.baseline, h = v.healing;
+  if (llm && b.tokens > h.tokens) {
+    $("cost-hero").textContent = Math.round(100 * (b.tokens - h.tokens) / Math.max(1, b.tokens)) + "% fewer tokens";
+    $("cost-sub").textContent = "with self-healing: the baseline spends " + (b.tokens - h.tokens).toLocaleString() + " more tokens working around the broken API.";
+  } else if (b.errors > h.errors) {
+    $("cost-hero").textContent = (b.errors - h.errors) + " fewer errors";
+    $("cost-sub").textContent = "reach the agent with self-healing, so it does not retry, re-plan or give up.";
+  } else {
+    $("cost-hero").textContent = "";
+    $("cost-sub").textContent = "No drift in this run, so both agents did the same work.";
+  }
+  $("cost-note").textContent = llm
+    ? "Measured in this run. Every error the baseline sees costs an extra model turn; the healing agent never gets that error."
+    : "Scripted run: no LLM tokens are spent. Send a prompt with a live model to compare token cost.";
 }
 
 /* ---------- live tab ---------- */
