@@ -396,6 +396,8 @@ Design principles:
 | `cast` | request, response | Converts a value's type | The same value, lossless only |
 | `header` | request | Sets a header | `{"ref":"config","key":...}` only |
 | `route` | request | Sets the method and/or path | A route that exists in the current spec |
+| `enum_map` | request, response | Maps enum values (1-to-1, bijective) | Target enum values declared in current spec |
+| `encoding` | request | Sets request Content-Type header for media type shift | Content-Type declared in current spec |
 
 New operations are added only through code review (see `agent.md`). No operation can write a literal value.
 
@@ -602,9 +604,16 @@ Beyond the code, the problem statement requires the items below. This section on
 - **FR-17.1** After committing an active fix for a field rename or type cast on a tool, the registry inspects other tools loaded from the same API spec. If a sibling tool shares the identical removed field name and type in its base schema, the registry pre-generates a candidate fix.
 - **FR-17.2** When a sibling tool experiences a break with a matching fingerprint, the candidate fix is verified and promoted directly at Tier-0 speed (<500 ms) without running Tier-1 diagnosis.
 
+#### X3: New Fix Operations (`enum_map`, `encoding`, lossless value transforms)
+- **FR-17.3** `enum_map`: maps enumerated values between the agent's schema and the API wire format. The mapping must be strictly bijective (1-to-1).
+- **FR-17.4** `encoding`: handles HTTP `415 Unsupported Media Type` by adjusting request headers (`Content-Type`, `Accept`) when the new media type is explicitly declared in the current OpenAPI spec.
+- **FR-17.5** Value transforms must be reversible: $f^{-1}(f(x)) == x$. Any lossy transformation is rejected by the safety gate with `UNSAFE_PATCH`.
+
 ### Acceptance Criteria (T1-PS1 Reserved: AC-40 to AC-49)
 
 | ID | Criterion | Verification |
 |---|---|---|
 | AC-40 | (STRETCH, S1) Sibling propagation: a second tool hit by the same rename heals at Tier-0 speed (<500 ms) on its first occurrence | Integration |
+| AC-41 | (STRETCH, X3) `enum_map` operation heals an enum casing/alias change; non-bijective mappings abort `UNSAFE_PATCH` | Unit + Integration |
+| AC-42 | (STRETCH, X3) `encoding` operation heals a `415 Unsupported Media Type` change declared in the spec | Integration |
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import re
 from collections.abc import Iterable, Iterator, Mapping
+from typing import Any
 
 from healer.canonical import get
 from healer.diagnose import flatten_response
@@ -137,6 +138,24 @@ def _finish(
     return [], Reason.UNSAFE_PATCH if dropped else Reason.NO_SAFE_VALUE
 
 
+def _match_enum(old_vals: list[Any], new_vals: list[Any]) -> dict[Any, Any] | None:
+    if len(old_vals) != len(new_vals) or not old_vals:
+        return None
+    mapping: dict[Any, Any] = {}
+    new_norm = {str(v).strip().lower(): v for v in new_vals}
+    if len(new_norm) != len(new_vals):
+        return None
+    for o in old_vals:
+        norm = str(o).strip().lower()
+        if norm in new_norm:
+            mapping[o] = new_norm[norm]
+        else:
+            return None
+    if len(set(mapping.values())) == len(mapping) == len(old_vals):
+        return mapping
+    return None
+
+
 def _response_ops(entries: list[dict]) -> list[dict]:
     removed = [e for e in entries if e["change"] == "removed"]
     added = [e for e in entries if e["change"] == "added"]
@@ -159,6 +178,14 @@ def _response_ops(entries: list[dict]) -> list[dict]:
             and e["old_type"] in _SCALARS
         ):
             ops.append(_cast(e["path"], e["old_type"]))
+        elif e["change"] == "enum_changed":
+            mapping = e.get("mapping")
+            if mapping is None and "old_enum" in e and "new_enum" in e:
+                forward = _match_enum(e["old_enum"], e["new_enum"])
+                if forward is not None:
+                    mapping = {v: k for k, v in forward.items()}
+            if mapping is not None:
+                ops.append({"op": "enum_map", "path": e["path"], "mapping": mapping})
     return ops
 
 
@@ -175,15 +202,35 @@ def build(
     new = [e for e in req if e["change"] == "added"]
     sources = [e for e in gone if _has(base_doc, e["path"])]
 
-    lead = [
-        {"op": "route", "method": e["method"], "path": e["path"]}
+    enum_ops = []
+    for e in req:
+        if e["change"] == "enum_changed" and _has(base_doc, e["path"]):
+            mapping = e.get("mapping")
+            if mapping is None and "old_enum" in e and "new_enum" in e:
+                mapping = _match_enum(e["old_enum"], e["new_enum"])
+            if mapping is not None:
+                enum_ops.append({"op": "enum_map", "path": e["path"], "mapping": mapping})
+
+    encoding_ops = [
+        {"op": "encoding", "content_type": e["content_type"]}
         for e in req
-        if e["change"] == "route_changed"
-    ] + [
-        _cast(e["path"], e["type"])
-        for e in req
-        if e["change"] == "type_changed" and _has(base_doc, e["path"])
+        if e["change"] == "encoding_changed"
     ]
+
+    lead = (
+        [
+            {"op": "route", "method": e["method"], "path": e["path"]}
+            for e in req
+            if e["change"] == "route_changed"
+        ]
+        + [
+            _cast(e["path"], e["type"])
+            for e in req
+            if e["change"] == "type_changed" and _has(base_doc, e["path"])
+        ]
+        + enum_ops
+        + encoding_ops
+    )
     headers = []
     for e in new:
         if e["path"][0] == "header" and e["required"]:
