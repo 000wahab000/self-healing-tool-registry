@@ -164,8 +164,10 @@ def _arguments(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--repair",
-        action="store_true",
-        help="enable the tier-2 repair agent for upstream MCP tools (needs NVIDIA_API_KEY)",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="tier-2 LLM repair agent, on by default; uses NVIDIA_API_KEY and LLM_MODEL "
+        "(the same key and model as the agents). --no-repair turns it off.",
     )
     parser.add_argument("--allowed-host", action="append")
     parser.add_argument("--allowed-origin", action="append")
@@ -186,6 +188,14 @@ async def _serve(args: argparse.Namespace) -> None:
         try:
             async with AsyncExitStack() as stack:
                 registries = []
+                # One repair agent and one Jev for every registry, from the same environment.
+                agent = repair.from_env() if getattr(args, "repair", True) else None
+                if getattr(args, "repair", True) and agent is None:
+                    print(
+                        "repair agent off: NVIDIA_API_KEY is not set (tier 1 still heals)",
+                        file=sys.stderr,
+                    )
+                judge = jev.from_env()
                 if not getattr(args, "no_rest", False):
                     rest_registry = Registry(
                         client,
@@ -198,24 +208,19 @@ async def _serve(args: argparse.Namespace) -> None:
                             if v in os.environ
                         },
                         store,
+                        judge,
                         spec_source=openapi_source(client, args.spec_path),
+                        repair=agent,
                     )
                     await rest_registry.load()
                     registries.append(rest_registry)
                 if getattr(args, "mcp_servers", None):
-                    agent = (
-                        repair.from_env() if getattr(args, "repair", False) else None
-                    )
-                    if getattr(args, "repair", False) and agent is None:
-                        raise ValueError(
-                            "--repair needs NVIDIA_API_KEY in the environment"
-                        )
                     upstreams = await stack.enter_async_context(
                         connect_upstreams(
                             args.mcp_servers,
                             store,
                             # Jev picks among tier-1 candidates and triages refusals for repair.
-                            jev=jev.from_env(),
+                            jev=judge,
                             repair=agent,
                         )
                     )

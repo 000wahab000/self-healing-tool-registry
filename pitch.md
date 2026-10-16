@@ -26,7 +26,7 @@ Sometimes, by design. A refusal returns a structured error with `retry: false` s
 
 ### What does the LLM do, and what can it break?
 
-Tier 2 runs only with `--repair`, after Jev triage when Jev is configured. The model (gpt-oss-20b on NVIDIA NIM) sees argument types, not values, and proposes operations from the same small language plus a target operation. Unknown operations and enum values missing from the new schema are rejected; the rest passes the safety gate and live verification. A missing-value refusal never goes to the model. **Not measured yet:** the LLM-mode benchmark has not been run, so there is no tier-2 success rate and no token figure.
+Tier 2 is on by default with the same NVIDIA key and model the agents use, and runs after Jev triage when Jev is configured. The model (gpt-oss-20b on NVIDIA NIM) sees argument types, not values, and proposes operations from the same small language plus a target operation. Unknown operations and enum values missing from the new schema are rejected; the rest passes the safety gate and live verification. A missing-value refusal never goes to the model. **Not measured yet:** the LLM-mode benchmark has not been run, so there is no tier-2 success rate and no token figure.
 
 ### What are your numbers?
 
