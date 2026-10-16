@@ -32,9 +32,10 @@ SAFE_LAYER_NAMES = {
     "invariants", "replay_safety",
 }
 SAFE_LAYER_DETAILS = {
-    "ok", "spec_unavailable", "schema_invalid", "postcheck_failed",
+    "ok", "spec_unavailable", "protocol_schema", "schema_invalid", "postcheck_failed",
     "not_configured", "invariant_failed", "unsafe_replay", "readback_failed",
-    "deadline",
+    "readback_mismatch", "readback_unavailable", "not_healed_write", "not_reached",
+    "preflight_passed", "replay_failed", "deadline",
 }
 # ponytail: header-shaped `name: value` / `"name": "value"` text, to the end of the line or JSON
 # string. A JSON-escaped multi-header string is redacted whole, never leaked.

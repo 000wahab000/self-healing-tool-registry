@@ -40,24 +40,32 @@ def _skip_from(start: int) -> list[dict[str, str]]:
     return [_row(i, names[i - 1], "skip", "not_reached") for i in range(start, 8)]
 
 
-def _spec_constraints(spec: OperationSpec | None) -> tuple[set[tuple] | None, set[tuple[str, str]] | None]:
+def _spec_constraints(
+    spec: OperationSpec | None,
+) -> tuple[set[tuple] | None, set[tuple[str, str]] | None, dict[tuple, set[Any]] | None]:
     if spec is None:
-        return None, None
+        return None, None, None
     paths: set[tuple] = set()
-    # enum values are collected separately from legal schema paths.
+    enums: dict[tuple, set[Any]] = {}
 
     def collect(schema: dict, at: tuple) -> None:
         for key, child in schema.get("properties", {}).items():
             path = at + (key,)
             paths.add(path)
             if isinstance(child, dict):
+                if "enum" in child and isinstance(child["enum"], (list, set, tuple)):
+                    enums[path] = set(child["enum"])
                 collect(child, path)
 
     collect(spec.get("body_schema") or {}, ("body",))
     collect(spec.get("response_schema") or {}, ())
     for param in spec.get("params", []):
-        paths.add((param.get("in", "query"), param["name"]))
-    return paths, {(spec["method"], spec["path"])}
+        p_path = (param.get("in", "query"), param["name"])
+        paths.add(p_path)
+        p_enum = param.get("schema", {}).get("enum")
+        if p_enum and isinstance(p_enum, (list, set, tuple)):
+            enums[p_path] = set(p_enum)
+    return paths, {(spec["method"], spec["path"])}, enums
 
 
 class Verifier:
@@ -71,21 +79,21 @@ class Verifier:
         original_failure: ErrorClass, cfg: Mapping[str, str], tool_cfg: dict,
         original_status: str | None = None, no_side_effect: bool = False,
     ) -> list[dict[str, str]]:
-        paths, routes = _spec_constraints(current_spec)
+        paths, routes, enums = _spec_constraints(current_spec)
         reason = safety.check(
             fix, base_doc=base_doc, cfg=cfg,
             cls=ErrorClass.OK if original_failure is ErrorClass.E5 else original_failure,
             # Replay authorization is recorded independently as L7 below.
             tool_cfg={**tool_cfg, "idempotent": True},
             n_evidence=max(1, len(fix.get("request_ops", [])) + len(fix.get("response_ops", []))),
-        spec_paths=paths, spec_routes=routes,
+            spec_paths=paths, spec_routes=routes, spec_enums=enums,
         )
         first = _row(1, "safety", "fail" if reason else "pass", reason.value if reason else "ok")
         if reason:
             return [first, *_skip_from(2)]
         if current_spec is None:
             second = _row(2, "request_schema", "skip", "spec_unavailable")
-        elif current_spec["method"] in {"MCP", "GRAPHQL", "GRPC"}:
+        elif str(current_spec.get("method", "")).upper() in {"MCP", "GRAPHQL", "GRPC"}:
             second = _row(2, "request_schema", "skip", "protocol_schema")
         else:
             patched = apply_ops(fix.get("request_ops", []), base_doc, cfg)
@@ -94,7 +102,12 @@ class Verifier:
         if second["status"] == "fail":
             return [first, second, *_skip_from(3)]
         keyed = any("idempotency-key" in str(k).casefold() and v for k, v in base_doc.get("header", {}).items())
-        rejected = original_failure is ErrorClass.E2 and original_status in {"400", "422"} and no_side_effect
+        safe_rejections = {"400", "422", "-32602", "-32601", "isError"}
+        rejected = (
+            original_failure is ErrorClass.E2
+            and str(original_status) in safe_rejections
+            and no_side_effect
+        )
         unsafe = bool(
             tool_cfg.get("write") and not tool_cfg.get("idempotent")
             and not keyed and not rejected
