@@ -1,302 +1,166 @@
-# Write-Up: Self-Healing Tool Registry — Diagnosis and Patch Logic
+# Write-Up: Self-Healing Gateway, Diagnosis and Patch Logic
 
-> **PS 01: Self-Healing Tool Registries Under Runtime API Schema Drift**
->
-> This document covers the design rationale, detection pipeline, candidate-building logic, and safe-patching strategy. Measured results come from `bench/report.md` (**scripted mode, N = 3**, 2026-10-14, no LLM). Requirement IDs (FR-x, AC-x) and mutation labels (M1–M9, C1–C3) refer to `product.md`.
+> PS 01: Self-Healing Tool Registries Under Runtime API Schema Drift. Requirement IDs (FR-x, AC-x) and mutation labels (M1 to M9, C1 to C3) refer to `product.md`. Every measured number comes from `bench/report.md`: **scripted mode (fixed tool calls, no LLM), N = 3, 2026-10-14, REST mock**. Nothing here is measured for MCP upstreams or with an LLM yet.
 
 ---
 
-## 1. Architecture and In-Memory Hot-Patching
+## 1. What it is
 
-### The Core Problem
+Agents call tools that were generated once from a spec or a `tools/list`. Upstreams change; the tools do not. Standard frameworks return the raw error to the agent, which retries the same broken call until its iteration cap. In the scripted benchmark the baseline hit the 10-call cap on M1, M2, M4, M5, M6-D, M6-N, M8 and M9.
 
-Agent tool schemas are generated once from an OpenAPI spec. When the API changes at runtime — a renamed field, a type change, a new mandatory header, a nested response — every call breaks. Standard frameworks return the raw error to the agent, which then retries the same broken call until the iteration cap, wasting tokens and making no progress. In our scripted benchmark (N = 3), the baseline hit the 10-call iteration cap on M1, M2, M4, M5, M6-D, M6-N, M8, and M9.
+The product is a **self-healing gateway** (direction of 2026-10-16). Agents call our MCP server. The registry forwards each call to an upstream MCP server or a REST/OpenAPI API. On drift it detects, diagnoses, builds a fix from safe operations, hot-patches in memory, re-sends once, verifies, logs, and returns the result. Both protocols share one healing core; the REST path is built and benchmarked, the MCP front door is built, and the upstream MCP client and healing are in progress (`plan.md`, Phase 13+).
 
-### The Facade Pattern
+Core idea: **deterministic code heals (including a deterministic tie-breaker), Jev is an optional last-resort tie-breaker, nothing is invented, nothing loops.**
 
-Every tool in the registry holds two distinct schemas:
+## 2. Facade and in-memory hot-patching
 
-| Field | Meaning | Mutates? |
+Each tool holds:
+
+| Field | Meaning | Changes? |
 |---|---|---|
-| `agent_schema` | The v1 schema exposed to the agent framework via `function_calling` format | **Never.** Frozen at load time. |
-| `wire_schema` | The schema the API currently accepts | Replaced on every committed fix. |
-| `active_fix_id` | Reference to the active operation list in the store/cache | Set on commit, cleared on rollback. |
-| `version` | Monotonically incremented integer | `+1` on every commit. |
+| `agent_schema` | The v1 schema exposed to the agent (function-calling format; MCP `inputSchema`) | **Never.** Frozen at load. |
+| `wire_schema` | The schema the upstream currently accepts | Replaced on every committed fix |
+| `active_fix_id` | The active operation list | Set on commit |
+| `version` | Integer | `+1` on every commit |
 
-The agent always speaks the v1 shape. The registry translates at the boundary. This has two practical consequences:
-- **Zero extra agent reasoning tokens**: the agent's view of the tool never changes, so it never needs to re-think how to call it.
-- **Prompt cache preserved**: function-calling schemas are often included in the prompt; keeping `agent_schema` frozen means the cache stays valid across heals.
+The agent always speaks the v1 shape; the registry translates at the boundary. On commit, in memory and with no restart: `wire_schema` = current spec, `active_fix_id` = the fix, `version + 1`. The next call applies `request_ops` to the base request before sending and `response_ops` (E5) to the received body. The effect on agent token use is not yet measured.
 
-### Hot-Patch Mechanics
+Fixes are always computed against the **base schema**, never stacked (FR-7.5). An API rollback to v1 therefore works: the diff is empty, the stale fix's structural violations show it is stale, and the base request is replayed once.
 
-When a fix is committed (§4 below), the registry executes atomically in memory:
+S6 (built) persists fixes to SQLite and reloads them at startup; a fingerprint hit goes to tier 0 and skips diagnosis. S7 (built) blocks a failed fingerprint for 60 s.
 
-```
-wire_schema  ← current_spec[operation]
-active_fix_id ← fix.fix_id
-version      ← version + 1
-```
+## 3. Detection and contract checks
 
-No restart is needed. The next call through `Registry.call()` picks up the new `wire_schema` and applies `active_fix.request_ops` to the base request document before sending. `response_ops` (for E5 shape-drift) are applied to the received body before it is returned to the agent.
-
-Fixes are always computed against the **base schema** (the original v1 spec), never stacked on each other (FR-7.5). This means an API rollback back to v1 clears the stale fix correctly: the diagnoser finds an empty diff, the stale structural violations indicate the fix is stale, and the base request is replayed once.
-
-### Persistence (S6/S7, already built)
-
-Beyond the in-memory fix for the current process, the STRETCH persistent store (S6) saves fixes to SQLite and reloads them at startup. A fingerprint hit in the store goes to **tier 0** — skipping diagnosis entirely, with p50/p95 of 4/8 ms (scripted, N = 3). The negative cache (S7) blocks a failed fingerprint for 60 s to prevent looping at the registry level.
-
----
-
-## 2. Seven-Stage Detection and Contract Checks
-
-Every response is normalized into an `Outcome` (`class`, `protocol`, `raw_code`, `data`, `violations[]`) before any routing decision. Detection runs in a fixed priority order:
+Every response becomes an `Outcome` (`class`, `protocol`, `raw_code`, `data`, `violations[]`), classified in a fixed order:
 
 | Stage | Condition | Class | Action |
 |---|---|---|---|
-| 1 | Exception, timeout, `5xx`, `429` | `E1` | Bounded retry (≤ 3, 100/200/400 ms + jitter). Never healed. |
-| 2 | `409` | `BUSINESS` | Returned unchanged. Never healed. |
-| 3 | Other `4xx` | `E2` | Heal on the request side. See §2.1 for `NOT_DRIFT` reclassification. |
-| 4 | Non-JSON or unparseable body | `E3` | Structured error `UNSUPPORTED_CLASS`, one audit event, no replay. |
-| 5 | Error flag inside a `2xx` body | `E4` | Heal on the request side. Replay only for idempotent tools or with `Idempotency-Key`. |
-| 6 | Body fails the agent output schema (jsonschema) | `E5` | Heal on the response side (remap the body already received, no replay). |
-| 7 | A declarative postcheck fails on a `2xx` | `E6` | Heal on the request side. Replay only for idempotent tools or with `Idempotency-Key`. |
+| 1 | Exception, timeout, `5xx`, `429` | `E1` | Up to 3 retries (100/200/400 ms + jitter). Never healed. |
+| 2 | `409` | `BUSINESS` | Returned unchanged |
+| 3 | Other `4xx` | `E2` | Heal the request (see NOT_DRIFT below) |
+| 4 | Non-JSON or unparseable body | `E3` | Structured error `UNSUPPORTED_CLASS`, one audit event, no replay |
+| 5 | Error flag inside a `2xx` body | `E4` | Heal the request; replay only if idempotent or keyed |
+| 6 | Body fails the output schema | `E5` | Remap the received body; no replay |
+| 7 | A declarative postcheck fails on a `2xx` | `E6` | Heal the request; replay only if idempotent or keyed |
 
-### 2.1 NOT_DRIFT Reclassification (C3)
+**NOT_DRIFT (C3).** An `E2` whose spec diff is empty and whose violations are all value kinds (`format`, `range`, `pattern`, `enum`, `length`) is not drift: it becomes `BUSINESS` / `NOT_DRIFT`, returned unchanged with no fix and no replay. An empty diff with structural violations (`missing`, `extra`, `type`) means the request shape is wrong: with an active fix that fix is stale (replay the base request once); with none, abort `NO_CANDIDATE`.
 
-An `E2` whose spec diff is **empty** and whose violations are **all value kinds** (`format`, `range`, `pattern`, `enum`, `length`) is not drift. A real example is scenario C3: `update_email` validates the email format and rejects `"not-an-email"` — the API schema hasn't changed, the agent sent an invalid value. This is reclassified `BUSINESS` with audit reason `NOT_DRIFT` and returned to the agent unchanged — no fix, no replay.
+**Postchecks** (`config/tools.json`): `echo` (a response path equals a request argument) and `non_empty`. They catch M7, where the API silently drops the `email` field and returns the old value, and they re-verify every fix. Limitation (FR-3.5): `E6` is detectable only for tools that declare postchecks.
 
-The distinguishing rule vs. an API rollback: an empty diff with **structural** violations (`missing`, `extra`, `type`) means the request shape is wrong. If an active fix is present, that fix is stale — the base request is replayed once. If no fix is active, the operation is `NO_CANDIDATE`.
+## 4. Diagnosis and candidates
 
-### 2.2 Declarative Postchecks (E6 / M7)
+**Spec diff.** The diagnoser fetches the current spec (0.5 s timeout) or, for MCP, a fresh `tools/list`, canonicalizes it and diffs the operation against the base snapshot: removed and added fields (with type and required flag), type changes, added headers and security, route or method changes, response-schema changes. Paths use FastAPI location prefixes (`["body","target","id"]`, `["query","limit"]`, `["header","x-tenant-id"]`), so diff and error clues share one vocabulary.
 
-Postchecks in `config/tools.json` catch drift that returns `200`:
+**Candidate rules (FR-7.2):**
 
-- **`echo`**: asserts that a response path equals a request argument (compared as canonical strings). Used to detect M7 (silent ignore): the API silently discarded the `email` field and returned the old value, so `response.email ≠ arg.email`.
-- **`non_empty`**: asserts a response path is present and non-empty.
-
-Postchecks also serve as the final verification check after a fix is applied — a wrong fix that passes the replay but returns a stale field value is caught here before it is committed.
-
-**Limitation (FR-3.5):** `E6` detection requires a postcheck declaration per tool. A tool with no postchecks cannot detect that its input was silently discarded.
-
----
-
-## 3. Diagnosis and Candidate Generation
-
-### 3.1 Structural Spec Diff
-
-The diagnoser fetches the current `/openapi.json` (0.5 s timeout), canonicalizes it, and diffs it operation-by-operation against the stored base snapshot. The diff reports:
-
-- Removed and added fields (path, type, `required` flag, description)
-- Type changes at the same path
-- Added header parameters and security requirements
-- Route or method changes
-- Response-schema changes
-
-Paths use FastAPI location prefixes — `["body","target","id"]`, `["query","limit"]`, `["header","x-tenant-id"]` — matching the `loc` arrays in FastAPI `422` bodies, so the diff and error clues share one vocabulary.
-
-### 3.2 Candidate Building (FR-7.2)
-
-The candidate builder applies deterministic mapping rules to the diff:
-
-| Diff entry | Rule | Op produced |
+| Diff entry | Rule | Op |
 |---|---|---|
-| Same field, type changed | `cast`, only if the value converts losslessly | `cast` |
-| Field removed, required field added, shared name token | `move` (name evidence or one-to-one) | `move` |
-| Field removed, required field added, no shared token | All type-compatible one-to-one assignments (≤ 8 candidates) | multiple `move` candidates |
-| Field removed, **optional** field added | Candidate only with name evidence **and** a failure pointing at the removed field (E6 postcheck, or E2 violation at that path) | `move` |
-| Required header or security requirement added | `header` from `header_sources` config | `header` |
-| Route or method change | `route` | `route` |
-| Response leaves relocated | `move` + optional `cast` | response `move`/`cast` |
-| Required field with no source | No candidate — stop | `NO_SAFE_VALUE` |
+| Same field, type changed | Only if the value converts losslessly | `cast` |
+| Field removed, required field added, shared name token or one-to-one | Move the value | `move` |
+| Same, no name evidence | Every type-compatible one-to-one assignment (at most 8) | several `move` candidates |
+| Field removed, **optional** field added | Candidate only with name evidence **and** a failure pointing at the removed field | `move` |
+| Required header or security requirement | From `header_sources` config | `header` |
+| Route or method change | Route that exists in the spec | `route` |
+| Response leaves relocated | Locate in the new shape | response `move` (+ `cast`) |
+| Required field with no source | No candidate | `NO_SAFE_VALUE` |
 
-### 3.3 Deterministic Tie-Breaker (M6-D)
+**Deterministic tie-breaker (M6-D, FR-7.6).** With 2 or more candidates, score on (1) description match (a shared non-stopword token between the removed field's base description and the added field's current description), (2) parameter order, (3) type. A candidate wins only if it strictly beats all others; on a **write** tool a win must include a description match. M6-D heals this way with no Jev call (3 of 3 runs). Descriptions are untrusted data, compared as tokens only.
 
-When there are 2 or more candidates, a deterministic tie-breaker scores them on three pieces of evidence already in hand (FR-7.6):
+**Optional Jev (M6-N).** With no unique winner and Jev configured, one Choice request (1.5 s timeout) renders the diff and candidates as data. Jev returns only an index and a confidence. On a write tool the choice is accepted only at confidence >= 0.9 **and** with a confirming read-only `preverify` before any write. Otherwise, or with Jev absent, timed out or failed, the heal aborts `LOW_CONFIDENCE` before sending anything; the decision path records the `jev_unavailable` marker.
 
-1. **Description match**: a shared non-stopword token between the removed field's description in the base snapshot and the added field's description in the current spec.
-2. **Parameter order**: the relative position of the removed fields in the base schema matches that of the added fields in the current spec.
-3. **Type**.
+**Error-clue mode** (spec unavailable or `spec_mode=off`, FR-6.4): only the structured error and the original arguments. A `missing` violation is filled from an argument sharing a name token (or the only unexplained argument); `int_type`/`string_type` becomes `cast`; a missing header becomes `header` if configured. Nested or combined changes abort `NO_CANDIDATE`.
 
-A candidate wins only if it **strictly beats every other** candidate. For a **write tool**, a win must include a description match — order and type alone do not separate type-compatible assignments. In scenario M6-D, the mock's `set_manager` fields carry informative descriptions, and the tie-breaker picks the correct `user_id → subject` / `manager_id → supervisor` assignment without any Jev call. Confirmed in 3/3 runs (scripted, N = 3).
+## 5. Safe patching
 
-Descriptions are treated as **untrusted data**: they are tokenized and compared structurally; no value, field name, header or operation is derived from their text.
+**Operations (DSL version 1).** The core four are `move`, `cast`, `header`, `route`; `enum_map` (bijective) and `encoding` (`Content-Type` declared in the spec) were added under X3. All are interpreted by pure `ops.py`; unknown operations are rejected. **No operation can write a literal value.**
 
-### 3.4 Optional Jev (M6-N)
+| Op | Value source |
+|---|---|
+| `move` | The existing value at the source path |
+| `cast` | The same value, lossless only |
+| `header` | `{"ref":"config","key":...}` only; stores the key, never the secret |
+| `route` | A route that exists in the current spec |
 
-When the tie-breaker finds no unique winner and Jev is configured, the Jev client sends one Choice request (1.5 s timeout) with the diff and candidate operations rendered as data. Jev returns only an index and a confidence score — it never produces operations or values.
+**Safety gate (FR-9), before anything is sent:**
 
-For a **write tool** (FR-8.6, FR-9.6): a Jev choice is accepted only if confidence is ≥ 0.9 **and** a declarative `preverify` (a side-effect-free operation in `config/tools.json`) confirms the chosen candidate before any write is sent. Without a confirming `preverify`, or with confidence below the threshold, the heal aborts `LOW_CONFIDENCE` and sends nothing.
+1. Provenance: every `move` source exists in the arguments, every `header` key in config, every `route` target in the spec.
+2. Lossless cast: `str(int(v)) == v` (same for `float`, `bool`); `"12a"` to int gives `UNSAFE_PATCH`.
+3. Operation count <= 3 x violations or diff entries.
+4. Replay: `E2` is safe by itself (the server rejected the request). `E4` and `E6` replay only for an idempotent tool or with an `Idempotency-Key`, else `UNSAFE_REPLAY`. `E5` is never replayed.
+5. Write-tool ambiguity (FR-9.6): with 2 or more candidates, reject unless the tie-breaker won on description evidence or Jev met the write threshold with a confirming `preverify`.
+6. Unknown operation: reject.
 
-In M6-N with Jev disabled, the heal aborts `LOW_CONFIDENCE` before any request is sent. The audit decision path records `jev_unavailable` when Jev failed or timed out (not an abort reason itself, just a marker).
+**Apply, verify, commit or roll back (FR-10).** A request-side fix is re-sent once (at most 1.0 s of the 3.5 s heal deadline). A response-side fix remaps the received body. The whole detection pipeline reruns; only `OK` counts. On pass: fix active, definition updated, one `heal_events` row written synchronously before the result is returned. On fail: fix discarded, fingerprint negative-cached (S7), one audit row, and `{error:"SCHEMA_DRIFT_UNRECOVERABLE", tool, class, fingerprint, reason, retry:false}` returned. The agent's prompt treats that tool as unavailable, reports it as skipped and continues; a refusal skips one tool, not the task.
 
-### 3.5 Error-Clue Fallback (`spec_mode="off"`)
+**Audit and redaction (FR-5).** One row per attempt, including refusals, about 1 to 5 ms per heal. The raw error is sanitized before storage: auth, cookie, API-key and token header values; strings equal to a configured secret; bearer-token and JWT-shaped strings; truncated to a maximum size. Only machine-readable data is stored.
 
-When the spec endpoint is unavailable, or when `spec_mode` is set to `off` in settings (used for the benchmark's error-only ablation, FR-15.7), the candidate builder uses only the structured error body and the original arguments:
-
-- A `missing` violation at path P: filled from an argument that shares a name token with P, or from the only argument the base schema no longer explains.
-- `int_type`/`string_type` at P: `cast`.
-- A missing header: `header` if a config source exists.
-
-Nested or combined changes require the spec, so M5 and M9 abort `NO_CANDIDATE` in this mode. M1–M4 still heal on the error clue alone (measured in the ablation table in §5).
-
----
-
-## 4. Safe Patching Strategy
-
-### 4.1 The 4-Operation DSL
-
-All fixes are expressed in a versioned DSL (`dsl_version: 1`) with exactly four operations:
-
-| Op | Side | Effect | Allowed value source |
-|---|---|---|---|
-| `move` | request, response | Moves a value from one path to another (rename, nest, unnest) | The existing value at the source path |
-| `cast` | request, response | Converts a value's type | The same value, lossless only |
-| `header` | request | Sets a header | `{"ref":"config","key":...}` only |
-| `route` | request | Sets the method and/or path | A route that exists in the current spec |
-
-**No operation can write a literal value.** The DSL is interpreted by `ops.py`, a pure function (input document in, new document out; no side effects, no mutation in place). Unknown operation names are rejected outright.
-
-### 4.2 Safety Gate (FR-9)
-
-Before anything is sent, every fix passes through a mandatory safety gate:
-
-1. **Provenance (FR-9.1)**: every `move` source exists in the original arguments; every `header` key exists in config; every `route` target exists in the current spec.
-2. **Lossless cast (FR-9.2)**: `str(int(v)) == v`. The round-trip rule applies to `float` and `bool`. A lossy cast (e.g., `"12a"` → int) causes `UNSAFE_PATCH`.
-3. **Minimal size (FR-9.3)**: the operation count may not exceed 3× the number of violations or diff entries.
-4. **Replay safety (FR-9.4)**:
-   - `E2` (server rejected the request): replay always safe — the server never executed the call.
-   - `E4` and `E6` (server accepted the request and may have written something): replay only for an idempotent tool or with an `Idempotency-Key`. Otherwise `UNSAFE_REPLAY`.
-   - `E5` (response-side shape drift): never replayed — the body already received is remapped locally.
-5. **Write-tool ambiguity (FR-9.6)**: for a write tool with 2+ candidates, reject unless the tie-breaker won on description evidence, or Jev met the write threshold and a `preverify` confirmed.
-6. **Unknown ops (FR-9.5)**: reject the fix.
-
-### 4.3 Apply, Replay, Verify, Commit or Rollback (FR-10)
-
-For a request-side fix, the patched request is re-sent **once** (at most 1.0 s left before the 3.5 s heal deadline). For a response-side fix (E5), the received body is remapped locally with no re-send.
-
-After the fix is applied, the full detection pipeline runs again — class check, output schema validation, and all postchecks. Only `OK` counts as recovered.
-
-**On pass:** the fix is recorded as `active`, the in-memory tool definition is updated (`wire_schema`, `active_fix_id`, `version + 1`), one `heal_events` row is written synchronously to SQLite (before the result is returned to the agent), and the result is returned. Under S6, the fix is also persisted to the `fixes` table.
-
-**On fail:** the fix is discarded, the tool definition is left unchanged, the fingerprint is added to the negative cache (S7) for 60 s, one `heal_events` row is written with the failure reason, and a structured error `{"error":"SCHEMA_DRIFT_UNRECOVERABLE", "tool":..., "class":..., "fingerprint":..., "reason":..., "retry":false}` is returned. The agent's system prompt tells it not to call that tool again: it reports the tool as skipped and continues with the rest of the task.
-
-### 4.4 Synchronous Audit and Secret Redaction (FR-5, FR-5.7)
-
-Every heal attempt — including refused and aborted ones — writes exactly one `heal_events` row **before** the result is returned. This is a deliberate trade-off: it adds ~1–5 ms per heal and guarantees no patch is ever applied without a log entry.
-
-The raw error blob is **sanitized before storage**:
-- Values of `Authorization`, `Cookie`, `Set-Cookie`, API-key and token headers are redacted.
-- Strings equal to any configured secret (`OAUTH_BEARER`, `TENANT_ID`, `JEV_API_KEY`, the LLM key) are replaced.
-- Bearer-token and JWT-shaped strings are redacted.
-- The blob is truncated to a maximum size.
-
-Header operations store config keys (`{"ref":"config","key":"OAUTH_BEARER"}`), never the bearer value itself.
-
-The `heal_events` schema stores only machine-readable data: enumerated codes, array paths, value references, canonical JSON, and epoch-ms integers. No code-read field contains free text.
-
-### 4.5 Bounded Loops (FR-11)
+**Bounds (FR-11):**
 
 | Mechanism | Bound |
 |---|---|
-| `E1` retries | ≤ 3, with backoff 100/200/400 ms + jitter |
-| Heal attempts per call | 1 |
-| Replays per heal | 1 |
-| Heal deadline | 3.5 s total; Jev sub-timeout 1.5 s; spec fetch 0.5 s; replay ≤ 1.0 s |
+| `E1` retries | 3, backoff 100/200/400 ms + jitter |
+| Heal attempts per call / replays per heal | 1 / 1 |
+| Heal deadline | 3.5 s; Jev 1.5 s; spec fetch 0.5 s; replay <= 1.0 s |
 | Negative cache (S7) | 60 s per failed fingerprint |
-| Fix retirement (S6) | Retired after 2 losses |
+| Fix retirement (S6) | 2 losses |
 
----
+## 6. Threats and prevention
 
-## 5. Benchmark Evaluation and Limitations
+| Threat | Prevention |
+|---|---|
+| Hallucinated values | No operation writes a literal; values come only from arguments, config or the spec; a required value with no source is a refusal; Jev only selects among code-built fixes |
+| Unsafe patches or double writes | Safety gate; replay rule above |
+| Guessing between equally valid fixes | Write-tool rule: tie-breaker with description evidence, or Jev at the write threshold plus `preverify`; residual risk is caught by postchecks after the write and flagged |
+| Legitimate error mistaken for drift | `409`, missing record, value error on an unchanged spec are returned unchanged (`NOT_DRIFT`) |
+| Prompt injection via error text or descriptions | Untrusted data matched against structure and compared as tokens; Jev output limited to an index; M10 demonstrates this (S8) |
+| Infinite retries | One attempt, one replay, 3.5 s deadline, 3 `E1` retries, `retry: false` to the agent, 60 s negative cache |
+| Silent data corruption | Output schema and postchecks before keeping a fix; the benchmark checks the final data state and reports the False-Patch Rate |
+| Untraceable changes | One audit row per attempt before the agent sees a result |
+| Secrets in logs | Redaction; header ops store config keys |
+| Bad fixes sticking | Fixes computed from the base schema; retired at 2 losses (S6) |
 
-### 5.1 Setup
+## 7. Results (scripted mode, N = 3, REST mock)
 
-- **Mode:** scripted (fixed tool calls, no LLM; the baseline re-sends a failing call with the same arguments until the iteration cap of 10)
-- **N:** 3 runs per scenario per agent
-- **Date (UTC):** 2026-10-14 18:29
-- **Timing note:** Timings are wall-clock on a shared laptop and move with machine load: across benchmark runs on 2026-10-14 the tier-1 p50 ranged from 12 to 49 ms. Every run stayed far under the 4 s MTTR budget.
-- **Jev available:** no (M6-N aborts `LOW_CONFIDENCE`, counted as a safe refusal)
-- **Spec mode:** `on` for main and tier-0 passes; `off` for the error-only ablation
-
-### 5.2 Per-Scenario Results
-
-| Scenario | Healing ZTAR | Baseline ZTAR | Baseline failure mode | Heal path | MTTR tier 1 (mean/p50/p95 ms) | MTTR tier 0 (mean/p50/p95 ms) |
-|---|---|---|---|---|---|---|
-| CLEAN | n/a, 100% (3/3) | n/a, 100% (3/3) | — | — | — | — |
-| M1 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 46.3/47/48 | 4/4/5 |
-| M2 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 51.3/45/66 | 4.3/4/5 |
-| M3 | 100% (3/3) | 100% (3/3) | — | diff ×3 | 46/47/49 | 2.7/3/3 |
-| M4 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 51/52/53 | 4.7/5/5 |
-| M5 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 60.3/57/69 | 8/8/8 |
-| M6-D | 100% (3/3) | 0% (0/3) | hit cap 3/3 | tiebreak ×3 | 48/47/51 | — |
-| M6-N | 0% (0/3)† | 0% (0/3) | hit cap 3/3 | — | — | — |
-| M7 | 100% (3/3) | 0% (0/3) | ended incomplete 3/3 | diff ×3 | 50/52/53 | — |
-| M8 | n/a, 100%‡ | n/a, 0% | hit cap 3/3 | — | — | — |
-| M9 | 100% (3/3) | 0% (0/3) | hit cap 3/3 | diff ×3 | 52.3/50/58 | — |
-| C1 | n/a, 100% (3/3) | n/a, 100% (3/3) | — | — | — | — |
-| C2 | n/a, 100% (3/3) | n/a, 0% (0/3) | hit cap 3/3 | NOT_DRIFT ×3 | — | — |
-| C3 | n/a, 100% (3/3) | n/a, 0% (0/3) | hit cap 3/3 | NOT_DRIFT ×3 | — | — |
-
-† M6-N ZTAR is 0% by design with Jev disabled; the Safe-Refusal Rate is 100% (3/3 `LOW_CONFIDENCE`, no write sent).
-‡ M8 is a safe refusal, not an adaptation; counted in Safe-Refusal Rate, not ZTAR.
-
-### 5.3 Summary Metrics
+Source: `bench/report.md`, 2026-10-14 18:29 UTC, Jev not available (M6-N aborts `LOW_CONFIDENCE`, counted as a safe refusal). Timings are wall-clock on a laptop.
 
 | Metric | Result |
 |---|---|
-| **ZTAR** (M1–M5, M7, M9) | **100% (21/21)** healing · 14% (3/21) baseline |
-| **M6-D** (tie-breaker) | **100% (3/3)** healing · 0% baseline |
-| **M6-N** (Jev disabled) | 0% by design · 100% Safe-Refusal Rate |
-| **Safe-Refusal Rate** (M8 + M6-N) | **100% (6/6)** |
+| **ZTAR** (M1 to M5, M7, M9) | **100% (21/21)** healing; 14% (3/21) baseline |
+| **M6-D** (tie-breaker) | **100% (3/3)** healing; 0% baseline |
+| **M6-N** (Jev disabled) | 0% ZTAR by design; refused `LOW_CONFIDENCE` in 3/3 runs |
+| **Safe-Refusal Rate** (M8 + M6-N) | **100% (6/6)**; no request carried an invented value |
 | **False-Patch Rate** | **0% (0/24 healed runs)** |
-| **Tier-1 MTTR** (mean / p50 / p95) | **50.7 / 49 / 66 ms** (n=24) |
-| **Tier-0 MTTR** (mean / p50 / p95) | **4.7 / 4 / 8 ms** (n=15) |
-| **Token Overhead** | Not measured — scripted mode records 0 LLM tokens; requires `--agent llm` |
+| **Tier-1 MTTR** (mean / p50 / p95) | 50.7 / 49 / 66 ms (n = 24) |
+| **Tier-0 MTTR** (mean / p50 / p95) | 4.7 / 4 / 8 ms (n = 15) |
+| **Token Overhead** | Not measured: scripted mode records 0 LLM tokens; needs `--agent llm` |
 
-### 5.4 Timings by Tier
+Tier-1 MTTR p50 / p95 per mutation (ms): M1 47/48, M2 45/66, M3 47/49, M4 52/53, M5 57/69, M6-D 47/51, M7 52/53, M9 50/58. `heal_ms` equals MTTR in this mode. Baseline: hit the 10-call cap on M1, M2, M4, M5, M6-D, M6-N, M8, M9, C2 and C3, ended incomplete on M7, completed M3, C1 and CLEAN. C2 and C3 passed through correctly (`NOT_DRIFT`) in 3/3 runs. Full per-scenario tables are in the report.
 
-| Tier | n | mttr_ms mean/p50/p95 | heal_ms mean/p50/p95 |
-|---|---|---|---|
-| 0 | 15 | 4.7/4/8 | 4.7/4/8 |
-| 1 | 24 | 50.7/49/66 | 50.7/49/66 |
+**Error-only ablation** (`spec_mode=off`, no pass threshold; False-Patch Rate must stay 0). Healed: M1, M2, M3, M4. Aborted `NO_CANDIDATE`: M5, M7. Aborted `NO_SAFE_VALUE`: M6-D, M6-N, M8, M9. False-Patch Rate 0% (0/4 healed runs).
 
-### 5.5 Error-Only Ablation (`spec_mode=off`)
+## 8. Limitations
 
-Each mutation re-run once with the spec endpoint disabled — diagnosis runs on error clues only. No pass threshold; False-Patch Rate must stay 0.
+1. **Operation expressiveness.** Value transforms (splitting a field, unit conversion) abort with `NO_CANDIDATE` or `NO_SAFE_VALUE` and count against ZTAR. A tier-2 repair LLM (S3) emitting validated operation lists is STRETCH; generated code is never executed.
+2. **Silent drift needs postchecks** declared per tool (FR-3.5).
+3. **Write-tool ambiguity refuses by default** (M6-N). Residual risk: a wrong Jev choice that `preverify` cannot distinguish is caught only after the write.
+4. **Error-clue mode** cannot fix nested or combined changes (M5, M7, M9 in the ablation).
+5. **Token Overhead is not measured** (AC-16 needs an LLM-mode run, T1-10).
+6. **MCP path not yet benchmarked**: the MCP drift benchmark and healthy-call overhead over MCP are T1-8 and T1-9.
+7. **`E3` is not healed**; it returns `UNSUPPORTED_CLASS`.
+8. **Single host.** Sharing fixes across instances needs the deferred Postgres backend (T2-6).
+9. **`agent_schema` is frozen at startup.** The spec watcher (FR-18) snapshots changes and feeds `Healer.precompute`; it does not rebase `agent_schema`.
 
-| Mutation | Outcome | Reason | Final state | False patch |
-|---|---|---|---|---|
-| M1 | **healed** | — | correct | no |
-| M2 | **healed** | — | correct | no |
-| M3 | **healed** | — | correct | no |
-| M4 | **healed** | — | correct | no |
-| M5 | aborted | `NO_CANDIDATE` | correct | no |
-| M6-D | aborted | `NO_SAFE_VALUE` | correct | no |
-| M6-N | aborted | `NO_SAFE_VALUE` | correct | no |
-| M7 | aborted | `NO_CANDIDATE` | correct | no |
-| M8 | aborted | `NO_SAFE_VALUE` | correct | no |
-| M9 | aborted | `NO_SAFE_VALUE` | correct | no |
+## 9. Versus a conventional agent
 
-**False-Patch Rate (ablation): 0% (0/4 healed runs).** M1–M4 heal on error clues alone; M5, M7, M9 (nested/combined) and M6, M8 (no safe source) abort cleanly as expected.
+| Conventional agent | This gateway |
+|---|---|
+| Treats the tool schema as fixed truth | Treats the live spec as truth and translates at runtime |
+| Detects failure only from `4xx` | Also catches drift that returns `200`: changed shapes, ignored inputs, errors in success bodies |
+| Sends errors to the LLM, which guesses and retries | Code diagnoses with a structural spec diff; the LLM is not asked to guess |
+| Retries until the iteration cap | One verified attempt, then a refusal with a reason code; the agent skips that tool |
+| Forgets every incident | The definition carries the fix; S6 survives restarts |
+| Free-form generated fix logic | A small verifiable data language that cannot invent values |
 
-### 5.6 Limitations
+**Demo (about 30 s, `dashboard/demo.py`).** Both agents start the same task; the schema changes mid-run (M5); the baseline loops on `422` while the healing agent completes; a second mutation on another tool heals; M8 shows the refusal; the metrics panel shows the measured numbers. Every step heals or refuses without Jev.
 
-1. **DSL expressiveness.** Fixes are limited to what `move`, `cast`, `header`, `route` can express. Value transforms (splitting a field, unit conversion, format mapping) abort cleanly with `NO_CANDIDATE` or `NO_SAFE_VALUE`. These count against ZTAR, which is the correct outcome. A Tier-2 repair LLM (STRETCH S3) would handle these by emitting validated operation lists within a 30 s budget, never executing generated code.
-
-2. **Silent-drift detection requires postchecks.** `E6` can only be detected for tools that declare postchecks (`echo`/`non_empty`) in `config/tools.json`. An undeclared tool would never see M7-class drift.
-
-3. **Write-tool ambiguity.** M6-N refuses by default when both the tie-breaker and Jev (absent or below threshold) cannot decide. This is intentional. The residual risk — a wrong Jev choice that `preverify` cannot distinguish — is caught only by postchecks after the write and is loud, not silent.
-
-4. **Error-clue mode cannot fix nested or combined changes.** M5 (move + cast + header) and M9 (request nesting) abort `NO_CANDIDATE` without a spec. Measured and reported in the ablation.
-
-5. **Token Overhead not yet measured.** The recorded run is scripted (no LLM), so all `llm_tokens` are 0. An LLM-mode run with `--agent llm` is needed for AC-16.
-
-6. **Single-host only.** The fix store is SQLite. Sharing fixes across instances requires Postgres (FUTURE).
-
-7. **`E3` (undecodable body) not healed.** It returns a structured error with reason `UNSUPPORTED_CLASS`. Healing undecodable bodies is FUTURE.
-
-8. **`agent_schema` rebase watcher not yet built.** The current design freezes `agent_schema` at startup. A future drift watcher would poll spec hashes and precompute fixes before calls fail, allowing an atomic `agent_schema` rebase without a restart when the API version changes significantly enough to warrant it.
-
----
-
-*Sources: `product.md` §4, §8, §16; `technical-approach.md` §5, §6, §8, §10; `bench/report.md` (2026-10-14, scripted mode, N = 3).*
+*Sources: `product.md`, `technical-approach.md`, `bench/report.md`.*

@@ -1,10 +1,10 @@
 ## Read first
 
-`agent.md` holds the coding rules and the non-negotiable invariants; they apply to every agent and every person. `plan.md` ("Phase 13+: MCP gateway, two teams on four machines") holds the work items and the product direction. The section below says who owns which files while four machines build in parallel.
+`agent.md`: coding rules and invariants (apply to everyone). `plan.md` ("Phase 13+: MCP gateway, two teams on four machines"): work items and direction. Below: who owns which files while four machines build in parallel.
 
 ## Two teams, four machines (phase 13+)
 
-Two people, each running two machines with their own coding agent. Each machine owns one track and its files, so the four agents never edit the same file.
+Two people, two machines each, one coding agent per machine. Each machine owns one track and its files, so no two agents edit the same file.
 
 | Machine | Person | Track |
 |---|---|---|
@@ -13,11 +13,11 @@ Two people, each running two machines with their own coding agent. Each machine 
 | **T2-PS1** | Team 2: teammate | Upstream MCP client and loader, server config, registry dispatch, front-door MCP server |
 | **T2-PS2** | Team 2: teammate | Spec watcher, demo agent, dashboard, docs, README and pitch |
 
-Find out which machine you are working for before editing. If the prompt does not say, ask. Kickoff prompts for each machine are in `team-prompts.md`.
+Find out which machine you work for before editing; if the prompt does not say, ask. Kickoff prompts: `team-prompts.md`.
 
 ### Files each machine owns
 
-Only the owner edits these files. Anyone else asks the owner (issue or PR comment) for a change.
+Only the owner edits these files. Anyone else asks the owner (issue or PR comment).
 
 | Owner | Files |
 |---|---|
@@ -28,7 +28,7 @@ Only the owner edits these files. Anyone else asks the owner (issue or PR commen
 
 Shared files: append only, and only in your own subsection.
 
-- `product.md`: each machine writes the FR and AC for its own items before writing code (`agent.md` invariant 10), inside its own `## Track <machine>` section only. Reserved AC numbers: **T2-PS1 AC-30 to AC-39 (taken by the old P1 work) and AC-63 to AC-69 for new items, T1-PS1 AC-40 to AC-49, T1-PS2 AC-50 to AC-54, T2-PS2 AC-55 to AC-59.** AC-28 and AC-60 to AC-62 are P3's finished overhead and Swagger 2.0 ACs; AC-29 stays unassigned.
+- `product.md`: each machine writes the FR and AC for its own items before writing code (`agent.md` invariant 10), inside its own `## Track <machine>` section only. Reserved AC numbers: **T2-PS1 AC-30 to AC-39 (taken by the old P1 work) and AC-63 to AC-69 for new items, T1-PS1 AC-40 to AC-49, T1-PS2 AC-50 to AC-54, T2-PS2 AC-55 to AC-59.** AC-28 and AC-60 to AC-62 are the finished overhead and Swagger 2.0 ACs (T1-PS2 files); AC-29 stays unassigned.
 - `plan.md`: tick your own `T1-*` or `T2-*` boxes, and add progress-log rows only to your own machine's table ("Progress log: T1-PS1" and so on).
 - `pyproject.toml`: T2-PS1 adds new optional groups only (`mcp`, `graphql`, `grpc`, `postgres`). Any other change goes through T1-PS1.
 - `tests/conftest.py` and `tests/integration/conftest.py`: T1-PS1 owns them. Everyone else adds fixtures in a `conftest.py` inside their own test folder.
