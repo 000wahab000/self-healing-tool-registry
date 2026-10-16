@@ -735,6 +735,22 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 
 T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59. Used: AC-55 (F18, §6), AC-56 and AC-57 (dashboard, below), AC-58 (client guides). AC-59 stays reserved for T2-11.
 
+### Dashboard MCP view (T2-9; AC-68 from T2-PS1's spare range, T2-PS2's is full)
+
+#### Functional requirements
+
+- **FR-20.6** The dashboard serves `GET /api/mcp` with the MCP front door's exposed tools: each tool's `name`, `description` and frozen `inputSchema` (the `agent_schema`), taken from `Registry.tools()` so it can never drift from what the front door serves.
+- **FR-20.7** `GET /api/mcp` reports the front door's transports: stdio, and Streamable HTTP on `/mcp` (default host `127.0.0.1`, default port `8001`).
+- **FR-20.8** `GET /api/mcp` reports the configured upstream servers when `config/mcp_servers.json` (T2-3) is present, and reports `upstream_config_present: false` with an empty list when it is not. It must not invent upstream entries.
+- **FR-20.9** The live page has an `mcp` tab that renders the front door's tools, transports and upstream section, and the static demo answers `/api/mcp` offline.
+- **FR-20.10** *(deferred)* Buttons that trigger the MCP mutations through contract 8, and their button-coverage test, arrive with T1-6 (`mock_api/mcp_drift_server.py`); live per-call MCP traces and the upstream server list arrive with T2-3/T2-5.
+
+#### Acceptance criteria
+
+| ID | Criterion | Verification |
+|---|---|---|
+| AC-68 | The dashboard exposes the MCP front-door view: `GET /api/mcp` lists exactly the front door's `Registry.tools()` (name, description, input schema), reports the stdio and Streamable HTTP (`/mcp`) transports, and reports no upstream servers while `config/mcp_servers.json` is absent without inventing any; the live page has an `mcp` tab that renders it and the offline demo answers `/api/mcp`. Mutation buttons (contract 8) are deferred to T1-6. | Unit (`tests/dashboard/test_ac_57_mcp_view.py`) |
+
 ### Client guides (T2-10)
 
 #### Functional requirements
@@ -762,6 +778,12 @@ T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 - **FR-20.4** A Connections page (`/connections`) lets a user add, list, test and remove upstream MCP servers (HTTP) and third-party APIs (OpenAPI 3, Swagger 2.0, GraphQL) in `config/mcp_servers.json` (optional `apis` list). Names are unique across both lists, match `^[a-z][a-z0-9_-]{0,31}$` and contain no `__`; `token_env` holds a variable name only, and anything that looks like a secret is rejected. `connect_upstreams` serves the APIs beside the MCP servers, each as a healing registry with tools named `<name>__<operation_id>`.
 - **FR-20.5** The Connections routes write config and make outbound requests, so they accept only http/https URLs (no stdio, no `command`), take the config path from `MCP_SERVERS_CONFIG` and never from the request, and off localhost require `Authorization: Bearer $CONNECTIONS_TOKEN` (403 when it is unset).
 - **AC-59** Invalid names, `__`, non-http schemes, `command`/stdio entries, secret-like `token_env` and duplicate names are rejected; add, list and delete round-trip through the config file atomically; remote mode gives 403 without `CONNECTIONS_TOKEN` and works with it; `probe` returns `{ok, tools, error}` with a short error for an MCP server and an OpenAPI API; `api_registry` exposes namespaced tools and a healthy call passes through. | Unit + FastAPI TestClient (`tests/t2ps2/test_connections.py`)
+
+### Demo agent (T2-8)
+
+- **FR-20.11** `demo/mcp_agent.py` connects only to the front door (`python -m healer.mcp_server --mcp-servers demo/mcp_servers.demo.json --no-rest`, stdio) and runs one task that needs tools from both the `users` and `tickets` upstreams. `--scripted` (default) runs a fixed call sequence; `--llm` runs a LangGraph agent over the front door's tools (NVIDIA NIM, `NVIDIA_API_KEY`). It prints each call, result and heal, then the audit rows read from `--db`.
+- **FR-20.12** A drift happens mid-task without touching contract 8: `mock_api/mcp_drift_server.py` accepts `--drift <mutation> --drift-after N`, and the demo-only config starts `users` with `--drift M1 --drift-after 1`, so the second `users__get_user` call meets the renamed argument.
+- **AC-67** (number borrowed from T2-PS1's AC-63..69 range, AC-55..59 being used) Scripted mode through a real stdio subprocess finishes all four calls with no error ever returned to the agent, and the audit log holds exactly one `RECOVERED` row (for `users__get_user`). | Integration (`tests/t2ps2/test_ac_67_demo_agent.py`)
 
 ## 21. Earlier additions: overhead and Swagger 2.0 (T1-PS2 files)
 

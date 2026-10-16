@@ -30,6 +30,7 @@ from healer.gateway import Gateway, connect_upstreams
 from healer.openapi_loader import openapi_source
 from healer.registry import Registry
 from healer.settings import REQUEST_TIMEOUT_S
+from healer.spec_watcher import SpecWatcher
 from healer.store import Store
 
 
@@ -209,7 +210,7 @@ async def _serve(args: argparse.Namespace) -> None:
                         raise ValueError(
                             "--repair needs NVIDIA_API_KEY in the environment"
                         )
-                    registries += await stack.enter_async_context(
+                    upstreams = await stack.enter_async_context(
                         connect_upstreams(
                             args.mcp_servers,
                             store,
@@ -218,6 +219,15 @@ async def _serve(args: argparse.Namespace) -> None:
                             repair=agent,
                         )
                     )
+                    registries += upstreams
+                    # Watch each upstream's tools/list: a change is snapshotted and its
+                    # fixes precomputed before the first failing call (contract 5).
+                    for reg in upstreams:
+                        watcher = SpecWatcher(
+                            {"spec": reg.spec_source}, store=store, healer=reg.healer
+                        )
+                        watcher.start()
+                        stack.push_async_callback(watcher.stop)
                 if not registries:
                     raise ValueError("nothing to serve: --no-rest needs --mcp-servers")
                 registry = (

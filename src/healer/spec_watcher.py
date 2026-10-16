@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from typing import TYPE_CHECKING, Any
@@ -107,7 +108,10 @@ class SpecWatcher:
 
     async def run(self) -> None:
         while True:
-            await self.poll()
+            try:
+                await self.poll()
+            except Exception:  # a bad spec or a store error must not stop the watcher for good
+                logging.getLogger(__name__).exception("spec watcher poll failed")
             await self._sleep(self._delay())
 
     def _delay(self) -> float:
