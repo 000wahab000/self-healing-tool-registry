@@ -12,6 +12,9 @@ dependencies = ["fastapi", "uvicorn", "pydantic>=2", "httpx", "jsonschema", "pyt
 dev = ["pytest", "pytest-asyncio", "respx", "ruff"]
 agents = ["langgraph", "langchain-openai"]
 mcp = ["mcp>=2.3,<3"]
+graphql = ["strawberry-graphql>=0.335,<1"]
+grpc = ["grpcio>=1.84,<2", "grpcio-reflection>=1.84,<2", "grpcio-status>=1.84,<2"]
+postgres = ["psycopg[binary]>=3.3,<4"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

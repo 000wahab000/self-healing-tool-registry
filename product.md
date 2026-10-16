@@ -630,3 +630,14 @@ Remote deployments must terminate TLS at a trusted reverse proxy; bearer authent
 ### P1-3 status amendment
 
 The opt-in test implementation now exists in `tests/mcp/test_client_config.py`; the live config run and P4 fresh-client/UI checks remain outstanding. Default tests use a temporary config to launch the repository's offline stdio harness but do not read operator-supplied configs or contact external endpoints. The smoke helper's temporary log suppression and child-stderr discard are unverified at the user's request. Correction to the AC-37 clarification above: the known `get_user` argument is the string `"123"`, not the number `123`.
+
+### P1-4 to P1-6: GraphQL, gRPC and Postgres
+
+- **FR-X4 (P1-4):** The GraphQL loader emits `OperationSpec` and its adapter normalizes results into `Outcome` for registry dispatch. GraphQL M1–M3 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Subscriptions and streaming are out of scope.
+- **FR-X5 (P1-5):** The unary gRPC loader emits `OperationSpec` and its adapter maps gRPC status codes into the shared `Outcome` model for registry dispatch. Unary M1–M2 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Streaming is out of scope.
+- **FR-X6 (P1-6):** The Postgres backend implements `FixStore`; active-fix uniqueness per fingerprint is enforced by the database. Registries sharing the database observe committed fixes across instances and reuse them at tier 0. A live Postgres test is opt-in; default tests remain offline.
+
+### Acceptance criteria
+
+- **AC-38:** Through the registry, GraphQL M1–M3 and unary gRPC M1–M2 equivalents heal and preserve the expected final state without changing the frozen `agent_schema` or introducing values.
+- **AC-39:** A fix committed by one registry is visible to another registry using the shared Postgres database and is reused at tier 0; the database enforces one active fix per fingerprint. Live Postgres verification is opt-in.
