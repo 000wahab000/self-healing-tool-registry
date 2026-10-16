@@ -9,6 +9,7 @@ import asyncio
 import json
 import os
 import tempfile
+import time
 import uuid
 from collections.abc import Awaitable, Sequence
 from contextlib import asynccontextmanager
@@ -99,6 +100,7 @@ class Dashboard:
         self.run_scenario: str | None = None
         self.base_event = 0  # the view starts after the last start / reset
         self.base_heal = 0
+        self.drifts: list[tuple[int, str | None]] = []  # (ms, mutation) as it went live
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
         self._mcp_info: dict | None = None
@@ -129,6 +131,7 @@ class Dashboard:
                 for mock in self.mocks.values():
                     mock.set_mutation(mutation)
                 self.mutation = mutation
+                self._drift(mutation)
             run_id = uuid.uuid4().hex[:8]
             if kind == "scripted":
                 heal_exec, self.traces["healing"] = _recording_executor(
@@ -240,6 +243,7 @@ class Dashboard:
             for mock in self.mocks.values():
                 mock.set_mutation(mid)
             self.mutation = mid
+            self._drift(mid)
 
     async def reset(self) -> None:
         async with self.lock:
@@ -261,6 +265,7 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             self._clear()
+            self._drift(mutation)
             return await run_explore(
                 self.mocks["healing"],
                 self.mocks["baseline"],
@@ -369,9 +374,22 @@ class Dashboard:
             },
         }
 
+    def _drift(self, mutation: str | None) -> None:
+        self.drifts.append((time.time_ns() // 1_000_000, mutation))
+
     def _heal(self, e: AuditEvent) -> dict:
         fix = self.store.get_fix(e.fix_id) if e.fix_id is not None else None
+        # The break that was live when this heal happened, for the "what broke" line.
+        drift = next((m for ms, m in reversed(self.drifts) if ms <= e.ts_ms), None)
+        try:
+            raw = json.loads(e.raw_error) if e.raw_error else None
+        except ValueError:
+            raw = None
+        tool_cfg = self.tools["tools"].get(e.tool, {})
         return {
+            "drift": drift,
+            "raw_error": raw,
+            "write": bool(tool_cfg.get("write")),
             "ts_ms": e.ts_ms,
             "tool": e.tool,
             "class": e.cls,

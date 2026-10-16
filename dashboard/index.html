@@ -220,6 +220,11 @@ td.empty { color: var(--muted); text-align: center; padding: 40px 14px; white-sp
 @keyframes chg-fly { 0% { left: 0; opacity: 1; } 90% { opacity: 1; } 100% { left: calc(100% - 10px); opacity: 0; } }
 @keyframes chg-land { 0% { opacity: .45; } 60% { transform: scale(1.06); box-shadow: 0 0 0 4px var(--accent-bg); } 100% { opacity: 1; transform: none; background: var(--ok-bg); color: var(--ok); } }
 .chg-none { color: var(--ink-2); font-size: 13px; }
+.broke { display: block; margin-top: 3px; font: 12px var(--sans); color: var(--ink-2); white-space: normal; max-width: 300px; }
+.broke b { color: var(--bad); font-weight: 600; }
+.story { margin: 0 0 12px; padding: 12px 16px; border-left: 3px solid var(--bad); background: var(--panel); border-radius: 0 var(--r) var(--r) 0; font-size: 13.5px; color: var(--ink-2); }
+.story b { color: var(--ink); }
+.story pre { margin: 8px 0 0; max-height: 140px; overflow: auto; font-size: 12px; background: var(--soft); padding: 8px 10px; border-radius: var(--r-sm); }
 tr.fresh td { animation: row-flash 1.6s ease-out; }
 @keyframes row-flash { 0% { background: var(--accent-bg); } 100% { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .chg-from::after, .chg-to, .chg-track i, tr.fresh td { animation-duration: .01s; animation-delay: 0s !important; } }
@@ -709,6 +714,44 @@ function changeRows(o, resp) {
     default: return [["?", "?", JSON.stringify(o)]];
   }
 }
+// Plain-English account of a heal row: which break, what the API did, what the registry did.
+const DRIFT_LABEL = Object.fromEntries(GROUPS.flatMap(([, , items]) => items.map(([id, label]) => [id, label])));
+const ERROR_TEXT = {
+  E1: (c) => "a temporary failure (" + c + ")",
+  E2: (c) => "the API rejected the call (HTTP " + c + ")",
+  E3: (c) => "an answer that could not be read (HTTP " + c + ")",
+  E4: (c) => "an error inside a success reply, or a missing login (HTTP " + c + ")",
+  E5: (c) => "HTTP " + c + " OK, but the answer came back in a new shape",
+  E6: (c) => "HTTP " + c + " OK, but the change was silently ignored (the check after the call failed)",
+  BUSINESS: (c) => "a normal business error (HTTP " + c + ")",
+};
+const KIND_TEXT = { postcheck: "sent but not saved", missing: "missing", route: "endpoint moved or gone", auth: "login required", rejected: "rejected", type: "wrong type" };
+function brokeFields(h) {
+  const v = (h.raw_error && h.raw_error.violations) || [];
+  return v.filter(([, p]) => p && p.length).map(([side, p, kind]) => (side === "resp" ? "reply " : "") + p.join(".") + " (" + (KIND_TEXT[kind] || kind) + ")");
+}
+function brokeShort(h) {
+  const err = (ERROR_TEXT[h.class] || ((c) => h.class + " " + c))(h.raw_code);
+  const fields = brokeFields(h);
+  return (h.drift ? h.drift + " · " + (DRIFT_LABEL[h.drift] || "") + ": " : "") + err + (fields.length ? ": " + fields.join(", ") : "");
+}
+function brokeRow(h) {  // the short version for the table row
+  const fields = brokeFields(h);
+  const what = fields.length ? fields.slice(0, 2).join(", ") + (fields.length > 2 ? " +" + (fields.length - 2) + " more" : "") : (CLASS_NAMES[h.class] || h.class) + " (" + h.raw_code + ")";
+  return (h.drift ? h.drift + " · " + (DRIFT_LABEL[h.drift] || "") + ": " : "") + what;
+}
+function storyView(h) {
+  const box = el("div", null, { class: "story" });
+  const did = h.outcome === "RECOVERED"
+    ? "The registry patched the call" + (h.tier === 0 ? " with a fix it had already verified" : h.path === "repair" ? " with a fix proposed by the LLM repair agent and checked like any other" : "") + ", sent it once more and checked the answer before the agent saw it."
+    : h.reason === "NOT_DRIFT" ? "Nothing about the API's shape changed, so the error went back to the agent unchanged."
+    : "The registry refused (" + (h.reason || "no safe fix") + ") and sent nothing it could not justify; the agent got a clear error instead.";
+  const write = h.write ? " " + h.tool + " changes data, so the patched request was sent at most once." : " " + h.tool + " only reads data.";
+  box.append(el("b", "What broke: "), brokeShort(h) + ". ", el("b", "What we did: "), did + write);
+  const body = h.raw_error && h.raw_error.body;
+  if (body !== null && body !== undefined) { box.append(el("br")); box.append(el("small", "The API's own error:", { class: "muted" }), pre(body)); }
+  return box;
+}
 function changeView(h) {
   const box = el("div", null, { class: "chg" });
   const head = el("div", null, { class: "chg-head" });
@@ -1163,18 +1206,22 @@ function renderHeals(heals) {
     const [k, text] = outcomeInfo(h);
     const outcome = el("td"); outcome.append(el("span", k === "warn" ? "Safe refusal · 0 invented values" : k === "biz" ? "Business error pass-through" : text.split(" · ")[0], { class: "tag " + k }));
     if (h.reason && h.reason !== "NOT_DRIFT") outcome.append(" ", el("span", h.reason, { class: "tag" }));
-    tr.append(first, el("td", h.tool, { class: "mono" }), cell(badge(h.class)), el("td", String(h.tier)), el("td", h.path || "-"), outcome,
+    const toolCell = el("td", null, { class: "mono" });
+    const short = el("span", null, { class: "broke" });
+    short.append(el("b", h.outcome === "RECOVERED" ? "Fixed: " : h.reason === "NOT_DRIFT" ? "Passed on: " : "Refused: "), brokeRow(h));
+    toolCell.append(h.tool, short);
+    tr.append(first, toolCell, cell(badge(h.class)), el("td", String(h.tier)), el("td", h.path || "-"), outcome,
       el("td", h.mttr_ms + " ms"), el("td", h.heal_ms === undefined || h.heal_ms === null ? "-" : h.heal_ms + " ms"), fixCell);
     const dt = el("tr", null, { class: "detail", hidden: "" });
     const dd = el("td", null, { colspan: "9" });
     const grid = el("div", null, { class: "detail-grid" });
     const item = (key, v) => { const d = el("div"); d.append(el("small", key), el("code", v)); return d; };
     grid.append(item("Fingerprint", h.fingerprint || "-"), item("Raw code", String(h.raw_code ?? "-")), item("Fix id", String(h.fix_id ?? "-")), item("Jev tokens", String(h.jev_tokens ?? 0)));
-    dd.append(changeView(h), grid); dt.appendChild(dd);
+    dd.append(storyView(h), changeView(h), grid); dt.appendChild(dd);
     const setOpen = (open) => { dt.hidden = !open; tr.classList.toggle("open", open); tr.setAttribute("aria-expanded", String(open)); };
     const toggle = () => {
       const open = dt.hidden;
-      if (open) { openHeals.add(key); dd.firstChild.replaceWith(changeView(h)); } else openHeals.delete(key);
+      if (open) { openHeals.add(key); dd.children[1].replaceWith(changeView(h)); } else openHeals.delete(key);
       setOpen(open);
     };
     if (openHeals.has(key)) setOpen(true);
