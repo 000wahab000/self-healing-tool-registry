@@ -84,6 +84,7 @@ class Registry:
         spec_mode: str = SPEC_MODE,
         spec_source: SpecSource | None = None,
         grpc_channel: object | None = None,
+        mcp_session: object | None = None,
     ) -> None:
         if spec_mode not in (
             "on",
@@ -95,6 +96,7 @@ class Registry:
         self.cfg = cfg
         self.store = store
         self.grpc_channel = grpc_channel
+        self.mcp_session = mcp_session
         if spec_source is not None:
             self.spec_source = spec_source
         elif grpc_channel is not None:
@@ -189,6 +191,10 @@ class Registry:
             outcome = await graphql.send(
                 self.client, doc, timeout, spec_source=self.spec_source
             )
+        elif protocol == "MCP":
+            from healer.adapters import mcp_upstream
+
+            outcome = await mcp_upstream.send(self.mcp_session, doc, timeout)
         elif protocol == "GRPC":
             from healer.adapters import grpc
             from healer.grpc_loader import _pool, message_class

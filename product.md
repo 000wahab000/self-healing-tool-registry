@@ -692,6 +692,24 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 - **AC-38:** Through the registry, GraphQL M1–M3 and unary gRPC M1–M2 equivalents heal and preserve the expected final state without changing the frozen `agent_schema` or introducing values.
 - **AC-39:** A fix committed by one registry is visible to another registry using the shared Postgres database and is reused at tier 0; the database enforces one active fix per fingerprint. Live Postgres verification is opt-in.
 
+
+
+### Upstream MCP gateway (T2-1 to T2-5, with T1-1 to T1-4)
+
+- **FR-24.1** `adapters/mcp_upstream.py` maps each upstream tool to an `OperationSpec` keyed `<server>__<tool>`: method `MCP`, path = upstream tool name, `body_schema` = its `inputSchema`. Tools whose name starts with `__` are not exposed (contract 7).
+- **FR-24.2** A call returns the shared `Outcome`: success gives `OK`; JSON-RPC `-32601` gives `E2` with a route violation; `-32602` and `isError` results give `E2` "rejected"; other JSON-RPC errors and transport failures give `E1`.
+- **FR-24.3** `config/mcp_servers.json` lists servers (name, `stdio` command or `http` URL, optional `token_env` = the variable *name*). Names are unique and contain no `__`. A missing token variable fails start-up and names the variable, never a value.
+- **FR-24.4** `gateway.Gateway` merges one healing `Registry` per upstream (and the REST registry) into one frozen `tools()` list and routes `call()` by name. `python -m healer.mcp_server --mcp-servers config/mcp_servers.json [--no-rest]` serves it over stdio or HTTP.
+- **FR-24.5** Healing reuses the core: argument renames, retypes and enum changes heal through the existing ops; a tool rename heals as a `route` op when exactly one new tool has the same method and request shape (`diagnose.renamed_op`), otherwise it is refused. With the tool's schema unchanged, an MCP rejection is `NOT_DRIFT` and is returned as a business error.
+- **FR-24.6** `Healer.precompute` predicts the MCP failure shape, so a precomputed fix is reused at tier 0 on the first failing call.
+
+| ID | Criterion | Verification |
+|---|---|---|
+| AC-63 | Two upstream servers appear as one namespaced, frozen tool list without admin tools; a healthy call returns the upstream result with no audit row; an unknown tool returns `UNKNOWN_TOOL` | `tests/t2ps1/test_ac_63_mcp_gateway.py` |
+| AC-64 | M1 (argument renamed), T-RENAME (tool renamed), M2 (argument retyped) and T-ENUM heal on the first call with one `RECOVERED` audit row, the repeat call reuses the fix, and `tools()` is unchanged; after `precompute`, M1 and T-RENAME heal at tier 0 | same file |
+| AC-65 | T-REQUIRED and M8 refuse with `SCHEMA_DRIFT_UNRECOVERABLE`, `retry: false`; a business error (unknown user) is returned as `API_ERROR` class `BUSINESS`, never healed | same file |
+| AC-66 | `config/mcp_servers.json` loads two servers and holds no secret; a name containing `__` is rejected | same file |
+
 ## 20. Track T2-PS2: Watcher, Demo, Dashboard and Docs
 
 T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59. Used: AC-55 (F18, §6), AC-56 and AC-57 (dashboard, below), AC-58 (client guides). AC-59 stays reserved for T2-11.

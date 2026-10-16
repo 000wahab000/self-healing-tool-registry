@@ -200,3 +200,17 @@ def route_exists(ops: dict[str, dict], method: str, path: str) -> bool:
     return any(
         o["method"] == method.upper() and o["path"] == path for o in ops.values()
     )
+
+
+def renamed_op(old_op: dict, ops: dict[str, dict], known: Iterable[str]) -> dict | None:
+    """A tool that vanished under its name: the one new operation with the same method and
+    request shape. None when there is no such operation or more than one (ambiguous)."""
+    shape, taken = flatten_request(old_op), set(known)
+    found = [
+        op
+        for name, op in ops.items()
+        if name not in taken
+        and op["method"] == old_op["method"]
+        and flatten_request(op) == shape
+    ]
+    return found[0] if len(found) == 1 else None

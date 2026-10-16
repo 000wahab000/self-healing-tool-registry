@@ -164,6 +164,7 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | 2026-10-16 | T1-0 (S2) | done | S2 rule mining with rules table (AC-44) |
 | 2026-10-16 | T1-0 (X3) | done | X3 new operations enum_map and encoding (AC-41, AC-42) |
 | 2026-10-16 | T1-0 (X4) | done | X4 fix precompute contract (AC-47, guarded) |
+| 2026-10-16 | T1-1 to T1-4 | done | MCP outcomes classified in the adapter (FR-24.2), tool-rename diagnosis (`diagnose.renamed_op`), MCP heal path and MCP precompute (AC-64, AC-65) |
 
 ### Progress log: T1-PS2
 
@@ -180,6 +181,7 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | 2026-10-15 | P1-1 | implemented; packaging hand-off pending | Official MCP 2.x low-level stdio interface, frozen schemas, structured refusals, no list-change notifications; SDK memory and actual stdio subprocess tests, custom-spec healing and secret-leak regressions in `tests/mcp/`. Launch with `python -m healer.mcp_server`; P2 request: add `[project.scripts] healer-mcp = "healer.mcp_server:main"`. No P2-owned packaging edit made. |
 | 2026-10-15 | P1-2 | done | Stateful Streamable HTTP shares one registry; loopback default, optional environment-selected bearer authentication on every method, explicit remote host allowlist and exact origins. SDK clients exercise the ASGI HTTP path without sockets, M1/M8 parity and five overlapping sessions producing one heal. `pytest -q`: 584 passed, 5 skipped; `ruff check .` clean. Remote deployment needs a trusted TLS reverse proxy. |
 | 2026-10-16 | P1-3 | hand-off prepared; live acceptance pending | Client-specific stdio/HTTP snippets for P4 are in `tests/mcp/client-handoff.md`; existing opt-in config launcher is in `tests/mcp/test_client_config.py`. Final helper suppresses SDK diagnostic logs and discards child stderr to avoid secret leakage. Static review and lint only after user requested no further tests; final helper runtime validation, live configuration checks and P4 client UI checks remain pending. P2 console-entry request remains unchanged. |
+| 2026-10-16 | T2-1 to T2-5 | done | Upstream MCP adapter, loader, `config/mcp_servers.json`, registry `MCP` dispatch, `gateway.Gateway` and `mcp_server --mcp-servers` (FR-24, AC-63 to AC-66). Built by Wahab's session with T2-PS1 paused |
 
 ### Progress log: T2-PS2
 

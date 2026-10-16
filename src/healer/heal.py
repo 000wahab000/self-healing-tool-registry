@@ -218,10 +218,16 @@ class Healer:
             diagnose.route_exists(h.ops, route["method"], route["path"])
         ):
             raise _Abort(Reason.NOT_DRIFT)
-        h.new_op = h.ops.get(h.tool.name)
+        h.new_op = h.ops.get(h.tool.name) or diagnose.renamed_op(
+            h.tool.base_op, h.ops, self._known_tools()
+        )
         if h.new_op is None:
             raise _Abort(Reason.NO_CANDIDATE)
         h.entries = diagnose.diff(h.tool.base_op, h.new_op)
+        if not h.entries and h.tool.base_op["method"] == "MCP":
+            # An MCP error carries no field paths: with the tool's schema unchanged, the
+            # rejection is the server's (a business or value error), not drift.
+            raise _Abort(Reason.NOT_DRIFT)
         if (
             not h.entries
             and h.outcome.cls is ErrorClass.E2
@@ -461,6 +467,9 @@ class Healer:
                     )
                     self._store.save_fix(cand)
 
+    def _known_tools(self) -> set[str]:
+        return {t.name for t in self._tools()} if self._tools else set()
+
     async def precompute(self, old: LoadedSpec, new: LoadedSpec) -> int:
         """FR-17.11 (X4): Precompute candidate fixes from spec diffs before any failure occurs.
         Stores fixes with status candidate; sends 0 live requests. Returns count of fixes stored."""
@@ -473,7 +482,9 @@ class Healer:
         cfg_keys = set(self._cfg)
 
         for tool_name, old_op in old.ops.items():
-            new_op = new.ops.get(tool_name)
+            new_op = new.ops.get(tool_name) or diagnose.renamed_op(
+                old_op, new.ops, old.ops
+            )
             if new_op is None:
                 continue
             entries = diagnose.diff(old_op, new_op)
@@ -562,8 +573,18 @@ class Healer:
                 diff_sig = diagnose.diff_signature(entries)
                 v_list = []
 
+            protocol = "rest"
+            if old_op["method"] == "MCP":  # the failure shape adapters/mcp_upstream.send returns
+                moved = any(e["change"] == "route_changed" for e in entries)
+                protocol, cls, diff_sig = "mcp", ErrorClass.E2, None
+                raw_code = "-32601" if moved else "isError"
+                v_list = [
+                    Violation(Side.REQ, ["route"], "route")
+                    if moved
+                    else Violation(Side.REQ, [], "rejected")
+                ]
             predicted = Outcome(
-                cls=cls, protocol="rest", raw_code=raw_code, violations=v_list
+                cls=cls, protocol=protocol, raw_code=raw_code, violations=v_list
             )
             fp, sig = fingerprint.fingerprint(tool_name, predicted, diff_sig)
             sig["abstract"] = diagnose.abstract_signature(pick.get("request_ops", []), order)
