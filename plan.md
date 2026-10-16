@@ -426,7 +426,7 @@ The MCP server is the top priority. It turns the registry into a drop-in proxy: 
 | Order | Item | Key tasks | Done when |
 |---|---|---|---|
 | P2-0 | MVP evidence | Live E2E tests on gpt-oss-20b (NVIDIA NIM); real-LLM benchmark at N = 10 per agent and scenario, clean runs included; AC-14 and AC-16 reported as measured, misses included; model and provider recorded in `report.md` | `report.md` regenerated from an LLM-mode run; `agents/` handed to P4 |
-| P2-1 | S8 injection resistance (M10) | Mock M10, its integration test and benchmark scenario | AC-26 passes |
+| P2-1 | S8 injection resistance (M10) | Mock M10, its integration test and benchmark scenario | [x] AC-26 passes |
 | P2-2 | S1 sibling propagation | Candidate fixes for tools with the same removed field; used only on a fingerprint match, always verified | A second tool hit by the same rename heals at tier 0 speed on first occurrence |
 | P2-3 | X3 new operations | `enum_map`, `encoding` (for `415`), lossless value transforms with a round-trip check; schema, `ops.py`, candidates, safety gate, mock mutations | Each new operation heals its mutation; a lossy transform is refused |
 | P2-4 | S3 tier-2 repair agent | Operations JSON out, validated; same gate and verification; 30 s budget; `proposals` table and its `FixStore` methods | A scenario tier 1 cannot build is healed or yields a proposal; no code is executed |
@@ -490,3 +490,4 @@ Antigravity's built-in browser agent suits the visual checks. Keep to one featur
 | 2026-10-14 | 12D | done | v3 metrics (ZTAR/Safe-Refusal/False-Patch/MTTR+heal_ms/tokens) in `metrics.py` and `bench/run.py`, error-only ablation pass, report regenerated (scripted, N = 3); tests for AC-14 to AC-17 and AC-23; dashboard buttons cover all scenarios |
 | 2026-10-14 | 12E | done | Dashboard Demo view (cofounder.co style): prompt + scenario or dashboard-only `CUSTOM` drift, side-by-side replay with step trackers, per-call input / wire / output, registry view, readable patch log with `heal_ms`; refused tools are skipped and the task continues (prompt and Demo run); `python-dotenv` declared |
 | 2026-10-15 | 13 step 0 | done | Two-person tracks and ownership (`AGENTS.md`); `OperationSpec`, `SpecSource`, `FixStore` contracts with `tests/integration/test_contracts.py` |
+| 2026-10-16 | 13 P2-1 (S8/M10) | done | Prompt injection resistance (AC-26): adversarial instructions in 422 error and OpenAPI description safely ignored; deterministic move heals cleanly |

@@ -591,3 +591,13 @@ Beyond the code, the problem statement requires the items below. This section on
 | Metrics: ZTAR, MTTR, Token Overhead, plus Safe-Refusal Rate and False-Patch Rate | F15, definitions in FR-15.4 | Benchmark runner |
 | Short write-up of the diagnosis and patch logic | §4 and §8 of this spec, `technical-approach.md` §5 and §6, and the measured results | Team, after the benchmark (phase 10) [A: file location to confirm in `plan.md`] |
 | 30-second pitch | Measured numbers from `report.md`; claims limited to what the benchmark shows | Team, after the benchmark (phase 10) [A: file location to confirm in `plan.md`] |
+
+---
+
+## 17. Track P2: Healing Core & Future Scope (Wahab)
+
+### Requirements
+
+#### S8: Prompt-Injection Resistance (M10)
+- **FR-17.0** (S8 / FR-12.8) When an error message or OpenAPI parameter description contains adversarial prompt injections, the registry ignores the injected text and synthesizes operations purely from structural schema diffs and provenance rules.
+
