@@ -24,7 +24,7 @@ Never break these. Any change that would break one is wrong, even if a test pass
 7. **No LLM in tiers 0 and 1** except the single Jev Choice call, and only when there are 2 or more candidates.
 8. **Keep secrets out of the store, logs, test snapshots and error messages.** Header operations store config keys, never values.
 9. **Compute fixes against the base schema.** Never stack one fix on another.
-10. **Stay in scope.** Build only what `product.md` lists. STRETCH work (S1–S5) starts only after the plan's phase 11 gate passes.
+10. **Stay in scope.** Build only what `product.md` lists. Phase 13+ work follows `plan.md` ("Phase 13+: MCP gateway, two teams on four machines").
 
 ## 3. Repository layout
 
@@ -131,5 +131,5 @@ Do not add top-level directories without updating this file.
 - Do not catch broad exceptions and continue silently. Map each failure to a reason code and audit it.
 - Do not log request bodies or headers at info level. They may contain secrets or PII.
 - Do not tune the baseline agent to fail. It uses framework defaults with the same settings as the healing agent.
-- Do not start GraphQL or gRPC work before the phase-11 gate.
+- Do not start GraphQL or gRPC work before plan item T2-5 is done (they are deferred to T2-6).
 - Do not commit `.env`, `*.db` or benchmark outputs containing tokens or keys.

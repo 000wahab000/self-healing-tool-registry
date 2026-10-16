@@ -100,6 +100,14 @@ CREATE TABLE IF NOT EXISTS call_events (
     class TEXT NOT NULL {_in("class", ErrorClass)},
     latency_ms INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS rules (
+    rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern TEXT NOT NULL UNIQUE,
+    wins INTEGER NOT NULL DEFAULT 1,
+    promoted INTEGER NOT NULL DEFAULT 0,
+    created_ms INTEGER NOT NULL,
+    last_used_ms INTEGER NOT NULL
+);
 """
 
 FIX_COLS = (
@@ -164,6 +172,9 @@ class FixStore(Protocol):
     def call_events(self, after_id: int = 0) -> list[dict]: ...
     def get_candidate(self, fp: str) -> Fix | None: ...
     def promote(self, fix_id: int) -> None: ...
+    def record_rule_win(self, pattern: str) -> int: ...
+    def is_rule(self, pattern: str) -> bool: ...
+    def get_rules(self) -> list[str]: ...
     def close(self) -> None: ...
 
 
@@ -193,6 +204,10 @@ class Store:
                     (FixStatus.candidate,),
                 ),
             )
+        }
+        self._promoted_rules = {
+            r["pattern"]
+            for r in self._db.execute("SELECT pattern FROM rules WHERE promoted = 1")
         }
         # ponytail: expiry is checked on read, entries are never purged (bounded by distinct fingerprints)
         self._neg: dict[str, float] = {}  # fingerprint -> expiry, clock seconds
@@ -288,6 +303,15 @@ class Store:
                 cached.status = FixStatus.retired
                 self._active.pop(fp, None)
                 self._candidates.pop(fp, None)
+        if won:
+            sig_row = self._db.execute(
+                "SELECT signature FROM fixes WHERE fix_id = ?", (fix_id,)
+            ).fetchone()
+            if sig_row:
+                sig_data = json.loads(sig_row["signature"])
+                pat = sig_data.get("abstract")
+                if pat:
+                    self.record_rule_win(pat)
 
     def audit(self, event: AuditEvent) -> None:
         with self._db:
@@ -363,6 +387,35 @@ class Store:
             f"SELECT {FIX_COLS} FROM fixes WHERE fix_id = ?", (fix_id,)
         ).fetchone()
         return _fix(row) if row else None
+
+    def record_rule_win(self, pattern: str) -> int:
+        now = self._now_ms()
+        with self._db:
+            row = self._db.execute(
+                "SELECT wins FROM rules WHERE pattern = ?", (pattern,)
+            ).fetchone()
+            if row:
+                wins = row["wins"] + 1
+                promoted = 1 if wins >= 3 else 0
+                self._db.execute(
+                    "UPDATE rules SET wins = ?, promoted = ?, last_used_ms = ? WHERE pattern = ?",
+                    (wins, promoted, now, pattern),
+                )
+            else:
+                wins = 1
+                self._db.execute(
+                    "INSERT INTO rules (pattern, wins, promoted, created_ms, last_used_ms) VALUES (?, ?, 0, ?, ?)",
+                    (pattern, 1, now, now),
+                )
+        if wins >= 3:
+            self._promoted_rules.add(pattern)
+        return wins
+
+    def is_rule(self, pattern: str) -> bool:
+        return pattern in self._promoted_rules
+
+    def get_rules(self) -> list[str]:
+        return sorted(self._promoted_rules)
 
     def close(self) -> None:
         self._db.close()
