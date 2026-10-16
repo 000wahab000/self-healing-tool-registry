@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -104,11 +104,13 @@ class Healer:
         attempt: Callable[..., Awaitable[Outcome]],
         clock: Callable[[], float],
         spec_mode: str = SPEC_MODE,
+        tools: Callable[[], Iterable[ToolDefinition]] | None = None,
     ) -> None:
         self._store, self._jev, self._spec_source = store, jev, spec_source
         self._spec_mode = spec_mode
         self._cfg, self._header_sources = cfg, header_sources
         self._attempt, self._clock = attempt, clock
+        self._tools = tools
         self._flights: dict[str, asyncio.Future[Reason | None]] = {}
         self._saved_specs: set[str] = set()
         # fingerprint -> when its first failing response arrived, until a heal recovers it.
