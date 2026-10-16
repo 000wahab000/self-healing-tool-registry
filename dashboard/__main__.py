@@ -19,4 +19,5 @@ from dashboard.app import create_app
 port = os.environ.get("PORT") or os.environ.get("DASHBOARD_PORT", "8080")
 host = os.environ.get("HOST", "0.0.0.0" if "PORT" in os.environ else "127.0.0.1")
 
+os.environ["DASHBOARD_BIND_HOST"] = host  # off localhost, the Connections routes need a token
 uvicorn.run(create_app(), host=host, port=int(port))
