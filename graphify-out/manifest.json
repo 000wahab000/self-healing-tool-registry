@@ -114,10 +114,10 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "src/healer/adapters/rest.py": {
-    "mtime": 1791947862.966927,
-    "seen": 1791992975.2294044,
-    "ast_hash": "f811e1d1fd87f96cc078132e860fcd83",
-    "semantic_hash": "f811e1d1fd87f96cc078132e860fcd83"
+    "mtime": 1792181134.8436692,
+    "seen": 1792181215.7492113,
+    "ast_hash": "2e37424b3beb39fd22049154ace1bc29",
+    "semantic_hash": ""
   },
   "src/healer/candidates.py": {
     "mtime": 1792133790.4333444,
@@ -156,9 +156,9 @@
     "semantic_hash": "e260f0fce5f2f92cfb1ef55a91567cf0"
   },
   "src/healer/heal.py": {
-    "mtime": 1792170142.506598,
-    "seen": 1792171663.444371,
-    "ast_hash": "737fe01ccd1903535fd5c53d574a6326",
+    "mtime": 1792181206.7415109,
+    "seen": 1792181215.749393,
+    "ast_hash": "96a758a166a4cc41690ca69636003d57",
     "semantic_hash": ""
   },
   "src/healer/jev.py": {
@@ -180,10 +180,10 @@
     "semantic_hash": ""
   },
   "src/healer/openapi_loader.py": {
-    "mtime": 1792084087.3404975,
-    "seen": 1792085147.7943816,
-    "ast_hash": "5a5f126ec2fc8ddd5971ed227d3a3cb0",
-    "semantic_hash": "5a5f126ec2fc8ddd5971ed227d3a3cb0"
+    "mtime": 1792181011.1671717,
+    "seen": 1792181215.7494812,
+    "ast_hash": "f2a072d6cb0303ef0eb1886721a66a4c",
+    "semantic_hash": ""
   },
   "src/healer/ops.py": {
     "mtime": 1792133790.4333444,
@@ -192,10 +192,10 @@
     "semantic_hash": "3c108d8b2f9ff28bd341008b1ff990e0"
   },
   "src/healer/registry.py": {
-    "mtime": 1792147853.854831,
-    "seen": 1792163080.3893127,
-    "ast_hash": "ba2a3951f2e3426ed034e23823b1f2ea",
-    "semantic_hash": "ba2a3951f2e3426ed034e23823b1f2ea"
+    "mtime": 1792181109.2509818,
+    "seen": 1792181215.7495081,
+    "ast_hash": "28aa27efdbb298ab9fa70ed4d44cf0d6",
+    "semantic_hash": ""
   },
   "src/healer/retry.py": {
     "mtime": 1791947862.966927,
@@ -216,9 +216,9 @@
     "semantic_hash": "d310a450d3ac681c699bbc2b9815bf5a"
   },
   "src/healer/store.py": {
-    "mtime": 1792171581.5792804,
-    "seen": 1792171663.4445598,
-    "ast_hash": "3dccdbf9e61644dbd9975cfa89b3f476",
+    "mtime": 1792181003.9669533,
+    "seen": 1792181215.7496047,
+    "ast_hash": "e496896cb169ad9a79aeded75c3944dc",
     "semantic_hash": ""
   },
   "tests/agents/test_agents.py": {
@@ -402,15 +402,15 @@
     "semantic_hash": "3fffe9e27e19cc1f4d1a232d6b766e20"
   },
   "plan.md": {
-    "mtime": 1792175491.1091945,
-    "seen": 1792176931.2576485,
-    "ast_hash": "98ecbb92aa72e56cca377e63d83551f4",
+    "mtime": 1792181120.1392765,
+    "seen": 1792181215.7522979,
+    "ast_hash": "59645757c84d617bd7ab1cf32ba662f2",
     "semantic_hash": ""
   },
   "product.md": {
-    "mtime": 1792176471.3717089,
-    "seen": 1792176931.2576523,
-    "ast_hash": "ab84ccf66990978c5ec7f32bbfa44db1",
+    "mtime": 1792180863.2873034,
+    "seen": 1792181215.752299,
+    "ast_hash": "c04434935bae776fe4cfb929c16ab0b3",
     "semantic_hash": ""
   },
   "writeup.md": {
@@ -672,9 +672,9 @@
     "semantic_hash": "66ae540bc37761f21171e423229bc980"
   },
   "docs/mcp-clients.md": {
-    "mtime": 1792175548.9188828,
-    "seen": 1792176931.2568076,
-    "ast_hash": "8c739cec47e5365d0a4a14eba22674da",
+    "mtime": 1792176966.0735703,
+    "seen": 1792181215.751608,
+    "ast_hash": "7545f6702536d5fb34dc8e449ca6737a",
     "semantic_hash": ""
   },
   "tests/mcp/client-handoff.md": {
@@ -780,16 +780,16 @@
     "semantic_hash": "ae7cf2e3f66b6ed29b1a9bedc750a973"
   },
   "src/healer/gateway.py": {
-    "mtime": 1792147853.854518,
-    "seen": 1792163080.3893068,
-    "ast_hash": "63ec4b5db30887bf9f721c860500e0ef",
-    "semantic_hash": "63ec4b5db30887bf9f721c860500e0ef"
+    "mtime": 1792181258.7337682,
+    "seen": 1792181271.0052648,
+    "ast_hash": "217dbf54601e0fb0ee69bc73da66c6f7",
+    "semantic_hash": ""
   },
   "src/healer/repair.py": {
-    "mtime": 1792150197.6893935,
-    "seen": 1792163080.3893132,
-    "ast_hash": "17d2dcf13a5dbf3e3540bec2422f48e4",
-    "semantic_hash": "17d2dcf13a5dbf3e3540bec2422f48e4"
+    "mtime": 1792181020.10044,
+    "seen": 1792181215.7495089,
+    "ast_hash": "b1502582f77254c809b7b47aa8ae295f",
+    "semantic_hash": ""
   },
   "tests/dashboard/test_ac_68_mcp_view.py": {
     "mtime": 1792147853.854831,
@@ -894,9 +894,9 @@
     "semantic_hash": "588c2fe2c864a28eacc012b6f8367e75"
   },
   "FLOW.md": {
-    "mtime": 1792176471.3717089,
-    "seen": 1792176931.2566884,
-    "ast_hash": "41e3ecd3ba0bdde1523e10c301b6de39",
+    "mtime": 1792181112.2920644,
+    "seen": 1792181215.7514648,
+    "ast_hash": "433c9ae4af68cef8ffeabec565e0da65",
     "semantic_hash": ""
   },
   "bench/oracle.py": {
@@ -1239,6 +1239,60 @@
     "mtime": 1792176851.4358606,
     "seen": 1792176931.2555666,
     "ast_hash": "330553a34b6b26f0a0b3685a51bd0385",
+    "semantic_hash": ""
+  },
+  "src/healer/connection_discovery.py": {
+    "mtime": 1792181152.3941305,
+    "seen": 1792181215.749258,
+    "ast_hash": "b6341b1f28222a8b02a724603501c101",
+    "semantic_hash": ""
+  },
+  "src/healer/connection_security.py": {
+    "mtime": 1792181195.1472223,
+    "seen": 1792181215.749259,
+    "ast_hash": "cc30937ace7a5a33ca30df0ef77e176a",
+    "semantic_hash": ""
+  },
+  "tests/integration/test_external_connections.py": {
+    "mtime": 1792181195.45823,
+    "seen": 1792181215.7500825,
+    "ast_hash": "a826377b3f6d479052632b5fbee2b3d3",
+    "semantic_hash": ""
+  },
+  "tests/unit/test_external_auth.py": {
+    "mtime": 1792181195.1472223,
+    "seen": 1792181215.7511775,
+    "ast_hash": "9a39ae684eee4f3f9445e642e03ed0e4",
+    "semantic_hash": ""
+  },
+  "tests/unit/test_external_discovery.py": {
+    "mtime": 1792181089.6624434,
+    "seen": 1792181215.7511785,
+    "ast_hash": "b41dbdfa47e1a007d87d6fbe654d6a15",
+    "semantic_hash": ""
+  },
+  "tests/unit/test_external_egress.py": {
+    "mtime": 1792181195.1472223,
+    "seen": 1792181215.751179,
+    "ast_hash": "1e50140e44e9ecf63ae5ae77bece827f",
+    "semantic_hash": ""
+  },
+  "tests/unit/test_external_redaction.py": {
+    "mtime": 1792181264.7139091,
+    "seen": 1792181271.0074878,
+    "ast_hash": "1eab779aacfc143e0dc8a200b9f79cce",
+    "semantic_hash": ""
+  },
+  "docs/external-connections-plan.md": {
+    "mtime": 1792180568.554144,
+    "seen": 1792181215.7516062,
+    "ast_hash": "cfb1f81142586281d1ac4e324b70ab0f",
+    "semantic_hash": ""
+  },
+  "docs/external-connections.md": {
+    "mtime": 1792181092.167513,
+    "seen": 1792181215.751607,
+    "ast_hash": "ecda485fde1db28ee9d08a33081f5bd9",
     "semantic_hash": ""
   }
 }

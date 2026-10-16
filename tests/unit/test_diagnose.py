@@ -67,6 +67,7 @@ def test_flatten_request_leaves_across_locations() -> None:
         ("header", "x-tenant-id"): leaf(["header", "x-tenant-id"], "str", True),
         ("query", "limit"): leaf(["query", "limit"], "int", False),
         ("header", "authorization"): leaf(["header", "authorization"], "str", True),
+        ("route_params", "id"): leaf(["route_params", "id"], "str", True, "ignored"),
     }
 
 

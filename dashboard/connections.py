@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from healer import gateway
+from healer.connection_presets import PRESETS
 
 HERE = Path(__file__).parent
 router = APIRouter()
@@ -69,13 +70,13 @@ def _save(data: dict) -> None:
         raise
 
 
-def clean_entry(body: object) -> dict:
+def clean_entry(body: object, existing: dict | None = None) -> dict:
     """Validate a dashboard-submitted entry (http only) and drop blank optional fields."""
     if not isinstance(body, dict):
         raise HTTPException(400, "entry must be an object")
     entry = {k: v for k, v in body.items() if v not in (None, "")}
     try:
-        return gateway.validate_entry(entry, http_only=True)
+        return gateway.validate_entry(entry, http_only=True, existing=existing)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -87,6 +88,7 @@ def _view_server(s: dict) -> dict:
         "transport": s.get("transport"),
         "url": s.get("url") if http else None,
         "token_env": s.get("token_env"),
+        **{k: s[k] for k in ("auth", "headers", "secret_headers", "selected_operations", "preset") if k in s},
         "readonly": not http,
     }
 
@@ -98,7 +100,7 @@ async def page() -> FileResponse:
     )
 
 
-@router.get("/api/connections")
+@router.get("/api/connections", dependencies=[Depends(require_write)])
 async def list_connections(request: Request) -> dict:
     data = _load()
     return {
@@ -106,12 +108,13 @@ async def list_connections(request: Request) -> dict:
         "apis": [
             {
                 k: a.get(k)
-                for k in ("name", "kind", "base_url", "spec_path", "token_env")
+                for k in ("name", "kind", "base_url", "spec_path", "spec_url", "token_env", "auth", "spec_auth", "spec_reuse_api_auth", "headers", "secret_headers", "selected_operations", "preset")
             }
             for a in data["apis"]
         ],
         "auth_required": is_remote(request),
         "defaults": {k: v[0] for k, v in gateway.API_KINDS.items()},
+        "presets": PRESETS,
     }
 
 
@@ -123,7 +126,33 @@ async def add_connection(body: dict) -> dict:
         raise HTTPException(409, "name already in use")
     data["apis" if "kind" in entry else "servers"].append(entry)
     _save(data)
-    return {"ok": True, "name": entry["name"]}
+    return {"ok": True, "name": entry["name"], "pending_restart": True}
+
+
+@router.put("/api/connections/{name}", dependencies=[Depends(require_write)])
+async def update_connection(name: str, body: dict) -> dict:
+    data = _load()
+    for collection in ("servers", "apis"):
+        for index, existing in enumerate(data[collection]):
+            if existing["name"] != name:
+                continue
+            if existing.get("transport") == "stdio":
+                raise HTTPException(403, "stdio connections are file-only")
+            if body.get("name", name) != name or body.get("kind", existing.get("kind")) != existing.get("kind") or body.get("transport", existing.get("transport")) != existing.get("transport"):
+                raise HTTPException(400, "connection name and type cannot change")
+            merged = {**existing, **{k: v for k, v in body.items() if v is not None}}
+            # Blank secret references mean preserve; only explicit clear_secret_refs removes them.
+            if not body.get("clear_secret_refs"):
+                for key in ("auth", "spec_auth", "token_env", "secret_headers"):
+                    if not body.get(key):
+                        merged[key] = existing.get(key)
+                if isinstance(body.get("secret_headers"), dict):
+                    merged["secret_headers"] = {**existing.get("secret_headers", {}), **body["secret_headers"]}
+            merged.pop("clear_secret_refs", None)
+            data[collection][index] = clean_entry(merged, existing)
+            _save(data)
+            return {"ok": True, "name": name, "pending_restart": True}
+    raise HTTPException(404, "no such connection")
 
 
 @router.delete("/api/connections/{name}", dependencies=[Depends(require_write)])
@@ -133,8 +162,10 @@ async def remove_connection(name: str) -> dict:
         kept = [e for e in data[key] if e["name"] != name]
         if len(kept) != len(data[key]):
             data[key] = kept
+            if any(s["name"] == name and s.get("transport") == "stdio" for s in _load()["servers"]):
+                raise HTTPException(403, "stdio connections are file-only")
             _save(data)
-            return {"ok": True}
+            return {"ok": True, "pending_restart": True}
     raise HTTPException(404, "no such connection")
 
 

@@ -22,6 +22,7 @@
 - [ ] **GraphQL and gRPC.** GraphQL M3 is a strict xfail; GraphQL is not benchmarked; gRPC is deferred.
 - [ ] **Streaming** and long-running tool responses are not covered.
 - [ ] **Dashboard auth.** Routes other than `/api/connections` writes have no auth (writes need `CONNECTIONS_TOKEN` off localhost).
+- [ ] **External connections (AC-102–AC-111).** Targeted AC-104 mixed API/MCP replay and AC-111 cleanup/invariant tests now exist; AC-110 covers healer prompts/errors and audit redaction. Registry bypass responses, startup/watcher snapshots and complete secret-reference wiring still need integration. Restart/environment rotation and operator origin policy are documented in `docs/external-connections.md`; do not claim the whole lane or full suite is clean.
 - [ ] **Real-client checks** in Claude Desktop, Cursor and Windsurf (`docs/mcp-clients.md`).
 - [ ] Open PR #51 "Updated Metrics" (teammate): review and merge or close.
 
@@ -55,3 +56,4 @@
 | 2026-10-16 | Docs decluttered: stale team docs removed, `FLOW.md` added, this plan rewritten |
 | 2026-10-16 | Added the unified local launcher; verified startup outside the checkout, HTTP MCP calls, REST M1 recovery visible in the shared dashboard audit, port-conflict safety and SIGTERM cleanup. Ruff passed; full pytest: 835 passed, 10 failed, 14 skipped, 1 xfailed. All 10 failures reproduce on unchanged HEAD (failure-layer checks and MCP drift healing/demo); no healing-core changes made. |
 | 2026-10-17 | Combined dashboard and MCP into one FastAPI app/listener; REST mock remains separate. Verified dashboard routes, MCP initialization/list/call, real transport metadata, shared recovery audit and shutdown of both services and their upstream children. Ruff passed; full pytest: 845 passed, the same 10 baseline failures, 14 skipped, 1 xfailed. Real-client UI and container deployment checks remain outstanding. |
+| 2026-10-17 | External-connection targeted proof: AC-104/91/92 focused tests pass; registry/watcher redaction hooks and full integration remain pending. Baseline remains 845 passed, 10 failed, 14 skipped, 1 xfailed; parent owns final gates. |

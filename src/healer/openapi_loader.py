@@ -83,10 +83,13 @@ def _response_schema(op: dict) -> dict | None:
 def operations(resolved_spec: dict) -> dict[str, OperationSpec]:
     out: dict[str, OperationSpec] = {}
     for path, item in resolved_spec.get("paths", {}).items():
+        path_params = item.get("parameters", [])
         for method in _METHODS:
             op = item.get(method)
             if not op or "operationId" not in op:
                 continue
+            parameters = { (p.get("in"), p.get("name")): p for p in path_params }
+            parameters.update({(p.get("in"), p.get("name")): p for p in op.get("parameters", [])})
             out[op["operationId"]] = {
                 "operation_id": op["operationId"],
                 "method": method.upper(),
@@ -100,7 +103,8 @@ def operations(resolved_spec: dict) -> dict[str, OperationSpec]:
                         "schema": p.get("schema", {}),
                         "description": p.get("description", ""),
                     }
-                    for p in op.get("parameters", [])
+                    for p in parameters.values()
+                    if "name" in p and "in" in p
                 ],
                 "security": _security(resolved_spec, op),
                 "response_schema": _response_schema(op),

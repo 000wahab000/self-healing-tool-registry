@@ -147,6 +147,13 @@ The front door starts a watcher over its upstream specs. It backs off a failing 
 | Report | `GET /api/report` serves `bench/report.md` |
 | `/connections` | Add, test and remove upstream MCP servers and APIs by URL (`/api/connections`); writes `config/mcp_servers.json`; tokens by environment-variable name only; off localhost writes need `CONNECTIONS_TOKEN` |
 
+External connection auth is per connection and secret values come from named
+environment variables, never connection config. API-call and spec-fetch auth
+are separate; saved config and environment rotation take effect after restart,
+while the loaded tool schema remains frozen. Remote dashboard exposure still
+needs authenticated TLS ingress; see [`docs/external-connections.md`](docs/external-connections.md)
+for operator allowlisting, limitations and credential-handling guidance.
+
 `python -m dashboard.demo` is the same story in a terminal; `python -m demo.mcp_agent` is a scripted (or `--llm`) agent that talks only to the front door while the mock MCP server renames an argument mid-task.
 
 ## 6. The benchmark
