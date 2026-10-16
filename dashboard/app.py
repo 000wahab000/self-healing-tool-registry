@@ -222,6 +222,8 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             self._clear()
+            # Only Reset empties the patch log; Start, scenarios and drifts keep adding to it.
+            self.base_heal = len(self.store.audit_events())
 
     async def explore(
         self,
@@ -275,7 +277,6 @@ class Dashboard:
         self.epoch += 1
         events = self.store.call_events()
         self.base_event = events[-1]["event_id"] if events else 0
-        self.base_heal = len(self.store.audit_events())
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces = {a: [] for a in self.mocks}
 
@@ -349,6 +350,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def landing() -> FileResponse:
         return FileResponse(HERE / "landing.html", headers={"Cache-Control": "no-cache"})
 
+    @app.get("/guide.js", include_in_schema=False)
+    async def guide() -> FileResponse:
+        return FileResponse(HERE / "guide.js", headers={"Cache-Control": "no-cache"})
+
     @app.get("/theme.css", include_in_schema=False)
     async def theme() -> FileResponse:
         return FileResponse(HERE / "theme.css", headers={"Cache-Control": "no-cache"})
@@ -390,6 +395,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
     @app.post("/api/mutation")
     async def mutation(body: MutationIn) -> dict:
         await bad_request(dash.mutate(body.id))
+        if body.id and all(r["status"] != "running" for r in dash.runs.values()):
+            # Nothing is calling the API, so a drift would go unseen: run a quick scripted
+            # pass so the break is hit and healed, and the patch log shows it.
+            await bad_request(dash.start("scripted", 0.3))
         return dash.state()
 
     @app.post("/api/reset")
