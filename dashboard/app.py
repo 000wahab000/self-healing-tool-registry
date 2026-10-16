@@ -546,6 +546,19 @@ def create_app(db_path: str | None = None) -> FastAPI:
     async def index() -> FileResponse:
         return FileResponse(HERE / "index.html", headers={"Cache-Control": "no-cache"})
 
+    @app.get("/panels/{filename:path}", include_in_schema=False)
+    async def panel_file(filename: str) -> FileResponse:
+        panels_dir = (HERE / "panels").resolve()
+        target = (panels_dir / filename).resolve()
+        if not target.is_relative_to(panels_dir) or not target.is_file():
+            raise HTTPException(404, "Panel file not found")
+        media_type = "text/javascript" if target.suffix == ".js" else None
+        return FileResponse(
+            target,
+            media_type=media_type,
+            headers={"Cache-Control": "no-cache"},
+        )
+
     @app.get("/api/state")
     async def get_state(after: int = 0) -> dict:
         return dash.state(after)

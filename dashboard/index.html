@@ -380,6 +380,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
       <h3>Refusal reasons</h3>
       <div class="ops" id="reasons-list"></div>
     </section>
+    <div id="panels-container"></div>
   </div>
 
   <!-- REPORT -->
@@ -1494,6 +1495,7 @@ async function poll() {
     const s = await call("/api/state?after=" + after);
     if (s.epoch !== epoch) { epoch = s.epoch; clearView(); }
     render(s);
+    if (window.HealerPanels) HealerPanels.refresh(s);
     connected = true;
     $("conn-chip").textContent = Demo.on ? "Demo data" : "Live";
     $("conn-chip").className = "pill " + (Demo.on ? "warn" : "good");
@@ -1545,6 +1547,7 @@ clearView();
 poll().then(() => { loadReport(); loadMcp(); initPresets(); });
 setInterval(poll, 500);
 </script>
+<script src="/panels/registry.js"></script>
 <script src="/ui.js" defer></script>
 <script src="/guide.js" defer></script>
 </body>
