@@ -408,6 +408,8 @@ const GROUPS = [
     ["M8", "Unfillable field", "create_ticket"], ["M11", "Moved + renamed (LLM repair)", "get_user"]]],
   ["Control", "not drift", [["C1", "Transient 503", "get_user"], ["C2", "Unknown user 404", "get_user"],
     ["C3", "Invalid email 422", "update_email"]]],
+  ["Data integrity", "write behavior", [["W1", "200, email unchanged", "update_email"], ["U1", "Amount units changed", "make_payment"],
+    ["D1", "Ticket created, then 503", "create_ticket"]]],
 ];
 const AGENTS = ["healing", "baseline"];
 const CLASS_NAMES = { OK: "OK", BUSINESS: "Business error", E1: "Transient", E2: "Rejected", E3: "Undecodable", E4: "Soft error", E5: "Shape drift", E6: "Silent ignore" };

@@ -109,15 +109,22 @@ def safe_refusal(rows: Iterable[RunRow]) -> dict[str, int]:
 
 
 def false_patch_rate(rows: Iterable[RunRow]) -> dict[str, int]:
-    """FR-15.4 False-Patch Rate: of the healed runs (a fix passed verification and success
-    was returned), the ones whose final mock state was wrong. Target: 0."""
+    """Count wrong accepted requests when the request-level oracle is available."""
     healed = [
         r
         for r in rows
         if any(h["outcome"] == HealOutcome.RECOVERED for h in r["heals"])
     ]
     return {
-        "false_patches": sum(1 for r in healed if not r["state_ok"]),
+        "false_patches": sum(
+            1
+            for r in healed
+            if (
+                r["oracle"] == "WRONG_ACCEPTED"
+                if "oracle" in r
+                else not r["state_ok"]
+            )
+        ),
         "healed": len(healed),
     }
 

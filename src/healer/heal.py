@@ -12,8 +12,17 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from healer import candidates, canonical, contract, diagnose, fingerprint, safety
+from healer import (
+    candidates,
+    canonical,
+    contract,
+    detect,
+    diagnose,
+    fingerprint,
+    safety,
+)
 from healer import repair as repair_agent
+from healer.adapters import rest
 from healer.detect import VALUE_KINDS
 from healer.jev import JevClient, JevUnavailable, render_option, render_state
 from healer.models import (
@@ -35,6 +44,7 @@ from healer.models import (
 from healer.ops import OpError, apply_ops
 from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S, SPEC_MODE
 from healer.store import FixStore, sanitize
+from healer.verify import Verifier
 
 if TYPE_CHECKING:
     from healer.registry import ToolDefinition
@@ -76,6 +86,12 @@ AUDIT_OUTCOME = {
 }
 
 
+def _layer_reason(detail: str) -> Reason:
+    if detail == Reason.UNSAFE_REPLAY.value:
+        return Reason.UNSAFE_REPLAY
+    return Reason.UNSAFE_PATCH
+
+
 def api_error(outcome: Outcome) -> dict:
     return {
         "error": "API_ERROR",
@@ -111,6 +127,8 @@ class _Heal:
     schema_hash: str = ""
     transient: bool = False  # the replay hit E1
     needs_preverify: bool = False  # a Jev pick on a write tool (FR-8.6)
+    layers: list[dict[str, str]] = field(default_factory=list)
+    replay_attempted: bool = False
 
 
 class Healer:
@@ -132,8 +150,10 @@ class Healer:
         self._spec_mode = spec_mode
         self._cfg, self._header_sources = cfg, header_sources
         self._attempt, self._clock = attempt, clock
+        self._client = getattr(getattr(attempt, "__self__", None), "client", None)
         self._tools = tools
         self._repair = repair
+        self._verifier = Verifier()
         self._flights: dict[str, asyncio.Future[Reason | None]] = {}
         self._saved_specs: set[str] = set()
         # fingerprint -> when its first failing response arrived, until a heal recovers it.
@@ -145,6 +165,11 @@ class Healer:
     ) -> Any:
         """The agent's result: data when recovered, an error dict otherwise."""
         h = _Heal(tool, base, outcome, t0, self._clock())
+        h.layers = [
+            {"layer": f"L{i}", "name": name, "status": "skip", "detail": "not_reached"}
+            for i, name in enumerate(("safety", "request_schema", "response_schema",
+                "postchecks", "readback", "invariants", "replay_safety"), 1)
+        ]
         h.fp, h.signature = fingerprint.fingerprint(tool.name, outcome)
         try:
             async with asyncio.timeout(
@@ -226,16 +251,96 @@ class Healer:
     async def _apply(self, h: _Heal, fix: Fix) -> Any:
         """Gate, optional dry run, verify, commit: the same path for every tier."""
         self._gate(h, fix)
+        # Tier-0 fixes still validate against today's spec; the cached wire operation is
+        # deliberately not evidence that the upstream still accepts the request.
+        current = h.new_op
+        if current is None and h.tool.base_op["method"] not in {"MCP", "GRAPHQL", "GRPC"} and self._spec_mode != "off":
+            try:
+                fresh = await self._spec_source()
+            except (httpx.HTTPError, ValueError):
+                fresh = None
+            if fresh is not None:
+                current = fresh.ops.get(h.tool.name)
+        h.layers = self._verifier.preflight(
+            base_doc=h.base, current_spec=(
+                {**current, "response_schema": h.tool.base_op.get("response_schema")}
+                if current is not None else None
+            ),
+            fix={"request_ops": fix.request_ops, "response_ops": fix.response_ops},
+            original_failure=h.outcome.cls, cfg=self._cfg, tool_cfg=h.tool.config,
+            original_status=h.outcome.raw_code,
+            no_side_effect=h.outcome.raw_code in {"400", "422"},
+        )
+        failed = next((row for row in h.layers if row["status"] == "fail"), None)
+        if failed:
+            if h.tier is Tier.T0:
+                self._store.record_result(fix.fix_id, False)
+                raise _Abort(Reason.VERIFY_FAILED)
+            raise _Abort(_layer_reason(failed["detail"]))
         if h.needs_preverify:
             await self._preverify(h, fix)
         result = await self._verify(h, fix)
         if result.cls is not ErrorClass.OK:
-            # A transient replay failure says nothing about the fix: no loss, no negative cache.
-            h.transient = result.cls is ErrorClass.E1
+            h.layers = await self._verifier.verify_response(
+                results=h.layers, outcome=result, agent_output_schema=h.tool.output_schema,
+                base_doc=h.base, tool_cfg=h.tool.config,
+            )
+            if result.cls is ErrorClass.E1:
+                h.transient = True
+                self._store.audit(self._event(h, HealOutcome.ABORTED, None))
+                return api_error(result)
             if h.tier is Tier.T0 and not h.transient:
                 self._store.record_result(fix.fix_id, False)
             raise _Abort(self._failure_reason(h, fix, result))
+        h.layers = await self._verifier.verify_response(
+            results=h.layers, outcome=result, agent_output_schema=h.tool.output_schema,
+            base_doc=h.base, tool_cfg=h.tool.config,
+            readback=self._readback(h, fix),
+            readback_expected=h.base,
+            healed_write=bool(h.tool.config.get("write")), deadline=(
+                h.deadline.when() if h.deadline else None
+            ),
+        )
+        if any(row["status"] == "fail" for row in h.layers):
+            raise _Abort(Reason.VERIFY_FAILED)
         return self._commit(h, fix, result)
+
+    def _readback(self, h: _Heal, fix: Fix) -> Callable[[], Awaitable[Any]] | None:
+        config = h.tool.config.get("readback")
+        if (not config or self._client is None
+                or h.tool.base_op["method"] not in {"POST", "GET", "PUT", "PATCH", "DELETE"}):
+            return None
+        doc = apply_ops(fix.request_ops, h.base, self._cfg)
+        key_path = config.get("key_from", [])
+        try:
+            key = canonical.get(h.base, key_path)
+        except (KeyError, TypeError):
+            try:
+                key = canonical.get(doc, key_path)
+            except (KeyError, TypeError):
+                return None
+
+        async def read() -> Any:
+            key_name = key_path[-1]
+            read_key = key
+            source = [*key_path]
+            moved = False
+            for op in fix.request_ops:
+                if op.get("op") == "move" and op.get("from") == source:
+                    key_name = op["to"][-1] if len(op["to"]) == len(source) else key_name
+                    moved = True
+            if moved:
+                move = next(op for op in fix.request_ops
+                    if op.get("op") == "move" and op.get("from") == source)
+                read_key = canonical.get(doc, move["to"])
+            lookup = {**doc, "body": {key_name: read_key}, "query": {}, "header": {}}
+            timeout = min(0.1, max(0.001, (h.deadline.when() if h.deadline else
+                asyncio.get_running_loop().time() + 0.1) - asyncio.get_running_loop().time()))
+            lookup["route"] = {"method": config["method"], "path": config["route"]}
+            response, error = await rest.send(self._client, lookup, timeout)
+            return detect.classify(response, error)
+
+        return read
 
     async def _diagnose(self, h: _Heal) -> None:
         """Fetch and diff the current spec. Leaves `h.ops` None when it is unavailable or off (clue mode)."""
@@ -337,6 +442,8 @@ class Healer:
         write = bool(h.tool.config.get("write"))
         if reason is Reason.VERIFY_FAILED and (h.transient or write):
             return False  # the failed replay may have reached the API
+        if reason is Reason.VERIFY_FAILED and h.replay_attempted:
+            return False
         if self._jev is None:
             return reason is Reason.NO_CANDIDATE
         self._extend(h)
@@ -479,6 +586,7 @@ class Healer:
 
     async def _verify(self, h: _Heal, fix: Fix) -> Outcome:
         if not self._local(h, fix):
+            h.replay_attempted = True
             return await self._send(h, fix)
         data = apply_ops(fix.response_ops, h.outcome.data, self._cfg)
         return contract.check(
@@ -790,4 +898,5 @@ class Healer:
             jev_tokens=h.jev_tokens,
             llm_tokens=h.llm_tokens,
             raw_error=sanitize(canonical.dumps(blob), self._cfg.values()),
+            layers=h.layers,
         )
