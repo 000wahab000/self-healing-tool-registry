@@ -42,6 +42,12 @@ OPS_SCHEMA: dict = {
                 },
             ),
             _op(OpName.route, method=_STR, path=_STR),
+            _op(
+                OpName.enum_map,
+                path=_PATH,
+                mapping={"type": "object", "minProperties": 1},
+            ),
+            _op(OpName.encoding, content_type=_STR),
         ]
     },
 }
@@ -103,11 +109,31 @@ def _route(op: dict, doc: dict, cfg: Mapping[str, str]) -> None:
     doc["route"] = {"method": op["method"], "path": op["path"]}
 
 
+def _enum_map(op: dict, doc: dict, cfg: Mapping[str, str]) -> None:
+    mapping = op["mapping"]
+    if len(set(mapping.values())) != len(mapping):
+        raise OpError(Reason.UNSAFE_PATCH)
+    val = get(doc, op["path"])
+    try:
+        if val not in mapping:
+            raise OpError(Reason.UNSAFE_PATCH)
+        new_val = mapping[val]
+    except TypeError:
+        raise OpError(Reason.UNSAFE_PATCH) from None
+    put(doc, op["path"], new_val)
+
+
+def _encoding(op: dict, doc: dict, cfg: Mapping[str, str]) -> None:
+    doc.setdefault("header", {})["content-type"] = op["content_type"]
+
+
 _APPLY: dict[str, Callable[[dict, dict, Mapping[str, str]], None]] = {
     OpName.move: _move,
     OpName.cast: _cast,
     OpName.header: _header,
     OpName.route: _route,
+    OpName.enum_map: _enum_map,
+    OpName.encoding: _encoding,
 }
 
 

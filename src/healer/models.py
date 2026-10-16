@@ -86,6 +86,8 @@ class OpName(StrEnum):
     cast = "cast"
     header = "header"
     route = "route"
+    enum_map = "enum_map"
+    encoding = "encoding"
 
 
 class PostcheckType(StrEnum):

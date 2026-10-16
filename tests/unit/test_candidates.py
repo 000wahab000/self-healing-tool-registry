@@ -689,3 +689,79 @@ def test_clue_mixed_request_and_response_violations_abort() -> None:
         response_data=RESP_DATA,
     )
     assert got == ([], Reason.NO_CANDIDATE)
+
+
+def test_enum_map_candidate_emitted_on_enum_changed() -> None:
+    entry = e(
+        "enum_changed",
+        ["body", "status"],
+        old_enum=["active", "inactive"],
+        new_enum=["ACTIVE", "INACTIVE"],
+    )
+    base = {"body": {"status": "active"}, "query": {}, "header": {}}
+    got, reason = run([entry], base)
+    assert reason is None
+    assert got == [
+        cand(
+            [
+                {
+                    "op": "enum_map",
+                    "path": ["body", "status"],
+                    "mapping": {"active": "ACTIVE", "inactive": "INACTIVE"},
+                }
+            ]
+        )
+    ]
+
+
+
+def test_candidates_emits_enum_map() -> None:
+    entries = [
+        {
+            "change": "enum_changed",
+            "side": Side.REQ,
+            "path": ["body", "priority"],
+            "type": "str",
+            "required": True,
+            "description": "",
+            "old_enum": ["low", "high"],
+            "new_enum": ["LOW", "HIGH"],
+        }
+    ]
+    base = {"body": {"priority": "low"}}
+    cands, reason = build(entries, base, HEADER_SOURCES, CFG_KEYS)
+    assert reason is None
+    assert cands == [
+        {
+            "request_ops": [
+                {
+                    "op": "enum_map",
+                    "path": ["body", "priority"],
+                    "mapping": {"low": "LOW", "high": "HIGH"},
+                }
+            ],
+            "response_ops": [],
+        }
+    ]
+
+
+def test_candidates_emits_encoding() -> None:
+    entries = [
+        {
+            "change": "encoding_changed",
+            "side": Side.REQ,
+            "content_type": "application/vnd.api+json",
+        }
+    ]
+    base = {"body": {"user_id": "123"}}
+    cands, reason = build(entries, base, HEADER_SOURCES, CFG_KEYS)
+    assert reason is None
+    assert cands == [
+        {
+            "request_ops": [
+                {"op": "encoding", "content_type": "application/vnd.api+json"}
+            ],
+            "response_ops": [],
+        }
+    ]
+
