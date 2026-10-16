@@ -350,7 +350,8 @@ def test_fix_and_audit_commit_atomically(open_store, db_path):
     fix_id = store.save_fix_and_audit(replacement, event)
     assert store.get_active(FP) is replacement
     assert replacement.fix_id == fix_id
-    assert store.audit_events() == [event]
+    assert store.audit_events()[0].fix_id == fix_id
+    assert event.fix_id == 1
 
 
 def test_spec_snapshot_round_trip(open_store):

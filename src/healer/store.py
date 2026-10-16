@@ -8,6 +8,7 @@ import re
 import sqlite3
 import time
 from collections.abc import Callable, Iterable
+from dataclasses import replace
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
@@ -345,7 +346,7 @@ class Store:
                     fix.wins, fix.losses, fix.created_ms or self._now_ms(), fix.last_used_ms,
                 ),
             )
-            self._insert_audit(event)
+            self._insert_audit(replace(event, fix_id=cur.lastrowid))
         fix.fix_id = cur.lastrowid
         if fix.status is FixStatus.active:
             self._active[fix.fingerprint] = fix

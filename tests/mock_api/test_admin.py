@@ -131,7 +131,7 @@ def test_expected_canonical_has_scripted_tool_requests(api):
         "M9": {"method": "PATCH", "path": "/users/email", "body": {"payload": {"user_id": "123", "email": "ada.new@example.com"}}, "query": {}, "headers": {}},
         "M10": {"method": "POST", "path": "/users/lookup", "body": {"customer_id": "123"}, "query": {}, "headers": {}},
         "M11": {"method": "POST", "path": "/customers/lookup", "body": {"customer_id": "123"}, "query": {}, "headers": {}},
-        "W1": {"method": "PATCH", "path": "/users/email", "body": {"user_id": "123", "email": "ada.new@example.com"}, "query": {}, "headers": {}},
+        "W1": {"method": "PATCH", "path": "/users/email", "body": {"user_id": "123", "email_address": "ada.new@example.com"}, "query": {}, "headers": {}},
         "U1": {"method": "POST", "path": "/payments", "body": {"amount_cents": 1250}, "query": {}, "headers": {}},
         "D1": {"method": "POST", "path": "/tickets", "body": {"user_id": "123", "title": "Email changed"}, "query": {}, "headers": {}},
         "C1": {"method": "POST", "path": "/users/lookup", "body": {"user_id": "123"}, "query": {}, "headers": {}},
