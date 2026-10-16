@@ -646,3 +646,12 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 
 - **FR-22.1** `swagger2.convert(doc)` is a pure, offline function that turns a Swagger 2.0 document into the OpenAPI 3 shape `operations()` reads. It moves `definitions` to `components/schemas` (rewriting every local `$ref`), turns an `in: body` parameter into a `requestBody` (media types from `consumes`, default `application/json`), wraps each response `schema` in `content` (media types from `produces`), lifts a non-body parameter's type keywords into a `schema`, and maps `securityDefinitions` to `components/securitySchemes`. `mock_api/fixtures/swagger2.json` is a Swagger 2.0 copy of the mock API's v1 spec.
 - **FR-22.2** `swagger2.swagger2_source(client, path)` is a `SpecSource`: it fetches the document at `path`, converts and resolves it, and returns a `LoadedSpec` whose `ops` come from `operations()`. It raises `httpx.HTTPError` or `ValueError` when the document is unavailable or malformed, so the registry stays in error-clue mode.
+
+## 22. Dashboard metric panels
+
+### Acceptance criteria
+
+| ID | Criterion | Verification |
+|---|---|---|
+| AC-77 | The dashboard provides a modular panel slot: `GET /panels/registry.js` returns 200 with a JavaScript content type, `index.html` includes the panel container and registry script, and panels mount and refresh without disrupting other views | Unit (`tests/dashboard/test_ac_77_panel_slot.py`) |
+
