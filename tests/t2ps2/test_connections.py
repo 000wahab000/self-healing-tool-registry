@@ -31,7 +31,6 @@ def cfg_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         )
     )
     monkeypatch.setenv("MCP_SERVERS_CONFIG", str(path))
-    monkeypatch.delenv("DASHBOARD_BIND_HOST", raising=False)
     monkeypatch.delenv("CONNECTIONS_TOKEN", raising=False)
     return path
 
@@ -155,19 +154,20 @@ def test_ac_59_routes_reject_stdio_and_bad_input(client: TestClient) -> None:
 def test_ac_59_remote_mode_needs_token(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("DASHBOARD_BIND_HOST", "0.0.0.0")
-    assert client.get("/api/connections").json()["auth_required"] is True
+    fwd = {"X-Forwarded-For": "203.0.113.9"}  # behind a proxy: never local
+    assert client.get("/api/connections", headers=fwd).json()["auth_required"] is True
+    assert client.get("/api/connections").json()["auth_required"] is False
     for call in (
         lambda h: client.post("/api/connections", json=MCP, headers=h),
         lambda h: client.delete("/api/connections/users", headers=h),
         lambda h: client.post("/api/connections/test", json=MCP, headers=h),
     ):
-        assert call({}).status_code == 403  # CONNECTIONS_TOKEN unset
+        assert call(fwd).status_code == 403  # CONNECTIONS_TOKEN unset
     monkeypatch.setenv("CONNECTIONS_TOKEN", "s3cret")
-    assert client.post("/api/connections", json=MCP).status_code == 401
-    bad = {"Authorization": "Bearer nope"}
+    assert client.post("/api/connections", json=MCP, headers=fwd).status_code == 401
+    bad = {**fwd, "Authorization": "Bearer nope"}
     assert client.post("/api/connections", json=MCP, headers=bad).status_code == 401
-    good = {"Authorization": "Bearer s3cret"}
+    good = {**fwd, "Authorization": "Bearer s3cret"}
     assert client.post("/api/connections", json=MCP, headers=good).status_code == 200
     assert client.delete("/api/connections/billing", headers=good).status_code == 200
 

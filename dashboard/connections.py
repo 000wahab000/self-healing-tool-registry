@@ -19,7 +19,6 @@ from fastapi.responses import FileResponse
 from healer import gateway
 
 HERE = Path(__file__).parent
-LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
 router = APIRouter()
 
 
@@ -27,16 +26,16 @@ def config_path() -> Path:
     return Path(os.environ.get("MCP_SERVERS_CONFIG") or "config/mcp_servers.json")
 
 
-def is_remote() -> bool:
-    """`dashboard/__main__.py` exports the host it binds; unset means a local run."""
-    return os.environ.get("DASHBOARD_BIND_HOST", LOCAL_HOSTS[0]) not in LOCAL_HOSTS
+def is_remote(request: Request) -> bool:
+    """Local = the browser runs on this machine and no proxy forwarded the request. The bind
+    address does not matter: a hosted or proxied dashboard always needs the token."""
+    client = request.client.host if request.client else ""
+    forwarded = "x-forwarded-for" in request.headers or "forwarded" in request.headers
+    return forwarded or client not in ("127.0.0.1", "::1")
 
 
 def require_write(request: Request) -> None:
-    # Local means both: bound to localhost AND the request comes from this machine, so
-    # starting the app another way (uvicorn --host 0.0.0.0) cannot open these routes.
-    client = request.client.host if request.client else ""
-    if not is_remote() and client in ("127.0.0.1", "::1"):
+    if not is_remote(request):
         return
     expected = os.environ.get("CONNECTIONS_TOKEN")
     if not expected:
@@ -100,7 +99,7 @@ async def page() -> FileResponse:
 
 
 @router.get("/api/connections")
-async def list_connections() -> dict:
+async def list_connections(request: Request) -> dict:
     data = _load()
     return {
         "servers": [_view_server(s) for s in data["servers"]],
@@ -111,7 +110,7 @@ async def list_connections() -> dict:
             }
             for a in data["apis"]
         ],
-        "auth_required": is_remote(),
+        "auth_required": is_remote(request),
         "defaults": {k: v[0] for k, v in gateway.API_KINDS.items()},
     }
 
