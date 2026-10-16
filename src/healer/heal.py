@@ -258,9 +258,13 @@ class Healer:
             raise _Abort(reason)
         index = await self._choose(h, found) if len(found) > 1 else 0
         pick = found[index]
+        order = self._schema_order(h)
+        pattern = diagnose.abstract_signature(pick.get("request_ops", []), order)
+        sig = dict(h.signature)
+        sig["abstract"] = pattern
         return Fix(
             h.fp,
-            h.signature,
+            sig,
             h.tool.name,
             outcome.cls,
             pick["request_ops"],
@@ -277,6 +281,12 @@ class Healer:
         if winner is not None:
             h.path = DecisionPath.tiebreak
             return winner
+        order = self._schema_order(h)
+        for idx, cand in enumerate(found):
+            pat = diagnose.abstract_signature(cand.get("request_ops", []), order)
+            if self._store.is_rule(pat):
+                h.path = DecisionPath.tiebreak
+                return idx
         h.path = DecisionPath.jev
         try:
             if self._jev is None:
@@ -382,6 +392,9 @@ class Healer:
                 self._store.record_result(fix.fix_id, True)
             else:
                 h.fix_id = self._store.save_fix(fix)
+                pat = fix.signature.get("abstract")
+                if pat:
+                    self._store.record_rule_win(pat)
             self._store.audit(self._event(h, HealOutcome.RECOVERED, None))
         except sqlite3.Error:  # a fix that cannot be logged is not applied
             raise _Abort(Reason.VERIFY_FAILED) from None
