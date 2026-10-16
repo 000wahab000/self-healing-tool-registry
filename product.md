@@ -649,7 +649,7 @@ T1-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 
 ## 19. Track T2-PS1: MCP Client, Loader and Front Door
 
-T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-30 to AC-39.
+T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-30 to AC-39 (used by the old P1 work below) and AC-63 to AC-69 for T2-1 onward.
 
 ### MCP front door (old P1-1 to P1-3, X8)
 
