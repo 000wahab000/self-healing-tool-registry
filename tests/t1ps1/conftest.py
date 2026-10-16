@@ -18,7 +18,7 @@ def repair_registry(tmp_path):
     """One upstream "users" registry; get_user is configured read-only so a pick needs no dry run."""
 
     @asynccontextmanager
-    async def build(llm):
+    async def build(llm, jev=None):
         drift = create_drift_server(profile="users")
         server = drift.server
         store = Store(str(tmp_path / "repair.db"))
@@ -34,6 +34,7 @@ def repair_registry(tmp_path):
                         session,
                         store,
                         {},
+                        jev,
                         overrides={
                             "users__get_user": {"write": False, "idempotent": True}
                         },

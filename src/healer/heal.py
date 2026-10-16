@@ -42,6 +42,20 @@ if TYPE_CHECKING:
 QUESTION = (
     "Which candidate fix correctly adapts the agent's request to the changed API?"
 )
+# Tier-1 refusals the repair agent may still fix (FR-17.15). Never NO_SAFE_VALUE (a value the
+# agent did not send would have to be invented), NOT_DRIFT, KNOWN_UNFIXABLE, DEADLINE or
+# anything after a write.
+REPAIRABLE = frozenset(
+    {Reason.NO_CANDIDATE, Reason.LOW_CONFIDENCE, Reason.UNSAFE_PATCH, Reason.VERIFY_FAILED}
+)
+TRIAGE_QUESTION = (
+    "A deterministic healer refused this failed tool call. Should a repair agent try to adapt "
+    "the agent's own arguments to the changed API, or should the error go back to the agent?"
+)
+TRIAGE_OPTIONS = (
+    "repair: the API's shape changed and the agent's existing arguments can be re-mapped to it",
+    "report: the agent sent a bad or missing value, or the API refused for a business reason",
+)
 # FR-11.3: these abort reasons make the fingerprint KNOWN_UNFIXABLE for the next 60 s.
 NEGATIVE = frozenset(
     {
@@ -199,9 +213,18 @@ class Healer:
                 h.path = DecisionPath.cache
                 h.fix_id = cand.fix_id
             else:
-                if h.outcome.cls is not ErrorClass.E6:
-                    await self._diagnose(h)
-                fix = await self._candidate(h)
+                try:
+                    if h.outcome.cls is not ErrorClass.E6:
+                        await self._diagnose(h)
+                    return await self._apply(h, await self._candidate(h))
+                except OpError as refused:
+                    if not await self._triage(h, refused.reason):
+                        raise
+                return await self._apply(h, await self._repaired(h))
+        return await self._apply(h, fix)
+
+    async def _apply(self, h: _Heal, fix: Fix) -> Any:
+        """Gate, optional dry run, verify, commit: the same path for every tier."""
         self._gate(h, fix)
         if h.needs_preverify:
             await self._preverify(h, fix)
@@ -277,8 +300,6 @@ class Healer:
                 found, reason = [{"request_ops": [], "response_ops": []}], None
             else:
                 found, reason = [], Reason.NO_CANDIDATE
-        if reason is Reason.NO_CANDIDATE and self._repair and h.ops is not None:
-            return await self._repaired(h)
         if reason is not None:
             raise _Abort(reason)
         index = await self._choose(h, found) if len(found) > 1 else 0
@@ -299,16 +320,46 @@ class Healer:
             h.schema_hash,
         )
 
-    async def _repaired(self, h: _Heal) -> Fix:
-        """Tier 2 (S3): the repair agent's proposal, checked here, then gated and verified
-        like any fix. Only a break tier 1 cannot explain gets here; a missing value
-        (NO_SAFE_VALUE) never does, so the model is never asked to supply one."""
-        if (
-            h.deadline is not None
-        ):  # the model gets its own budget (MTTR is reported per tier)
+    def _extend(self, h: _Heal) -> None:
+        """Tier 2 gets its own budget (MTTR is reported per tier)."""
+        if h.deadline is not None:
             h.deadline.reschedule(
                 asyncio.get_running_loop().time() + repair_agent.REPAIR_DEADLINE_S
             )
+
+    async def _triage(self, h: _Heal, reason: Reason) -> bool:
+        """FR-17.15: may the repair agent try this refused break? With Jev, Jev decides
+        (repair, or send the error to the agent); without Jev only NO_CANDIDATE is tried."""
+        if self._repair is None or h.ops is None or h.tier is not Tier.T1:
+            return False
+        if reason not in REPAIRABLE:
+            return False
+        write = bool(h.tool.config.get("write"))
+        if reason is Reason.VERIFY_FAILED and (h.transient or write):
+            return False  # the failed replay may have reached the API
+        if self._jev is None:
+            return reason is Reason.NO_CANDIDATE
+        self._extend(h)
+        state = repair_agent.render(
+            h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg)
+        )
+        try:
+            choice = await self._jev.choose(
+                f"{state}\nTIER-1 RESULT: refused ({reason.value})",
+                TRIAGE_QUESTION,
+                list(TRIAGE_OPTIONS),
+            )
+        except JevUnavailable:
+            return False  # no judge, no repair: the agent gets the error
+        h.jev_tokens += choice.tokens
+        h.path = DecisionPath.jev
+        return choice.index == 0 and safety.jev_ok(choice.confidence, write)
+
+    async def _repaired(self, h: _Heal) -> Fix:
+        """Tier 2 (S3): the repair agent's proposal, checked here, then gated and verified
+        like any fix. Only a refusal `_triage` lets through gets here; a missing value
+        (NO_SAFE_VALUE) never does, so the model is never asked to supply one."""
+        self._extend(h)
         h.tier, h.path = Tier.T2, DecisionPath.repair
         prompt = repair_agent.render(
             h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg)
