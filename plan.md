@@ -515,3 +515,5 @@ Two teams of one person each. Each person runs two machines, so four agents work
 | 2026-10-14 | 12E | done | Dashboard Demo view (cofounder.co style): prompt + scenario or dashboard-only `CUSTOM` drift, side-by-side replay with step trackers, per-call input / wire / output, registry view, readable patch log with `heal_ms`; refused tools are skipped and the task continues (prompt and Demo run); `python-dotenv` declared |
 | 2026-10-15 | 13 step 0 | done | Two-person tracks and ownership (`AGENTS.md`); `OperationSpec`, `SpecSource`, `FixStore` contracts with `tests/integration/test_contracts.py` |
 | 2026-10-16 | 13 re-plan | done | Direction changed to an MCP gateway that heals upstream MCP servers; work split into two teams on four machines (T1-PS1, T1-PS2, T2-PS1, T2-PS2); old P1 to P4 items mapped to new ones |
+| 2026-10-16 | 13 T1-0 (S1) | done | S1 sibling-tool candidate propagation (AC-40) |
+
