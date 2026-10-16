@@ -104,9 +104,7 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             mutation = self.mutation  # a drift picked before Start applies to this run
-            base_heal = self.base_heal
             self._clear()
-            self.base_heal = base_heal  # the patch log keeps every heal until Reset
             http = {
                 a: httpx.AsyncClient(
                     transport=httpx.ASGITransport(app=m), base_url="http://mock"
@@ -223,6 +221,8 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             self._clear()
+            # Only Reset empties the patch log; Start, scenarios and drifts keep adding to it.
+            self.base_heal = len(self.store.audit_events())
 
     async def explore(
         self,
@@ -276,7 +276,6 @@ class Dashboard:
         self.epoch += 1
         events = self.store.call_events()
         self.base_event = events[-1]["event_id"] if events else 0
-        self.base_heal = len(self.store.audit_events())
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces = {a: [] for a in self.mocks}
 
