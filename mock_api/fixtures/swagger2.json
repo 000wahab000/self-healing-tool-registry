@@ -1,0 +1,380 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Mock API",
+    "version": "0.1.0"
+  },
+  "basePath": "/",
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/users/lookup": {
+      "post": {
+        "operationId": "get_user",
+        "summary": "Get User",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserRef"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "schema": {
+              "$ref": "#/definitions/User"
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "schema": {
+              "$ref": "#/definitions/HTTPValidationError"
+            }
+          }
+        }
+      }
+    },
+    "/users/email": {
+      "patch": {
+        "operationId": "update_email",
+        "summary": "Update Email",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateEmail"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "schema": {
+              "$ref": "#/definitions/EmailOut"
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "schema": {
+              "$ref": "#/definitions/HTTPValidationError"
+            }
+          }
+        }
+      }
+    },
+    "/users/manager": {
+      "post": {
+        "operationId": "set_manager",
+        "summary": "Set Manager",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SetManager"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "schema": {
+              "$ref": "#/definitions/ManagerOut"
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "schema": {
+              "$ref": "#/definitions/HTTPValidationError"
+            }
+          }
+        }
+      }
+    },
+    "/users/manager/validate": {
+      "post": {
+        "operationId": "validate_manager",
+        "summary": "Validate Manager",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SetManager"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "schema": {
+              "$ref": "#/definitions/ManagerOut"
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "schema": {
+              "$ref": "#/definitions/HTTPValidationError"
+            }
+          }
+        }
+      }
+    },
+    "/tickets": {
+      "post": {
+        "operationId": "create_ticket",
+        "summary": "Create Ticket",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": false,
+            "type": "string",
+            "title": "Idempotency-Key"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NewTicket"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "schema": {
+              "$ref": "#/definitions/TicketOut"
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "schema": {
+              "$ref": "#/definitions/HTTPValidationError"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "EmailOut": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "Id"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "email"
+      ],
+      "title": "EmailOut"
+    },
+    "HTTPValidationError": {
+      "properties": {
+        "detail": {
+          "items": {
+            "$ref": "#/definitions/ValidationError"
+          },
+          "type": "array",
+          "title": "Detail"
+        }
+      },
+      "type": "object",
+      "title": "HTTPValidationError"
+    },
+    "ManagerOut": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "Id"
+        },
+        "manager_id": {
+          "type": "string",
+          "title": "Manager Id"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "manager_id"
+      ],
+      "title": "ManagerOut"
+    },
+    "NewTicket": {
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "User Id"
+        },
+        "title": {
+          "type": "string",
+          "title": "Title"
+        }
+      },
+      "type": "object",
+      "required": [
+        "user_id",
+        "title"
+      ],
+      "title": "NewTicket"
+    },
+    "SetManager": {
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "User Id",
+          "description": "Employee to update"
+        },
+        "manager_id": {
+          "type": "string",
+          "title": "Manager Id",
+          "description": "Manager to assign"
+        }
+      },
+      "type": "object",
+      "required": [
+        "user_id",
+        "manager_id"
+      ],
+      "title": "SetManager"
+    },
+    "TicketOut": {
+      "properties": {
+        "ticket_id": {
+          "type": "string",
+          "title": "Ticket Id"
+        },
+        "user_id": {
+          "type": "string",
+          "title": "User Id"
+        },
+        "title": {
+          "type": "string",
+          "title": "Title"
+        }
+      },
+      "type": "object",
+      "required": [
+        "ticket_id",
+        "user_id",
+        "title"
+      ],
+      "title": "TicketOut"
+    },
+    "UpdateEmail": {
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "User Id"
+        },
+        "email": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+          "title": "Email"
+        }
+      },
+      "type": "object",
+      "required": [
+        "user_id",
+        "email"
+      ],
+      "title": "UpdateEmail"
+    },
+    "User": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "Id"
+        },
+        "name": {
+          "type": "string",
+          "title": "Name"
+        },
+        "email": {
+          "type": "string",
+          "title": "Email"
+        }
+      },
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "email"
+      ],
+      "title": "User"
+    },
+    "UserRef": {
+      "properties": {
+        "user_id": {
+          "type": "string",
+          "title": "User Id"
+        }
+      },
+      "type": "object",
+      "required": [
+        "user_id"
+      ],
+      "title": "UserRef"
+    },
+    "ValidationError": {
+      "properties": {
+        "loc": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "type": "array",
+          "title": "Location"
+        },
+        "msg": {
+          "type": "string",
+          "title": "Message"
+        },
+        "type": {
+          "type": "string",
+          "title": "Error Type"
+        },
+        "input": {
+          "title": "Input"
+        },
+        "ctx": {
+          "type": "object",
+          "title": "Context"
+        }
+      },
+      "type": "object",
+      "required": [
+        "loc",
+        "msg",
+        "type"
+      ],
+      "title": "ValidationError"
+    }
+  }
+}

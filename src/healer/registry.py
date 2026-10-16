@@ -118,6 +118,7 @@ class Registry:
                 attempt=self._attempt,
                 clock=clock,
                 spec_mode=spec_mode,
+                tools=lambda: list(self.defs.values()),
             )
             if store
             else None

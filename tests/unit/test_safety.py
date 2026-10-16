@@ -162,3 +162,40 @@ def test_e5_fix_that_would_re_send_follows_the_replay_rule() -> None:
 )
 def test_jev_ok_thresholds(confidence: float, is_write: bool, expected: bool) -> None:
     assert jev_ok(confidence, is_write) is expected
+
+
+def test_enum_map_lossy_rejected_by_safety() -> None:
+    lossy_op = {
+        "op": "enum_map",
+        "path": ["body", "status"],
+        "mapping": {"active": "ON", "pending": "ON"},
+    }
+    assert (
+        run([lossy_op], base_doc={"body": {"status": "active"}}) == Reason.UNSAFE_PATCH
+    )
+
+
+def test_enum_map_source_missing_in_base_doc_is_no_safe_value() -> None:
+    op = {
+        "op": "enum_map",
+        "path": ["body", "missing_field"],
+        "mapping": {"active": "ON"},
+    }
+    assert run([op], base_doc={"body": {}}) == Reason.NO_SAFE_VALUE
+
+
+def test_enum_map_destination_not_in_spec_is_unsafe_patch() -> None:
+    op = {
+        "op": "enum_map",
+        "path": ["body", "status"],
+        "mapping": {"active": "ON"},
+    }
+    assert (
+        run(
+            [op],
+            base_doc={"body": {"status": "active"}},
+            spec_paths={("body", "other")},
+        )
+        == Reason.UNSAFE_PATCH
+    )
+
