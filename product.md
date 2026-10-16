@@ -630,6 +630,13 @@ Note: "Store (T0)" and the negative cache are S6 and S7 (built). Jev is optional
 | AC-42 | (STRETCH, X3) `encoding` operation heals a `415 Unsupported Media Type` change declared in the spec | Integration |
 | AC-44 | (STRETCH, S2) Rule mining: after 3 wins of the same pattern, subsequent ambiguous breaks heal without Jev | Integration |
 | AC-47 | (FUTURE, X4) Precomputed fix allows the first failing call after a spec change to recover at Tier-0 speed | Integration |
+| AC-43 | (S3) The tier-2 repair agent heals a break tier 1 cannot explain (T-MOVE: tool and argument renamed together) with one `RECOVERED` audit row at tier 2, path `repair`, its tokens recorded; the fix is reused at tier 0; without the agent, or when the model is unavailable or declines, the call is refused `NO_CANDIDATE`; the agent gets its own 30 s budget | `tests/t1ps1/test_ac_43_repair_agent.py` |
+| AC-45 | (S3) An unsafe proposal (unknown operation, a route op from the model, a destination outside the chosen operation, an op outside the DSL) is refused `UNSAFE_PATCH` with nothing sent; a missing value (`NO_SAFE_VALUE`, M8) never reaches the model; the prompt holds argument types, not values | same file |
+
+#### S3: Tier-2 repair agent
+- **FR-17.12** When tier 1 finds no candidate (`NO_CANDIDATE`) and a repair agent is configured, an LLM gets a structural prompt (original operation, current spec operations, error class and code, argument types, enum argument values only, config key names) and answers with an operation name and DSL ops. The error text is passed as untrusted data.
+- **FR-17.13** The proposal must name an operation in the current spec, use only DSL ops, never a route op of its own (the route comes from the chosen operation), and map enums only to values in the new schema. It then passes the same safety gate, dry run and live verification as tier 1, and a write tool needs the same dry-run route as a Jev pick. `NO_SAFE_VALUE` breaks never reach the model.
+- **FR-17.14** The repair runs with its own 30 s budget (`REPAIR_DEADLINE_S`), audits tier 2 with path `repair` and `llm_tokens`, and stores its fix for tier-0 reuse. It is off unless configured (`python -m healer.mcp_server --repair`, needs `NVIDIA_API_KEY`).
 
 ## 18. Track T1-PS2: Mock Drift Server and Benchmark
 

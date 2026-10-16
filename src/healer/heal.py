@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from healer import candidates, canonical, contract, diagnose, fingerprint, safety
+from healer import repair as repair_agent
 from healer.detect import VALUE_KINDS
 from healer.jev import JevClient, JevUnavailable, render_option, render_state
 from healer.models import (
@@ -87,6 +88,8 @@ class _Heal:
     path: DecisionPath | None = None
     fix_id: int | None = None
     jev_tokens: int = 0
+    llm_tokens: int = 0  # the tier-2 repair agent's tokens
+    deadline: asyncio.Timeout | None = None
     waiter: bool = False  # single-flight follower: writes no audit event
     ops: dict | None = None  # operations of the current spec; None in clue mode
     new_op: dict | None = None
@@ -109,12 +112,14 @@ class Healer:
         clock: Callable[[], float],
         spec_mode: str = SPEC_MODE,
         tools: Callable[[], Iterable[ToolDefinition]] | None = None,
+        repair: repair_agent.RepairAgent | None = None,
     ) -> None:
         self._store, self._jev, self._spec_source = store, jev, spec_source
         self._spec_mode = spec_mode
         self._cfg, self._header_sources = cfg, header_sources
         self._attempt, self._clock = attempt, clock
         self._tools = tools
+        self._repair = repair
         self._flights: dict[str, asyncio.Future[Reason | None]] = {}
         self._saved_specs: set[str] = set()
         # fingerprint -> when its first failing response arrived, until a heal recovers it.
@@ -128,13 +133,17 @@ class Healer:
         h = _Heal(tool, base, outcome, t0, self._clock())
         h.fp, h.signature = fingerprint.fingerprint(tool.name, outcome)
         try:
-            async with asyncio.timeout(HEAL_DEADLINE_S - (self._clock() - t0)):
+            async with asyncio.timeout(
+                HEAL_DEADLINE_S - (self._clock() - t0)
+            ) as h.deadline:
                 return await self._run(h)
         except TimeoutError:
             reason = Reason.DEADLINE
         except OpError as e:
             reason = e.reason
-        except Exception:  # a bug must still end in one audit row and a structured error
+        except (
+            Exception
+        ):  # a bug must still end in one audit row and a structured error
             logging.getLogger(__name__).exception("heal failed for %s", tool.name)
             reason = Reason.VERIFY_FAILED
         return self._abort(h, reason)
@@ -226,7 +235,9 @@ class Healer:
             h.tool.base_op, h.ops, self._known_tools()
         )
         if h.new_op is None:
-            raise _Abort(Reason.NO_CANDIDATE)
+            if self._repair is None:
+                raise _Abort(Reason.NO_CANDIDATE)
+            return  # nothing in the spec matches: the repair agent may still find the operation
         h.entries = diagnose.diff(h.tool.base_op, h.new_op)
         if not h.entries and h.tool.base_op["method"] == "MCP":
             # An MCP error carries no field paths: with the tool's schema unchanged, the
@@ -266,6 +277,8 @@ class Healer:
                 found, reason = [{"request_ops": [], "response_ops": []}], None
             else:
                 found, reason = [], Reason.NO_CANDIDATE
+        if reason is Reason.NO_CANDIDATE and self._repair and h.ops is not None:
+            return await self._repaired(h)
         if reason is not None:
             raise _Abort(reason)
         index = await self._choose(h, found) if len(found) > 1 else 0
@@ -283,6 +296,48 @@ class Healer:
             pick["response_ops"],
             h.tier,
             h.path,
+            h.schema_hash,
+        )
+
+    async def _repaired(self, h: _Heal) -> Fix:
+        """Tier 2 (S3): the repair agent's proposal, checked here, then gated and verified
+        like any fix. Only a break tier 1 cannot explain gets here; a missing value
+        (NO_SAFE_VALUE) never does, so the model is never asked to supply one."""
+        if (
+            h.deadline is not None
+        ):  # the model gets its own budget (MTTR is reported per tier)
+            h.deadline.reschedule(
+                asyncio.get_running_loop().time() + repair_agent.REPAIR_DEADLINE_S
+            )
+        h.tier, h.path = Tier.T2, DecisionPath.repair
+        prompt = repair_agent.render(
+            h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg)
+        )
+        try:
+            proposal, h.llm_tokens = await self._repair.propose(prompt)
+        except repair_agent.RepairUnavailable:
+            raise _Abort(Reason.NO_CANDIDATE) from None
+        if proposal.get("operation") is None:
+            raise _Abort(Reason.NO_CANDIDATE)
+        try:
+            h.new_op, req, resp = repair_agent.check(proposal, h.tool.base_op, h.ops)
+        except ValueError:
+            raise _Abort(Reason.UNSAFE_PATCH) from None
+        h.entries = diagnose.diff(h.tool.base_op, h.new_op)
+        h.needs_preverify = bool(
+            h.tool.config.get("write")
+        )  # FR-8.6, as for a Jev pick
+        sig = dict(h.signature)
+        sig["abstract"] = diagnose.abstract_signature(req, self._schema_order(h))
+        return Fix(
+            h.fp,
+            sig,
+            h.tool.name,
+            h.outcome.cls,
+            req,
+            resp,
+            Tier.T2,
+            DecisionPath.repair,
             h.schema_hash,
         )
 
@@ -383,7 +438,11 @@ class Healer:
     async def _send(
         self, h: _Heal, fix: Fix | None, route: dict | None = None
     ) -> Outcome:
-        remaining = HEAL_DEADLINE_S - (self._clock() - h.t0)
+        when = h.deadline.when() if h.deadline else None
+        if when is None:
+            remaining = HEAL_DEADLINE_S - (self._clock() - h.t0)
+        else:  # the live deadline: tier 2 may have extended it
+            remaining = when - asyncio.get_running_loop().time()
         return await self._attempt(
             h.tool, h.base, fix, min(REPLAY_TIMEOUT_MAX_S, remaining), route
         )
@@ -400,7 +459,9 @@ class Healer:
                 self._store.promote(fix.fix_id)
                 self._store.record_result(fix.fix_id, True)
                 fix.status = FixStatus.active
-            elif h.tier is Tier.T0:  # a replay of one fix is not new evidence for a rule
+            elif (
+                h.tier is Tier.T0
+            ):  # a replay of one fix is not new evidence for a rule
                 self._store.record_result(fix.fix_id, True)
             else:
                 h.fix_id = self._store.save_fix(fix)
@@ -455,7 +516,9 @@ class Healer:
                 sibling_sig["tool"] = tool.name
                 sibling_fp = canonical.sha256(sibling_sig)[:16]
                 sibling_sig["abstract"] = fix.signature.get("abstract", "")
-                if not self._store.get_active(sibling_fp) and not self._store.get_candidate(sibling_fp):
+                if not self._store.get_active(
+                    sibling_fp
+                ) and not self._store.get_candidate(sibling_fp):
                     cand = Fix(
                         fingerprint=sibling_fp,
                         signature=sibling_sig,
@@ -501,9 +564,20 @@ class Healer:
                     for p, leaf in diagnose.flatten_request(tool.base_op).items()
                 }
                 base = {
-                    "route": {"method": tool.base_op["method"], "path": tool.base_op["path"]},
-                    "body": {k: v for k, v in dummy_args.items() if ("body", k) in diagnose.flatten_request(tool.base_op)},
-                    "query": {k: v for k, v in dummy_args.items() if ("query", k) in diagnose.flatten_request(tool.base_op)},
+                    "route": {
+                        "method": tool.base_op["method"],
+                        "path": tool.base_op["path"],
+                    },
+                    "body": {
+                        k: v
+                        for k, v in dummy_args.items()
+                        if ("body", k) in diagnose.flatten_request(tool.base_op)
+                    },
+                    "query": {
+                        k: v
+                        for k, v in dummy_args.items()
+                        if ("query", k) in diagnose.flatten_request(tool.base_op)
+                    },
                     "header": {},
                 }
             else:
@@ -511,10 +585,14 @@ class Healer:
                     "route": {"method": old_op["method"], "path": old_op["path"]},
                     "body": {
                         k: 1 if v.get("type") == "integer" else "sample"
-                        for k, v in (old_op.get("body_schema") or {}).get("properties", {}).items()
+                        for k, v in (old_op.get("body_schema") or {})
+                        .get("properties", {})
+                        .items()
                     },
                     "query": {
-                        p["name"]: 1 if p.get("schema", {}).get("type") == "integer" else "sample"
+                        p["name"]: 1
+                        if p.get("schema", {}).get("type") == "integer"
+                        else "sample"
                         for p in old_op.get("params", [])
                         if p.get("in") == "query"
                     },
@@ -536,11 +614,15 @@ class Healer:
             rank = {
                 ("removed", p): i
                 for i, p in enumerate(diagnose.flatten_request(old_op))
-            } | {("added", p): i for i, p in enumerate(diagnose.flatten_request(new_op))}
+            } | {
+                ("added", p): i for i, p in enumerate(diagnose.flatten_request(new_op))
+            }
             order = sorted(
                 entries, key=lambda e: rank.get((e["change"], tuple(e["path"])), -1)
             )
-            winner = candidates.tiebreak(found, order, write=write) if len(found) > 1 else 0
+            winner = (
+                candidates.tiebreak(found, order, write=write) if len(found) > 1 else 0
+            )
             if winner is None:
                 continue
             pick = found[winner]
@@ -577,7 +659,9 @@ class Healer:
                 v_list = []
 
             protocol = "rest"
-            if old_op["method"] == "MCP":  # the failure shape adapters/mcp_upstream.send returns
+            if (
+                old_op["method"] == "MCP"
+            ):  # the failure shape adapters/mcp_upstream.send returns
                 moved = any(e["change"] == "route_changed" for e in entries)
                 protocol, cls, diff_sig = "mcp", ErrorClass.E2, None
                 raw_code = "-32601" if moved else "isError"
@@ -590,7 +674,9 @@ class Healer:
                 cls=cls, protocol=protocol, raw_code=raw_code, violations=v_list
             )
             fp, sig = fingerprint.fingerprint(tool_name, predicted, diff_sig)
-            sig["abstract"] = diagnose.abstract_signature(pick.get("request_ops", []), order)
+            sig["abstract"] = diagnose.abstract_signature(
+                pick.get("request_ops", []), order
+            )
 
             if not self._store.get_active(fp) and not self._store.get_candidate(fp):
                 cand_fix = Fix(
@@ -649,5 +735,6 @@ class Healer:
             mttr_ms=int((now - first) * 1000),
             heal_ms=int((now - h.detected) * 1000),
             jev_tokens=h.jev_tokens,
+            llm_tokens=h.llm_tokens,
             raw_error=sanitize(canonical.dumps(blob), self._cfg.values()),
         )

@@ -25,7 +25,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from healer import canonical
+from healer import canonical, repair
 from healer.gateway import Gateway, connect_upstreams
 from healer.openapi_loader import openapi_source
 from healer.registry import Registry
@@ -160,6 +160,11 @@ def _arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--no-rest", action="store_true", help="serve only the upstream MCP tools"
     )
+    parser.add_argument(
+        "--repair",
+        action="store_true",
+        help="enable the tier-2 repair agent for upstream MCP tools (needs NVIDIA_API_KEY)",
+    )
     parser.add_argument("--allowed-host", action="append")
     parser.add_argument("--allowed-origin", action="append")
     return parser.parse_args(argv)
@@ -196,8 +201,15 @@ async def _serve(args: argparse.Namespace) -> None:
                     await rest_registry.load()
                     registries.append(rest_registry)
                 if getattr(args, "mcp_servers", None):
+                    agent = (
+                        repair.from_env() if getattr(args, "repair", False) else None
+                    )
+                    if getattr(args, "repair", False) and agent is None:
+                        raise ValueError(
+                            "--repair needs NVIDIA_API_KEY in the environment"
+                        )
                     registries += await stack.enter_async_context(
-                        connect_upstreams(args.mcp_servers, store)
+                        connect_upstreams(args.mcp_servers, store, repair=agent)
                     )
                 if not registries:
                     raise ValueError("nothing to serve: --no-rest needs --mcp-servers")

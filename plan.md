@@ -165,6 +165,7 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | 2026-10-16 | T1-0 (X3) | done | X3 new operations enum_map and encoding (AC-41, AC-42) |
 | 2026-10-16 | T1-0 (X4) | done | X4 fix precompute contract (AC-47, guarded) |
 | 2026-10-16 | T1-1 to T1-4 | done | MCP outcomes classified in the adapter (FR-24.2), tool-rename diagnosis (`diagnose.renamed_op`), MCP heal path and MCP precompute (AC-64, AC-65) |
+| 2026-10-16 | T1-5 (S3) | done | Tier-2 repair agent `src/healer/repair.py` (FR-17.12 to 17.14, AC-43, AC-45). Mock mutation T-MOVE added. Live check on gpt-oss-20b: T-MOVE healed 6 of 6 runs, M8 refused 2 of 2 without a model call (one manual run, not a benchmark) |
 
 ### Progress log: T1-PS2
 
