@@ -28,7 +28,7 @@ Only the owner edits these files. Anyone else asks the owner (issue or PR commen
 
 Shared files: append only, and only in your own subsection.
 
-- `product.md`: each machine writes the FR and AC for its own items before writing code (`agent.md` invariant 10), inside its own `## Track <machine>` section only. Reserved AC numbers: **T2-PS1 AC-30 to AC-39, T1-PS1 AC-40 to AC-49, T1-PS2 AC-50 to AC-54, T2-PS2 AC-55 to AC-59.** AC-28 is P3's healthy-call overhead AC (done); AC-29 stays unassigned.
+- `product.md`: each machine writes the FR and AC for its own items before writing code (`agent.md` invariant 10), inside its own `## Track <machine>` section only. Reserved AC numbers: **T2-PS1 AC-30 to AC-39 (taken by the old P1 work) and AC-63 to AC-69 for new items, T1-PS1 AC-40 to AC-49, T1-PS2 AC-50 to AC-54, T2-PS2 AC-55 to AC-59.** AC-28 and AC-60 to AC-62 are P3's finished overhead and Swagger 2.0 ACs; AC-29 stays unassigned.
 - `plan.md`: tick your own `T1-*` or `T2-*` boxes, and add progress-log rows only to your own machine's table ("Progress log: T1-PS1" and so on).
 - `pyproject.toml`: T2-PS1 adds new optional groups only (`mcp`, `graphql`, `grpc`, `postgres`). Any other change goes through T1-PS1.
 - `tests/conftest.py` and `tests/integration/conftest.py`: T1-PS1 owns them. Everyone else adds fixtures in a `conftest.py` inside their own test folder.

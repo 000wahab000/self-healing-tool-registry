@@ -567,6 +567,10 @@ Note: "Store (T0)" and the negative cache in the diagram are STRETCH (S6, S7). J
 | AC-25 | An `E3` fixture (non-JSON body) returns a structured error with reason `UNSUPPORTED_CLASS`, writes exactly one audit event and replays nothing | Integration |
 | AC-26 | (STRETCH, S8) M10: the heal produces the same operations as M1, the final mock state is correct, no field, header or value in any request is derived from the injected text, and the audit decision path matches M1's | Integration |
 | AC-27 | The deterministic tie-breaker: M6-D yields exactly one winner, M6-N yields none, and on a write tool an order-only or type-only advantage is not a win | Unit table |
+| AC-28 | The registry adds < 10 ms p95 per call, excluding network. A healthy `Registry.call()` against the in-process mock is less than 10 ms p95 slower than the same request sent straight through the transport the registry wraps, over at least 200 calls on each side | Unit (P3) |
+| AC-60 | A Swagger 2.0 copy of the mock spec (`mock_api/fixtures/swagger2.json`) converts to exactly the same `operations()` map as the mock API's own OpenAPI 3 document, for every operation (body schemas, params, response schemas, descriptions) | Unit (P3) |
+| AC-61 | Loaded through `swagger2_source` as the base spec, the Swagger 2.0 fixture heals M1 on the first `get_user` call and returns the v1 user | Integration (P3) |
+| AC-62 | `convert` maps `securityDefinitions` to `components/securitySchemes` and the resulting `security` list matches the contract (2.0 `basic` to 3.0 `http`/`basic`, `apiKey` and `oauth2` preserved) | Unit (P3) |
 | AC-55 | The spec watcher snapshots a changed spec within one poll interval, does no extra work for an unchanged spec, backs off a failing source until it recovers, and calls `Healer.precompute(old, new)` only when the healer provides it | Unit |
 
 ### Traceability
@@ -589,6 +593,8 @@ Note: "Store (T0)" and the negative cache in the diagram are STRETCH (S6, S7). J
 | F14 | FR-14.1 | AC-17 |
 | F15 | FR-15.1 to 15.8 | AC-14 to AC-17, AC-23 |
 | F16 | FR-16.1 to 16.4 | AC-18 |
+| F21 | FR-21.1 | AC-28 |
+| F22 | FR-22.1 to 22.2 | AC-60 to AC-62 |
 | F18 | FR-18.1 to 18.5 | AC-55 |
 | S6 | FR-5.1, FR-5.2, FR-5.6, FR-10.3, FR-10.4 | AC-11 |
 | S7 | FR-10.5, FR-11.3 | AC-12, AC-19 |
@@ -643,12 +649,88 @@ T1-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 
 ## 19. Track T2-PS1: MCP Client, Loader and Front Door
 
-T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-30 to AC-39.
+T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-30 to AC-39 (used by the old P1 work below) and AC-63 to AC-69 for T2-1 onward.
+
+### MCP front door (old P1-1 to P1-3, X8)
+
+#### Functional requirements
+
+- **FR-X8.1:** The MCP stdio server exposes `Registry.tools()` without changing the frozen tool definitions; each tool's `agent_schema` is its MCP `inputSchema`.
+- **FR-X8.2:** Tool calls invoke only `Registry.call()`. Registry error dictionaries, including heal refusals, are returned as structured content with `isError: true`; successful data is returned with `isError: false`.
+- **FR-X8.3:** The server never sends `tools/list_changed`; protocol traffic alone uses stdout and diagnostics use stderr.
+- **FR-X8.4:** `python -m healer.mcp_server` accepts `--base-url`, `--spec-path`, `--tools`, and `--db`; startup configuration is read from the environment, the injected HTTP client and custom spec path are used for both initial spec load and healing, and owned resources are closed on shutdown. A named `healer-mcp` console command is blocked pending P2 approval.
+- **FR-X8.5 (P1-2, pending):** Streamable HTTP reuses a shared registry, binds to localhost by default, and requires an optional bearer token for remote access.
+- **FR-X8.6 (P1-2, pending):** Concurrent MCP calls preserve single-flight healing, so five equivalent concurrent requests trigger one heal.
+- **FR-X8.7 (P1-3, pending):** Client hand-off configuration is opt-in.
+
+#### Acceptance criteria
+
+- **AC-30:** MCP `tools/list` matches the registry's tools and schemas exactly.
+- **AC-31:** A healthy `get_user` MCP call returns the registry result.
+- **AC-32:** After an M1 mutation in the same session, the tool schema remains unchanged and no `tools/list_changed` notification is sent.
+- **AC-33:** An M8 refusal is returned as structured content with `isError: true` and its reason.
+- **AC-34:** The module CLI uses a custom spec path for startup and healing, cleans up its resources, and keeps protocol stdout free of diagnostics; a named console command remains blocked pending P2 approval.
+- **AC-35 (P1-2, pending):** Streamable HTTP has stdio-equivalent behavior, localhost default binding, and bearer-token protection for remote access.
+- **AC-36 (P1-2, pending):** Five concurrent equivalent MCP calls produce only one heal.
+- **AC-37 (P1-3, pending):** Client configuration hand-off is opt-in.
+
+#### P1-2 HTTP amendment
+
+Implementation clarification: **FR-X8.5 and AC-35** are implemented with a stateful Streamable HTTP server sharing the existing registry. It binds to loopback by default; bearer-token checks cover every HTTP method and session continuation when configured. Remote binds require a bearer token and explicit allowed request hosts; wildcard origins are rejected. **FR-X8.6 and AC-36** use the same registry instance for concurrent sessions, preserving the registry's single-flight healing behavior.
+
+Remote deployments must terminate TLS at a trusted reverse proxy; bearer authentication does not encrypt traffic. Configure concrete request hostnames and only the required exact origins (no wildcard origins). `0.0.0.0` is a bind address, not an allowed request hostname.
+
+#### P1-3 client hand-off amendment
+
+**FR-X8.7 clarification:** `tests/mcp/client-handoff.md` contains client-specific Claude Desktop, Cursor, and Windsurf stdio setup plus Cursor/Windsurf HTTP setup. It documents Claude remote setup through Connectors/custom connector UI (not an invented `mcpServers.url`), local-versus-hosted networking limits, token handling, installation and launch commands, and the pending P2 approval for a named console command. The document is a hand-off for P4 to copy to `docs/mcp-clients.md`; it does not claim manual UI verification.
+
+**AC-37 clarification:** Evidence consists of those setup snippets and the opt-in `test_ac_37_live_client_config` using `RUN_MCP_CLIENT_E2E=1`, `MCP_CLIENT_CONFIG`, and optional `MCP_CLIENT_NAME` (default `healer`). It supports stdio `command`/`args`/`env`, Cursor HTTP `url`, and Windsurf HTTP `serverUrl`/`headers`; it makes only the known `get_user` request (`user_id: 123`) and no paid LLM calls. Configured commands execute, so only trusted config files may be selected. The test-lane implementation and P4's fresh-client manual checks remain outstanding; normal tests remain offline.
+
+#### P1-3 status amendment
+
+The opt-in test implementation now exists in `tests/mcp/test_client_config.py`; the live config run and P4 fresh-client/UI checks remain outstanding. Default tests use a temporary config to launch the repository's offline stdio harness but do not read operator-supplied configs or contact external endpoints. The smoke helper's temporary log suppression and child-stderr discard are unverified at the user's request. Correction to the AC-37 clarification above: the known `get_user` argument is the string `"123"`, not the number `123`.
+
+#### P1-4 to P1-6: GraphQL, gRPC and Postgres
+
+- **FR-X4 (P1-4):** The GraphQL loader emits `OperationSpec` and its adapter normalizes results into `Outcome` for registry dispatch. GraphQL M1–M3 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Subscriptions and streaming are out of scope.
+- **FR-X5 (P1-5):** The unary gRPC loader emits `OperationSpec` and its adapter maps gRPC status codes into the shared `Outcome` model for registry dispatch. Unary M1–M2 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Streaming is out of scope.
+- **FR-X6 (P1-6):** The Postgres backend implements `FixStore`; active-fix uniqueness per fingerprint is enforced by the database. Registries sharing the database observe committed fixes across instances and reuse them at tier 0. A live Postgres test is opt-in; default tests remain offline.
+
+#### Acceptance criteria
+
+- **AC-38:** Through the registry, GraphQL M1–M3 and unary gRPC M1–M2 equivalents heal and preserve the expected final state without changing the frozen `agent_schema` or introducing values.
+- **AC-39:** A fix committed by one registry is visible to another registry using the shared Postgres database and is reused at tier 0; the database enforces one active fix per fingerprint. Live Postgres verification is opt-in.
+
 
 
 ## 20. Track T2-PS2: Watcher, Demo, Dashboard and Docs
 
-T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59.
+T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59. AC-56 (T2-8), AC-57 (T2-9) and AC-59 (T2-11) stay reserved for their items.
+
+### Client guides (T2-10)
+
+#### Functional requirements
+
+- **FR-19.1** `docs/mcp-clients.md` is derived from `tests/mcp/client-handoff.md` and covers connecting a client to the healer MCP server: the install command, the stdio server command (`-m healer.mcp_server` with `--base-url`, `--spec-path`, `--tools`, `--db`), Claude Desktop, Cursor and Windsurf stdio configuration, and Cursor and Windsurf Streamable HTTP configuration (`--transport http`, `--host`, `--port`).
+- **FR-19.2** The guide explains how to add an upstream server: upstream servers are listed in `config/mcp_servers.json` (T2-3), each entry names the transport (stdio or Streamable HTTP) and a command or URL, and the file stores only the *name* of the environment variable that holds a token, never the token value. It states that upstream tools appear namespaced as `<server>__<tool>`.
+- **FR-19.3** No secret value appears in the guide. Examples pass an environment variable's name (`--token-env HEALER_MCP_TOKEN`) and never a bearer value.
+- **FR-19.4** The guide states that the `healer-mcp` console command is not available until T1-PS1 approves the `[project.scripts]` addition, and that real-client UI checks are outstanding (as the hand-off states).
+- **FR-19.5** The guide's snippets are valid: every JSON block parses, every stdio block launches `-m healer.mcp_server`, and every documented CLI flag is accepted by `healer.mcp_server`.
+
+#### Acceptance criteria
+
+| ID | Criterion | Verification |
+|---|---|---|
+| AC-58 | `docs/mcp-clients.md` is derived from `tests/mcp/client-handoff.md` and lets a fresh user connect a client: Claude Desktop, Cursor and Windsurf stdio plus Cursor and Windsurf Streamable HTTP, the install/launch commands, upstream-server addition and token handling. Every JSON snippet parses, every stdio snippet launches `-m healer.mcp_server`, every documented flag is accepted by the server, and no token value appears. Real-client UI checks remain outstanding. | Unit (`tests/t2ps2/test_ac_58_mcp_client_docs.py`) |
+
+
+## 21. P3 additions (built before the re-plan)
+
+### F21 Healthy-call overhead (P3-2)
+
+- **FR-21.1** A healthy call through the registry adds less than 10 ms p95 of registry work per call, excluding network (§11). Overhead is the per-call difference between a healthy `Registry.call()` against the in-process mock and the same request sent straight through the transport the registry wraps. `bench/overhead.py` times at least 200 calls on each side and prints p50 and p95 for the registry, the direct transport and the difference. `tests/p3/test_ac_28_healthy_overhead.py` asserts that the p95 difference is below 10 ms.
+
+### F22 Swagger 2.0 spec loader (P3-3)
 
 ### Dashboard screenshot fixes
 
@@ -657,3 +739,5 @@ T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 - **AC-56** A one-tool M8 run shows the ticket step, refusal and actual final ticket count without unrelated “Never reached” steps; an iteration-capped baseline and an incorrect-state baseline (including live M7 silent ignore) have distinct, accurate labels. Long email addresses remain readable at narrow pane widths. | Dashboard regression + browser check |
 - **FR-20.3** The live LLM run records the same per-tool agent arguments, wire requests (header names only), error/heal event and final output as the scripted run, so its call rows open the existing detail dropdown instead of a flat event-only list. The frozen agent schema and call logging remain unchanged.
 - **AC-57** During a live LLM run, both agents' completed tool calls appear as expandable detail cards with real inputs and outputs; a healed call shows its patch and redacted wire request. No calls are duplicated and the baseline shows no healing details. | Offline fake-LLM integration + browser check |
+- **FR-22.1** `swagger2.convert(doc)` is a pure, offline function that turns a Swagger 2.0 document into the OpenAPI 3 shape `operations()` reads. It moves `definitions` to `components/schemas` (rewriting every local `$ref`), turns an `in: body` parameter into a `requestBody` (media types from `consumes`, default `application/json`), wraps each response `schema` in `content` (media types from `produces`), lifts a non-body parameter's type keywords into a `schema`, and maps `securityDefinitions` to `components/securitySchemes`. `mock_api/fixtures/swagger2.json` is a Swagger 2.0 copy of the mock API's v1 spec.
+- **FR-22.2** `swagger2.swagger2_source(client, path)` is a `SpecSource`: it fetches the document at `path`, converts and resolves it, and returns a `LoadedSpec` whose `ops` come from `operations()`. It raises `httpx.HTTPError` or `ValueError` when the document is unavailable or malformed, so the registry stays in error-clue mode.

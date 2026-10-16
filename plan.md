@@ -14,14 +14,14 @@
 
 **Goal:** an empty project that installs, lints and runs tests.
 
-- [ ] `pyproject.toml`:
+- [x] `pyproject.toml`:
   - runtime dependencies: fastapi, uvicorn, pydantic v2, httpx, jsonschema,
   - dev dependencies: pytest, pytest-asyncio, respx, ruff,
   - optional `agents` extra: langgraph, langchain-openai.
-- [ ] The directory layout from `agent.md` §3 (empty modules with docstrings).
-- [ ] `.env.example` listing every variable. Current live agents use `NVIDIA_API_KEY` and `LLM_MODEL` (default `openai/gpt-oss-20b`); Jev is optional and independent, using direct `JEV_API_KEY`, `JEV_URL`, `JEV_MODEL` or the Jev-only `OPENROUTER_API_KEY` fallback. Other variables: `OAUTH_BEARER`, `TENANT_ID`, `DB_PATH`, `MOCK_PORT`, `DASHBOARD_PORT`, `RUN_E2E`.
-- [ ] `config/tools.json` skeleton containing `header_sources` (`Authorization` → `OAUTH_BEARER`, `X-Tenant-Id` → `TENANT_ID`) and an empty `tools` object.
-- [ ] A settings module with every threshold and timeout from `product.md`:
+- [x] The directory layout from `agent.md` §3 (empty modules with docstrings).
+- [x] `.env.example` listing every variable. Current live agents use `NVIDIA_API_KEY` and `LLM_MODEL` (default `openai/gpt-oss-20b`); Jev is optional and independent, using direct `JEV_API_KEY`, `JEV_URL`, `JEV_MODEL` or the Jev-only `OPENROUTER_API_KEY` fallback. Other variables: `OAUTH_BEARER`, `TENANT_ID`, `DB_PATH`, `MOCK_PORT`, `DASHBOARD_PORT`, `RUN_E2E`.
+- [x] `config/tools.json` skeleton containing `header_sources` (`Authorization` → `OAUTH_BEARER`, `X-Tenant-Id` → `TENANT_ID`) and an empty `tools` object.
+- [x] A settings module with every threshold and timeout from `product.md`:
   - heal deadline 3.5 s,
   - Jev timeout 1.5 s,
   - spec fetch timeout 0.5 s,
@@ -32,7 +32,7 @@
   - Jev thresholds 0.5 (read) / 0.9 (write),
   - max 8 candidates,
   - operation cap 3× violations.
-- [ ] One smoke test.
+- [x] One smoke test.
 
 **Gate:** `pip install -e .[dev]`, `pytest -q` and `ruff check .` all pass.
 
@@ -42,14 +42,14 @@
 
 **Goal:** the pure, deterministic building blocks. No I/O.
 
-- [ ] `models.py`:
+- [x] `models.py`:
   - enums: `ErrorClass` (`OK`, `BUSINESS`, `E1`–`E6`), `Reason` (all codes in `product.md` §8), `Outcome` code (`RECOVERED`, `ABORTED`, `VERIFY_FAILED`, `NOT_DRIFT`), `Tier`, `Side`, `OpName`, `PostcheckType`,
   - records: `Violation`, `Outcome`, `Op`, `Fix`, `AuditEvent`.
-- [ ] `canonical.py`: canonical JSON, sha256, and path helpers (get, pop, put) on documents.
-- [ ] `ops.py`: implements `move`, `cast`, `header`, `route`. Pure: returns a new document. Rejects unknown operations.
-- [ ] Operations JSON Schema, used to validate any externally produced operation list (Jev never produces one, but tier 2 will).
-- [ ] `safety.py`: provenance, lossless cast, operation cap, replay rule, and per-tool Jev threshold check (FR-9.1–9.5).
-- [ ] Unit tests:
+- [x] `canonical.py`: canonical JSON, sha256, and path helpers (get, pop, put) on documents.
+- [x] `ops.py`: implements `move`, `cast`, `header`, `route`. Pure: returns a new document. Rejects unknown operations.
+- [x] Operations JSON Schema, used to validate any externally produced operation list (Jev never produces one, but tier 2 will).
+- [x] `safety.py`: provenance, lossless cast, operation cap, replay rule, and per-tool Jev threshold check (FR-9.1–9.5).
+- [x] Unit tests:
   - every operation (apply, invalid path, unknown operation),
   - lossless cast table (`"123"` passes; `"0123"`, `"12a"` and `"1.5"` fail for int),
   - each safety rejection, mapped to its reason code.
@@ -62,19 +62,19 @@
 
 **Goal:** an agent-facing tool can call a real (in-process) API through the registry.
 
-- [ ] `mock_api/` **minimal**: a FastAPI app with only what tests need.
+- [x] `mock_api/` **minimal**: a FastAPI app with only what tests need.
   - The four operations `get_user`, `update_email`, `set_manager`, `create_ticket`, with in-memory data containing users 123 and 456.
   - Strict Pydantic types. Unknown body fields are ignored.
   - Mutations as data (M1–M8, C1–C2). Each mutation is a set of changes to models, routes or behavior, so `/openapi.json` reflects the active one.
   - A test-only helper to switch mutations in-process. (The HTTP admin endpoints come in phase 8.)
-- [ ] `openapi_loader.py`: fetch the spec, resolve `$ref`s into a self-contained schema per operation, canonicalize, hash.
-- [ ] `registry.py`:
+- [x] `openapi_loader.py`: fetch the spec, resolve `$ref`s into a self-contained schema per operation, canonicalize, hash.
+- [x] `registry.py`:
   - `ToolDefinition` (`agent_schema` frozen, `wire_schema`, `version`, `active_fix_id`, config from `tools.json`),
   - export of tools in function-calling format,
   - `Registry.call(tool, args)` covering the healthy path only for now.
-- [ ] `adapters/rest.py`: build the base request document (`route`, `body`, `query`, `header`) from the arguments using the base schema, apply `request_ops`, send with a timeout, return the raw response.
-- [ ] Argument pre-validation against `agent_schema` that returns `AGENT_ARG_ERROR` (FR-2.1).
-- [ ] Fill in `config/tools.json` for the four tools:
+- [x] `adapters/rest.py`: build the base request document (`route`, `body`, `query`, `header`) from the arguments using the base schema, apply `request_ops`, send with a timeout, return the raw response.
+- [x] Argument pre-validation against `agent_schema` that returns `AGENT_ARG_ERROR` (FR-2.1).
+- [x] Fill in `config/tools.json` for the four tools:
   - `idempotent` flags: `get_user`, `update_email` and `set_manager` true; `create_ticket` false, but it sends an `Idempotency-Key`,
   - postchecks (`echo` / `non_empty`) per `technical-approach.md` §5.1.
 
@@ -88,9 +88,9 @@
 
 **Goal:** every response becomes a correctly classified Outcome.
 
-- [ ] `detect.py`: the classification order from `technical-approach.md` §5.1, plus violation extraction from FastAPI `422` (`loc`, `type`), `401` (`WWW-Authenticate`), and `404`/`405` (kind `route`).
-- [ ] `contract.py`: output validation against the agent output schema (`jsonschema`) and the `echo` / `non_empty` postchecks from config.
-- [ ] Wire both into `Registry.call`: `OK` and `BUSINESS` are returned; other classes are returned as unhandled for now.
+- [x] `detect.py`: the classification order from `technical-approach.md` §5.1, plus violation extraction from FastAPI `422` (`loc`, `type`), `401` (`WWW-Authenticate`), and `404`/`405` (kind `route`).
+- [x] `contract.py`: output validation against the agent output schema (`jsonschema`) and the `echo` / `non_empty` postchecks from config.
+- [x] Wire both into `Registry.call`: `OK` and `BUSINESS` are returned; other classes are returned as unhandled for now.
 
 **Tests:** `test_ac_03_detector_table`, with at least one case per class (`OK`, `BUSINESS`, `E1`–`E6`), using the minimal mock and synthetic responses.
 
@@ -102,8 +102,8 @@
 
 **Goal:** breaks have stable names, and everything is persisted in machine-readable form.
 
-- [ ] `fingerprint.py` (FR-4). `E6` includes the spec-diff signature (use a placeholder until phase 5, then wire it in).
-- [ ] `store.py`:
+- [x] `fingerprint.py` (FR-4). `E6` includes the spec-diff signature (use a placeholder until phase 5, then wire it in).
+- [x] `store.py`:
   - SQLite in WAL mode with the `spec_snapshots`, `fixes`, `heal_events` and `call_events` tables (`technical-approach.md` §3.3),
   - an in-memory active-fix cache loaded at startup,
   - a negative cache with a TTL, using an injected clock,
@@ -111,7 +111,7 @@
   - `wins`/`losses` updates and retirement at 2 losses.
 
   Product spec v3 labels everything here except the audit log as STRETCH: the persistent `fixes` and `spec_snapshots` tables, reload at startup and retirement are S6, and the negative cache is S7. They are built and tested (see "Already built" before the STRETCH table).
-- [ ] A schema check: every code-read column holds an enum value, an array, a ref or an integer (AC-5).
+- [x] A schema check: every code-read column holds an enum value, an array, a ref or an integer (AC-5).
 
 **Tests:**
 - `test_ac_04_fingerprint_stable` (two runs, plus a new process or a reloaded store),
@@ -126,13 +126,13 @@
 
 **Goal:** given a broken call, code produces the list of valid fixes.
 
-- [ ] `diagnose.py`:
+- [x] `diagnose.py`:
   - fetch the current spec (0.5 s timeout), persist a new snapshot when the hash changes,
   - flatten request and response leaves,
   - produce diff entries and the diff signature,
   - error-clue mode when the spec is unavailable,
   - `404` route check that reclassifies to `BUSINESS`.
-- [ ] `candidates.py`, the rules from FR-7.2:
+- [x] `candidates.py`, the rules from FR-7.2:
   - type change becomes `cast`,
   - removed field fills an added one, using name tokens or the one-to-one rule,
   - with no name evidence, all type-compatible assignments are candidates (capped at 8),
@@ -165,13 +165,13 @@
 
 **Goal:** the full tier 0 and tier 1 heal loop with every safety bound.
 
-- [ ] `jev.py`:
+- [x] `jev.py`:
   - render the diff state and the options deterministically,
   - make one Choice request with a 1.5 s timeout,
   - parse the selected index, confidence and token usage (estimate tokens if usage is not returned).
 
   As built: `POST /v1/systemone` on TypeSafe (`JEV_API_KEY`), or `https://openrouter.ai/api/v1/systemone` with model `~typesafe/jev-latest` (`OPENROUTER_API_KEY`, Jev-only fallback). The NVIDIA agent key is separate. Confirm the exact request and response fields against TypeSafe's docs [A]. Keep the client behind an interface.
-- [ ] `heal.py`, implementing FR-10 and FR-11:
+- [x] `heal.py`, implementing FR-10 and FR-11:
   - fingerprint, single-flight lock (S7), negative cache (S7),
   - tier 0 lookup (S6), otherwise diagnose and build candidates; Jev only for 2+ candidates (phase 12 puts the deterministic tie-breaker before Jev and makes Jev optional),
   - safety gate,
@@ -180,8 +180,8 @@
   - commit (fix, in-memory definition update with `version + 1`, audit) or rollback (negative cache, loss, audit),
   - 3.5 s deadline throughout,
   - structured error with `retry: false`.
-- [ ] `retry.py`: the `E1` policy (3 retries, backoff plus jitter, `Retry-After`), with no fingerprint and no heal.
-- [ ] Wire everything into `Registry.call`.
+- [x] `retry.py`: the `E1` policy (3 retries, backoff plus jitter, `Retry-After`), with no fingerprint and no heal.
+- [x] Wire everything into `Registry.call`.
 
 **Tests (Jev mocked with respx):**
 - `test_ac_07_m6_jev_correct_recovers` (rewritten in phase 12 for M6-D / M6-N)
@@ -200,7 +200,7 @@
 
 **Goal:** prove the registry heals every scenario end to end, with no agent and no network.
 
-- [ ] An integration test per scenario, through `Registry.call` against the in-process mock:
+- [x] An integration test per scenario, through `Registry.call` against the in-process mock:
   - `test_ac_06_m1_rename`
   - `test_ac_06_m2_type`
   - `test_ac_06_m3_response_nesting`
@@ -209,11 +209,11 @@
   - `test_ac_08_m7_silent_ignore`
   - `test_ac_09_m8_no_safe_value` (also assert that no request carrying `priority` was sent)
   - `test_ac_10_c1_transient_c2_business`
-- [ ] `test_ac_11_tier0_repeat_and_restart` (S6): heal once, repeat (tier 0), recreate the registry from the same DB file, repeat again (tier 0).
-- [ ] Complete `test_ac_05_one_audit_event_per_attempt` across all scenarios.
-- [ ] Check that the final mock state is correct after each recovered scenario.
-- [ ] Check `test_ac_01`: `agent_schema` is byte-identical after all heals.
-- [ ] `metrics.py`: compute MTTR (by tier) and the heal counts from `heal_events`.
+- [x] `test_ac_11_tier0_repeat_and_restart` (S6): heal once, repeat (tier 0), recreate the registry from the same DB file, repeat again (tier 0).
+- [x] Complete `test_ac_05_one_audit_event_per_attempt` across all scenarios.
+- [x] Check that the final mock state is correct after each recovered scenario.
+- [x] Check `test_ac_01`: `agent_schema` is byte-identical after all heals.
+- [x] `metrics.py`: compute MTTR (by tier) and the heal counts from `heal_events`.
 
 **Gate:** AC-1 to AC-13, AC-19 and AC-20 all pass in-process (AC-11 is S6; AC-12 and AC-19 are S7; AC-7 and AC-13 are re-gated against v3 in phase 12). Tier-1 heals take < 4 s locally. **Do not continue until this gate is green.**
 
@@ -223,16 +223,16 @@
 
 **Goal:** a running mock that the agents, benchmark and dashboard can drive over HTTP.
 
-- [ ] Run the mock with Uvicorn.
-- [ ] Admin endpoints:
+- [x] Run the mock with Uvicorn.
+- [x] Admin endpoints:
   - activate a mutation by id,
   - reset (data plus mutation),
   - `GET /admin/state` for the data state,
   - list mutations.
-- [ ] `Idempotency-Key` handling on `create_ticket` (the same key returns the same ticket).
-- [ ] OAuth check for M4: `401` with `WWW-Authenticate: Bearer`; accept the configured bearer value.
-- [ ] Behavior for C1 (`503` twice, then OK) and C2 (`404` for user 999).
-- [ ] Rerun the phase 7 suite against the HTTP server (same tests, different transport).
+- [x] `Idempotency-Key` handling on `create_ticket` (the same key returns the same ticket).
+- [x] OAuth check for M4: `401` with `WWW-Authenticate: Bearer`; accept the configured bearer value.
+- [x] Behavior for C1 (`503` twice, then OK) and C2 (`404` for user 999).
+- [x] Rerun the phase 7 suite against the HTTP server (same tests, different transport).
 
 **Gate:** the phase 7 suite passes over HTTP.
 
@@ -242,14 +242,14 @@
 
 **Goal:** a healing agent and a baseline agent, identical except for the registry.
 
-- [ ] `agents/shared`:
+- [x] `agents/shared`:
   - one system prompt (it includes: "if a tool returns `retry: false`, do not call it again with the same arguments; report the failure"; as built after 12D: on `SCHEMA_DRIFT_UNRECOVERABLE` the tool is unavailable for the rest of the task, report it as skipped and continue),
   - the demo task text,
   - the LLM config (same model, temperature 0). Current config: NVIDIA NIM's OpenAI-compatible API (`https://integrate.api.nvidia.com/v1`, `NVIDIA_API_KEY`), default `openai/gpt-oss-20b`, overridable with `LLM_MODEL`. [Model source](https://build.nvidia.com/openai/gpt-oss-20b).
-- [ ] `healing_agent.py`: LangGraph `create_react_agent` with framework tools generated from `registry` exports, executing via `Registry.call`. Structured errors are returned as the tool result.
-- [ ] `baseline_agent.py`: the same framework and tools generated from the v1 spec, executing as direct HTTP calls. The raw error JSON is returned as the tool result. Iteration cap 10.
-- [ ] `scripted.py`: a scripted no-LLM agent that runs the demo task as fixed tool calls through either path (the baseline re-sends a failing call with the same arguments until the cap). It allows keyless benchmark runs and paced demos.
-- [ ] Token accounting per run from the LLM usage metadata, and `call_events` logging for both agents.
+- [x] `healing_agent.py`: LangGraph `create_react_agent` with framework tools generated from `registry` exports, executing via `Registry.call`. Structured errors are returned as the tool result.
+- [x] `baseline_agent.py`: the same framework and tools generated from the v1 spec, executing as direct HTTP calls. The raw error JSON is returned as the tool result. Iteration cap 10.
+- [x] `scripted.py`: a scripted no-LLM agent that runs the demo task as fixed tool calls through either path (the baseline re-sends a failing call with the same arguments until the cap). It allows keyless benchmark runs and paced demos.
+- [x] Token accounting per run from the LLM usage metadata, and `call_events` logging for both agents.
 - [ ] E2E tests (skipped without keys):
   - a clean run completes for both agents,
   - an M5 run: healing completes, baseline fails,
@@ -280,13 +280,13 @@
 
 **Goal:** the live demo from the problem statement.
 
-- [ ] Dashboard (FastAPI + one static HTML page, vanilla JS polling; it runs both agents and two isolated mock instances in one process):
+- [x] Dashboard (FastAPI + one static HTML page, vanilla JS polling; it runs both agents and two isolated mock instances in one process):
   - two panes (healing vs baseline) with a live `call_events` stream,
   - Start (scripted), Start (LLM) and Reset controls,
   - mutation buttons (calls the mock admin endpoints),
   - patch log from `heal_events` (tier, fix operations, reason, MTTR),
   - metrics panel from the latest `report.md` data and live `heal_events`.
-- [ ] `demo.py`, a scripted 30-second flow:
+- [x] `demo.py`, a scripted 30-second flow:
   1. start both agents on the task,
   2. trigger M5 mid-run,
   3. baseline loops on `422`; the healing agent completes in about 2–3 s,
@@ -294,7 +294,7 @@
   5. show the patch log,
   6. trigger M8 to show the clean refusal,
   7. show the metrics.
-- [ ] Run the full demo twice from a cold start.
+- [x] Run the full demo twice from a cold start.
 
 **Gate:** AC-18 passes manually. **MVP was frozen here.** From this point only bug fixes to MVP code, plus the planned spec v3 alignment in phase 12.
 
@@ -306,12 +306,12 @@
 
 ### 12A. Tie-breaker, optional Jev, write-tool ambiguity (AC-7, AC-13, AC-27)
 
-- [ ] `candidates.py`: the deterministic tie-breaker for 2 or more candidates (FR-7.6). Score on (1) description match (a shared non-stopword token between the removed field's description in the base snapshot and the added field's description in the current spec), (2) parameter order, (3) type. A candidate wins only if it strictly beats every other. For a **write** tool, a win must include a description match. Descriptions are compared as tokens only (FR-8.8). Candidate order stays deterministic.
-- [ ] `heal.py`: decision order is candidates, then tie-breaker, then Jev, then abort. Call Jev only when there are 2 or more candidates, the tie-breaker found no unique winner and Jev is configured (FR-8.1).
-- [ ] Jev absent, timeout or error: abort `LOW_CONFIDENCE` before any request is sent, and record the `jev_unavailable` marker in the decision path (FR-8.3, FR-5.3). `JEV_UNAVAILABLE` stops being an abort reason; it survives only as the marker. Under S7, a `LOW_CONFIDENCE` that followed a Jev timeout or error is not negative-cached (FR-11.3).
-- [ ] Write-tool ambiguity (FR-8.6, FR-9.6): add an optional `preverify` entry to `config/tools.json` (a side-effect-free operation plus the expected result that distinguishes the chosen candidate). For a write tool with 2 or more candidates, accept only a tie-breaker win with description evidence, or a Jev choice at confidence ≥ 0.9 that `preverify` confirms before any write. Otherwise `LOW_CONFIDENCE`, nothing sent. Enforce it in `safety.py`.
-- [ ] Mock: M6-D (informative OpenAPI descriptions on the `set_manager` fields) and M6-N (descriptions absent or identical) (FR-12.6). If a side-effect-free operation can distinguish the correct M6-N assignment, expose it for `preverify`; whether one exists is an open question [A] (FR-12.9).
-- [ ] The audit decision path records whether the tie-breaker or Jev decided (FR-5.3).
+- [x] `candidates.py`: the deterministic tie-breaker for 2 or more candidates (FR-7.6). Score on (1) description match (a shared non-stopword token between the removed field's description in the base snapshot and the added field's description in the current spec), (2) parameter order, (3) type. A candidate wins only if it strictly beats every other. For a **write** tool, a win must include a description match. Descriptions are compared as tokens only (FR-8.8). Candidate order stays deterministic.
+- [x] `heal.py`: decision order is candidates, then tie-breaker, then Jev, then abort. Call Jev only when there are 2 or more candidates, the tie-breaker found no unique winner and Jev is configured (FR-8.1).
+- [x] Jev absent, timeout or error: abort `LOW_CONFIDENCE` before any request is sent, and record the `jev_unavailable` marker in the decision path (FR-8.3, FR-5.3). `JEV_UNAVAILABLE` stops being an abort reason; it survives only as the marker. Under S7, a `LOW_CONFIDENCE` that followed a Jev timeout or error is not negative-cached (FR-11.3).
+- [x] Write-tool ambiguity (FR-8.6, FR-9.6): add an optional `preverify` entry to `config/tools.json` (a side-effect-free operation plus the expected result that distinguishes the chosen candidate). For a write tool with 2 or more candidates, accept only a tie-breaker win with description evidence, or a Jev choice at confidence ≥ 0.9 that `preverify` confirms before any write. Otherwise `LOW_CONFIDENCE`, nothing sent. Enforce it in `safety.py`.
+- [x] Mock: M6-D (informative OpenAPI descriptions on the `set_manager` fields) and M6-N (descriptions absent or identical) (FR-12.6). If a side-effect-free operation can distinguish the correct M6-N assignment, expose it for `preverify`; whether one exists is an open question [A] (FR-12.9).
+- [x] The audit decision path records whether the tie-breaker or Jev decided (FR-5.3).
 
 **Tests:**
 - `test_ac_27_tiebreaker_table`: M6-D yields exactly one winner, M6-N yields none, and on a write tool an order-only or type-only advantage is not a win.
@@ -322,11 +322,11 @@
 
 ### 12B. Classification and replay rules (AC-20, AC-21, AC-25)
 
-- [ ] `E3` (FR-10.1): return a structured error with reason `UNSUPPORTED_CLASS`, with exactly one audit event and no replay. Add the code to the `Reason` enum and to the S7 negative-cache set.
-- [ ] Value errors (FR-3.4). Normalize violation kinds from FastAPI `422` types (value kinds `format`, `range`, `pattern`, `enum`, `length`; structural kinds `missing`, `extra`, `type`) [A: mapping confirmed against the mock's `422` bodies]. An `E2` whose violations are all value kinds **and** whose spec diff is empty becomes `BUSINESS` with audit reason `NOT_DRIFT`: returned unchanged, no fix, no replay.
-- [ ] API-rollback rule (FR-3.4): an empty spec diff with structural violations means the request shape is wrong. With an active fix, that fix is stale: diagnose against the base schema, which yields the "no operations" candidate, and replay the base request once. With no active fix, abort `NO_CANDIDATE`. A mix of value and structural violations counts as structural.
-- [ ] Mock control C3 (FR-12.7): `update_email` validates the `email` value (format) and returns a FastAPI `422` value-error body for an invalid address, with the spec unchanged [A: demo tool].
-- [ ] Replay rule (FR-9.4) in `safety.py` and `heal.py`: `E2` is the only class that is replay-safe by itself. `E4` and `E6` replay only for an idempotent tool or with an `Idempotency-Key`; otherwise `UNSAFE_REPLAY`. `E5` is never replayed (response-side remap).
+- [x] `E3` (FR-10.1): return a structured error with reason `UNSUPPORTED_CLASS`, with exactly one audit event and no replay. Add the code to the `Reason` enum and to the S7 negative-cache set.
+- [x] Value errors (FR-3.4). Normalize violation kinds from FastAPI `422` types (value kinds `format`, `range`, `pattern`, `enum`, `length`; structural kinds `missing`, `extra`, `type`) [A: mapping confirmed against the mock's `422` bodies]. An `E2` whose violations are all value kinds **and** whose spec diff is empty becomes `BUSINESS` with audit reason `NOT_DRIFT`: returned unchanged, no fix, no replay.
+- [x] API-rollback rule (FR-3.4): an empty spec diff with structural violations means the request shape is wrong. With an active fix, that fix is stale: diagnose against the base schema, which yields the "no operations" candidate, and replay the base request once. With no active fix, abort `NO_CANDIDATE`. A mix of value and structural violations counts as structural.
+- [x] Mock control C3 (FR-12.7): `update_email` validates the `email` value (format) and returns a FastAPI `422` value-error body for an invalid address, with the spec unchanged [A: demo tool].
+- [x] Replay rule (FR-9.4) in `safety.py` and `heal.py`: `E2` is the only class that is replay-safe by itself. `E4` and `E6` replay only for an idempotent tool or with an `Idempotency-Key`; otherwise `UNSAFE_REPLAY`. `E5` is never replayed (response-side remap).
 
 **Tests:**
 - `test_ac_25_e3_unsupported_class`: a non-JSON fixture returns the structured error, writes one audit event and replays nothing.
@@ -336,10 +336,10 @@
 
 ### 12C. M9, redaction, `spec_mode`, audit fields (AC-22, AC-23, AC-24)
 
-- [ ] Mutation M9 (request nesting): in the mock, `update_email` changes from the flat body `{user_id, email}` to `{payload:{user_id, email}}` (wrapping only: no rename, no type change, no header) [A: demo tool]. The candidate builder yields 1 candidate: `move` ×2. Add `test_ac_22_m9_request_nesting` (tier-1 heal on first occurrence, task completes, final mock state correct) and a candidate unit test.
-- [ ] Raw-error sanitizer (FR-5.7), applied before the blob is stored. Redact: values of `Authorization`, `Cookie`, `Set-Cookie`, API-key and token headers; any string equal to a configured secret (`OAUTH_BEARER`, `TENANT_ID`, `JEV_API_KEY`, the LLM key); bearer-token and JWT-shaped strings [A: pattern list]. Truncate to a maximum size [A]. Test `test_ac_24_raw_error_redacted` with fixtures that contain secrets.
-- [ ] `spec_mode` switch (FR-6.4): `on` or `off` in the settings module. With `off`, the Diagnoser runs in error-clue mode only.
-- [ ] Audit event gets `heal_ms` next to `mttr_ms` (FR-5.3, FR-15.4). Update the `heal_events` schema and the AC-5 schema check.
+- [x] Mutation M9 (request nesting): in the mock, `update_email` changes from the flat body `{user_id, email}` to `{payload:{user_id, email}}` (wrapping only: no rename, no type change, no header) [A: demo tool]. The candidate builder yields 1 candidate: `move` ×2. Add `test_ac_22_m9_request_nesting` (tier-1 heal on first occurrence, task completes, final mock state correct) and a candidate unit test.
+- [x] Raw-error sanitizer (FR-5.7), applied before the blob is stored. Redact: values of `Authorization`, `Cookie`, `Set-Cookie`, API-key and token headers; any string equal to a configured secret (`OAUTH_BEARER`, `TENANT_ID`, `JEV_API_KEY`, the LLM key); bearer-token and JWT-shaped strings [A: pattern list]. Truncate to a maximum size [A]. Test `test_ac_24_raw_error_redacted` with fixtures that contain secrets.
+- [x] `spec_mode` switch (FR-6.4): `on` or `off` in the settings module. With `off`, the Diagnoser runs in error-clue mode only.
+- [x] Audit event gets `heal_ms` next to `mttr_ms` (FR-5.3, FR-15.4). Update the `heal_events` schema and the AC-5 schema check.
 
 ### 12D. Benchmark and metrics (AC-14 to AC-17, AC-23)
 
@@ -396,14 +396,14 @@ Two teams of one person each. Each person runs two machines, so four agents work
 |---|---|---|---|---|
 | **T1-PS1** | Team 1 (Wahab) | Healing core for MCP drift | AC-40 to AC-49 | `t1-ps1/` |
 | **T1-PS2** | Team 1 (Wahab) | Mock drift server, fixtures, benchmark, evidence | AC-50 to AC-54 | `t1-ps2/` |
-| **T2-PS1** | Team 2 (teammate) | MCP client, upstream loader, registry, front-door server | AC-30 to AC-39 | `t2-ps1/` |
+| **T2-PS1** | Team 2 (teammate) | MCP client, upstream loader, registry, front-door server | AC-30 to AC-39 (used by the old P1 work), then AC-63 to AC-69 | `t2-ps1/` |
 | **T2-PS2** | Team 2 (teammate) | Spec watcher, demo agent, dashboard, docs, pitch | AC-55 to AC-59 | `t2-ps2/` |
 
 ### Step 0: land open branches and fix the shared interfaces (before the tracks)
 
-- [ ] Merge the clean open branches into `main`: `p4/p4-1-ac18-check`, `plan-hygiene` (P3-1 to P3-3), `p1/p1-1-mcp-stdio` (P1-1 to P1-3). Run `pytest -q` and `ruff check .` after each merge.
+- [x] Merge the clean open branches into `main`: `p4/p4-1-ac18-check`, `plan-hygiene` (P3-1 to P3-3), `p1/p1-1-mcp-stdio` (P1-1 to P1-3). Run `pytest -q` and `ruff check .` after each merge.
 - [ ] Close `feat/updateUI` (stale, conflicts in `dashboard/index.html`). Delete the six already-merged remote branches.
-- [ ] T1-PS1 splits `origin/p2/p2-0-llm-benchmark` into one PR per item (item T1-0). The split PRs merge before T1-1.
+- [x] T1-PS1 splits `origin/p2/p2-0-llm-benchmark` into one PR per item (item T1-0). The split PRs merge before T1-1.
 - [x] Contract 7 (upstream tool mapping) and contract 8 (mock drift control) are written in `AGENTS.md`. Both teams confirm them on day one.
 
 ### Track T1-PS1: healing core for MCP drift (Team 1)
@@ -445,7 +445,7 @@ Two teams of one person each. Each person runs two machines, so four agents work
 | T2-7 (done) | Spec watcher | FR/AC first. `spec_watcher.py`: poll each `SpecSource` (OpenAPI and upstream MCP) on an interval, hash and snapshot changes, call `Healer.precompute(old, new)` once it exists (guarded until then); injected clock, bounded backoff, never blocks a call | A change is snapshotted within one interval; an unchanged spec causes no work |
 | T2-8 | Demo agent | `demo/mcp_agent.py`: a LangGraph agent that connects only to our front door and uses tools from 2+ upstream mock servers in one task; a script triggers a mutation mid-task | The task finishes after a mid-task rename, with one heal event in the audit log |
 | T2-9 | Dashboard MCP view | Show upstream servers, their tools, live MCP calls and heal events; buttons for the MCP mutations through contract 8 | Dashboard tests pass; new buttons covered by the button-coverage test |
-| T2-10 | Client guides | `docs/mcp-clients.md` from `tests/mcp/client-handoff.md`: Claude Desktop, Cursor, Windsurf, stdio and HTTP, plus how to add an upstream server | A fresh user connects a client by following the guide |
+| T2-10 (done) | Client guides | `docs/mcp-clients.md` from `tests/mcp/client-handoff.md`: Claude Desktop, Cursor, Windsurf, stdio and HTTP, plus how to add an upstream server | A fresh user connects a client by following the guide |
 | T2-11 | README, pitch, writeup | Rewrite around the gateway story after T1-9; every number from `bench/report.md`; LangGraph migration (old P4-5) if still needed | Every number in the docs appears in `report.md` |
 
 ### Old items: kept, merged, dropped
@@ -515,11 +515,16 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 
 | Date | Item | Status | Notes |
 |---|---|---|---|
+| 2026-10-15 | P3-2 | done | Healthy-call overhead (AC-28, FR-21.1): `bench/overhead.py` and `tests/p3/test_ac_28_healthy_overhead.py`; local run adds 0.3 ms p95 over the raw transport (n = 250 per side), under the 10 ms budget |
+| 2026-10-15 | P3-3 | done | Swagger 2.0 loader (F22, AC-60 to AC-62): `src/healer/swagger2.py` (`convert` + `swagger2_source`), `mock_api/fixtures/swagger2.json`, `tests/p3/`; the 2.0 fixture converts to the mock's OpenAPI 3 `operations()` exactly (5 ops) and M1 heals when the base spec loads through `swagger2_source` |
 
 ### Progress log: T2-PS1
 
 | Date | Item | Status | Notes |
 |---|---|---|---|
+| 2026-10-15 | P1-1 | implemented; packaging hand-off pending | Official MCP 2.x low-level stdio interface, frozen schemas, structured refusals, no list-change notifications; SDK memory and actual stdio subprocess tests, custom-spec healing and secret-leak regressions in `tests/mcp/`. Launch with `python -m healer.mcp_server`; P2 request: add `[project.scripts] healer-mcp = "healer.mcp_server:main"`. No P2-owned packaging edit made. |
+| 2026-10-15 | P1-2 | done | Stateful Streamable HTTP shares one registry; loopback default, optional environment-selected bearer authentication on every method, explicit remote host allowlist and exact origins. SDK clients exercise the ASGI HTTP path without sockets, M1/M8 parity and five overlapping sessions producing one heal. `pytest -q`: 584 passed, 5 skipped; `ruff check .` clean. Remote deployment needs a trusted TLS reverse proxy. |
+| 2026-10-16 | P1-3 | hand-off prepared; live acceptance pending | Client-specific stdio/HTTP snippets for P4 are in `tests/mcp/client-handoff.md`; existing opt-in config launcher is in `tests/mcp/test_client_config.py`. Final helper suppresses SDK diagnostic logs and discards child stderr to avoid secret leakage. Static review and lint only after user requested no further tests; final helper runtime validation, live configuration checks and P4 client UI checks remain pending. P2 console-entry request remains unchanged. |
 
 ### Progress log: T2-PS2
 
@@ -528,3 +533,5 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | 2026-10-16 | T2-7 | done | Spec watcher (FR-18, AC-55): polls a `SpecSource` list on an interval, saves hash changes to `FixStore.save_spec`, calls `Healer.precompute(old, new)` only when the healer provides it (contract 5), injected clock/sleep, bounded per-source backoff, runs as a background task; tests in `tests/t2ps2/` |
 | 2026-10-16 | Dashboard screenshot fixes | done | FR-20.1/20.2, AC-56: scoped one-tool LLM steps, truthful cap/correctness badges, preset stats and readable email; browser-checked at desktop and mobile widths |
 | 2026-10-16 | Live LLM call details | done | FR-20.3, AC-57: live LLM calls use the existing trace recorder and expandable call cards; offline fake-LLM API and browser check |
+| 2026-10-16 | T2-10 | done | Client guides (FR-19, AC-58): `docs/mcp-clients.md` derived from `tests/mcp/client-handoff.md` covers Claude Desktop, Cursor and Windsurf (stdio + Streamable HTTP), the install/launch commands, upstream-server addition and token handling; every JSON snippet parses, every stdio snippet launches `-m healer.mcp_server`, every documented flag is accepted by the server, no token value; `tests/t2ps2/test_ac_58_mcp_client_docs.py`. Real-client UI checks remain outstanding |
+| 2026-10-15 | P4-1 | done | AC-18 browser check: one-click mutation triggers verified (M5, M3, M8), live dual-pane updates confirmed, heal events logged in <1 s (M5 heal_ms=71ms/13ms, M3 heal_ms=13ms/7ms, M8 clean refusal ABORTED/NO_SAFE_VALUE in 12ms/34ms); two cold-start demo rehearsals passed cleanly (default config & without Jev) |
