@@ -664,3 +664,24 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 | AC-82 | Unified dashboard and MCP share one configured listener at `/` and `/mcp`, the gateway owns upstream stdio processes and watcher, and reported transport metadata reflects the actual port; remote MCP requires token plus allowed host/origin while dashboard mutation routes remain outside MCP bearer protection | Unit (`tests/dashboard/test_ac_82_single_port.py`) |
 | AC-74 | Explorer correctness checks the full task when no tools were called, while retaining scoped checks for called tools and accepting seeded state for C2/C3 controls | Unit (`tests/dashboard/test_ac_74_zero_call_run.py`) |
 | AC-75 | The unsupported Postgres store warns at construction, matches every public `FixStore` method signature, and raises a clear deferred `NotImplementedError` for operations it does not implement | Unit (`tests/unit/test_ac_75_store_contract.py`; `tests/store_pg/test_unsupported_contract.py`) |
+
+## 23. External connections (AC-83–AC-92)
+
+- **FR-23.1** Normalize legacy connections at runtime without rewriting config; support isolated none, bearer, header API-key, basic and custom secret-header env references with validated nonsecret defaults.
+- **FR-23.2** Separate spec and API credentials/clients; exact-origin credentials, HTTPS externally, no credential redirects, SSRF/DNS-rebinding controls and explicit operator internal-service allowlisting.
+- **FR-23.3** Discover only explicitly selected compatible REST/MCP tools; bind path arguments, validate effective configured headers, diagnose unsupported operations, preserve OperationSpec and healing invariants.
+- **FR-23.4** Reuse Connections for authenticated remote CRUD/test, optional pinned presets, separate spec settings and reference-preserving edits; stdio remains file-only; saved changes require restart.
+- **FR-23.5** Redact raw and derived credentials before errors, model prompts and storage; demonstrate isolation and safe failure offline; vendor smoke tests remain opt-in.
+
+| AC | Criterion | Evidence |
+|---|---|---|
+| AC-83 | Legacy entries normalize without rewriting; legacy same-origin auth works. | Offline config/auth tests |
+| AC-84 | Static auth profiles, env references and case-insensitive conflicts validate without secret leakage. | Offline auth tests |
+| AC-85 | Two APIs, MCP and two accounts for one provider remain isolated through calls/replay. | Offline integration tests |
+| AC-86 | Spec auth is independent; no cross-origin credential inheritance or credential redirects. | Offline client tests |
+| AC-87 | SSRF, DNS rebinding, redirects and unsafe/duplicate headers fail safely. | Offline security tests |
+| AC-88 | Selected compatible tools bind paths; unsupported operations have machine-readable diagnostics. | Offline discovery tests |
+| AC-89 | Optional presets are versioned/pinned; custom connections need no preset. | Preset tests |
+| AC-90 | CRUD/test and pending-restart/removal warnings work; stdio remains file-only. | Dashboard tests/browser checks |
+| AC-91 | Raw/derived credentials stay out of errors, repair prompts, logs, probes and store. | Secret-echo tests |
+| AC-92 | Frozen schemas, no invented values/model code, one replay/audit row and cleanup remain intact. | Existing and new integration tests |

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 
 import httpx
 
@@ -20,6 +20,7 @@ from healer.canonical import get
 from healer.jev import _arg_types
 from healer.models import OpName, Outcome
 from healer.ops import OpError, validate_ops
+from healer.store import sanitize
 
 # (system, user) -> (model text, tokens used). Raises RepairUnavailable.
 Llm = Callable[[str, str], Awaitable[tuple[str, int]]]
@@ -111,6 +112,7 @@ def render(
     outcome: Outcome,
     base_doc: dict,
     cfg_keys: set[str],
+    secrets: Iterable[str] = (),
 ) -> str:
     """The user message: structure only. Argument values appear only for enum-typed leaves."""
     enum_paths = {
@@ -124,10 +126,13 @@ def render(
             )
         except (KeyError, IndexError, TypeError):
             pass
-    error = json.dumps(outcome.data, default=str)[:MAX_ERROR_CHARS]
+    error = sanitize(
+        json.dumps(outcome.data, default=str), secrets, max_chars=None
+    )[:MAX_ERROR_CHARS]
     listed = list(ops.items())[:MAX_OPS_LISTED]
-    return "\n".join(
-        [
+    return sanitize(
+        "\n".join(
+            [
             f"FAILING TOOL: {tool}",
             "ORIGINAL OPERATION (what the agent's call was built for):",
             _op_line(tool, base_op),
@@ -144,7 +149,10 @@ def render(
             "ENUM ARGUMENT VALUES:",
             *values,
             f"CONFIG KEYS: {sorted(cfg_keys)}",
-        ]
+            ]
+        ),
+        secrets,
+        max_chars=None,
     )
 
 

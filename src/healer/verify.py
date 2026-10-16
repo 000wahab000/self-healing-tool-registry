@@ -56,7 +56,15 @@ def _spec_constraints(spec: OperationSpec | None) -> tuple[set[tuple] | None, se
     collect(spec.get("body_schema") or {}, ("body",))
     collect(spec.get("response_schema") or {}, ())
     for param in spec.get("params", []):
-        paths.add((param.get("in", "query"), param["name"]))
+        loc = param.get("in", "query")
+        paths.add(
+            (
+                "route_params" if loc == "path" else loc,
+                param["name"].casefold() if loc == "header" else param["name"],
+            )
+        )
+    if "bearer" in spec.get("security", []):
+        paths.add(("header", "authorization"))
     return paths, {(spec["method"], spec["path"])}
 
 
@@ -174,7 +182,8 @@ def _invalid_request(doc: dict, spec: OperationSpec) -> bool:
     params = spec.get("params", [])
     for param in params:
         loc, name = param.get("in", "query"), param["name"]
-        values = doc.get(loc, {})
+        doc_loc = "route_params" if loc == "path" else loc
+        values = doc.get(doc_loc, {})
         if loc == "header":
             values = {str(key).casefold(): value for key, value in values.items()}
             name = name.casefold()
@@ -183,7 +192,15 @@ def _invalid_request(doc: dict, spec: OperationSpec) -> bool:
         if name in values and not Draft202012Validator(_strict(param["schema"])).is_valid(values[name]):
             return True
     query_names = {param["name"] for param in params if param.get("in", "query") == "query"}
-    return bool(set(doc.get("query", {})) - query_names)
+    path_names = {param["name"] for param in params if param.get("in") == "path"}
+    if "bearer" in spec.get("security", []):
+        headers = {str(key).casefold(): value for key, value in doc.get("header", {}).items()}
+        if not isinstance(headers.get("authorization"), str) or not headers["authorization"]:
+            return True
+    return bool(
+        set(doc.get("query", {})) - query_names
+        or set(doc.get("route_params", {})) - path_names
+    )
 
 
 def _readback_matches(observed: Any, expected: Any, checks: list[dict]) -> bool:

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
+import re
 import sqlite3
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
@@ -43,7 +45,7 @@ from healer.models import (
 )
 from healer.ops import OpError, apply_ops
 from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S, SPEC_MODE
-from healer.store import FixStore, sanitize
+from healer.store import FixStore, redact_value, sanitize
 from healer.verify import Verifier
 
 if TYPE_CHECKING:
@@ -145,10 +147,24 @@ class Healer:
         spec_mode: str = SPEC_MODE,
         tools: Callable[[], Iterable[ToolDefinition]] | None = None,
         repair: repair_agent.RepairAgent | None = None,
+        secret_values: Iterable[str] | None = None,
     ) -> None:
         self._store, self._jev, self._spec_source = store, jev, spec_source
         self._spec_mode = spec_mode
         self._cfg, self._header_sources = cfg, header_sources
+        inferred_secrets = tuple(
+            value
+            for key, value in cfg.items()
+            if re.search(
+                r"authorization|token|secret|password|"
+                r"(?:api|client|access|auth|refresh)[-_]?key|cookie|credential",
+                key,
+                re.IGNORECASE,
+            )
+        )
+        self._secrets = (
+            tuple(secret_values) if secret_values is not None else inferred_secrets
+        )
         self._attempt, self._clock = attempt, clock
         self._client = getattr(getattr(attempt, "__self__", None), "client", None)
         self._tools = tools
@@ -180,10 +196,10 @@ class Healer:
             reason = Reason.DEADLINE
         except OpError as e:
             reason = e.reason
-        except (
-            Exception
-        ):  # a bug must still end in one audit row and a structured error
-            logging.getLogger(__name__).exception("heal failed for %s", tool.name)
+        except Exception as e:  # noqa: BLE001 - every failed heal still gets one audit row
+            logging.getLogger(__name__).error(
+                "heal failed for %s: %s", tool.name, sanitize(str(e), self._secrets)
+            )
             reason = Reason.VERIFY_FAILED
         return self._abort(h, reason)
 
@@ -222,7 +238,7 @@ class Healer:
         if verdict is not None:
             raise _Abort(verdict)
         result = await self._send(h, h.tool.active_fix)
-        return result.data if result.cls is ErrorClass.OK else api_error(result)
+        return result.data if result.cls is ErrorClass.OK else self._safe_api_error(result)
 
     async def _lead(self, h: _Heal) -> Any:
         if h.outcome.cls is ErrorClass.E3:  # healing an undecodable body is FUTURE
@@ -262,7 +278,7 @@ class Healer:
             if fresh is not None:
                 current = fresh.ops.get(h.tool.name)
         h.layers = self._verifier.preflight(
-            base_doc=h.base, current_spec=(
+            base_doc=self._validation_doc(h.base), current_spec=(
                 {**current, "response_schema": h.tool.base_op.get("response_schema")}
                 if current is not None else None
             ),
@@ -288,7 +304,7 @@ class Healer:
             if result.cls is ErrorClass.E1:
                 h.transient = True
                 self._store.audit(self._event(h, HealOutcome.ABORTED, None))
-                return api_error(result)
+                return self._safe_api_error(result)
             if h.tier is Tier.T0 and not h.transient:
                 self._store.record_result(fix.fix_id, False)
             raise _Abort(self._failure_reason(h, fix, result))
@@ -304,6 +320,22 @@ class Healer:
         if any(row["status"] == "fail" for row in h.layers):
             raise _Abort(Reason.VERIFY_FAILED)
         return self._commit(h, fix, result)
+
+    def _validation_doc(self, base: dict) -> dict:
+        """Resolve approved config-header refs only in the local L2 validation copy."""
+        doc = copy.deepcopy(base)
+        approved = {
+            name.casefold(): key for name, key in self._header_sources.items()
+        }
+        for name, value in list(doc.get("header", {}).items()):
+            if not isinstance(value, dict) or value.get("ref") != "config":
+                continue
+            key = value.get("key")
+            if approved.get(name.casefold()) == key and key in self._cfg:
+                doc["header"][name] = self._cfg[key]
+            else:
+                doc["header"].pop(name)
+        return doc
 
     def _readback(self, h: _Heal, fix: Fix) -> Callable[[], Awaitable[Any]] | None:
         config = h.tool.config.get("readback")
@@ -351,7 +383,10 @@ class Healer:
         except (httpx.HTTPError, ValueError):
             return
         if spec.spec_hash not in self._saved_specs:
-            self._store.save_spec(spec.spec_hash, spec.raw)
+            self._store.save_spec(
+                spec.spec_hash,
+                redact_value(spec.raw, self._secrets),
+            )
             self._saved_specs.add(spec.spec_hash)
         h.ops, h.schema_hash = spec.ops, spec.spec_hash
         route = h.base["route"]
@@ -448,11 +483,12 @@ class Healer:
             return reason is Reason.NO_CANDIDATE
         self._extend(h)
         state = repair_agent.render(
-            h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg)
+            h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg),
+            self._secrets,
         )
         try:
             choice = await self._jev.choose(
-                f"{state}\nTIER-1 RESULT: refused ({reason.value})",
+                sanitize(f"{state}\nTIER-1 RESULT: refused ({reason.value})", self._secrets),
                 TRIAGE_QUESTION,
                 list(TRIAGE_OPTIONS),
             )
@@ -471,7 +507,8 @@ class Healer:
         self._extend(h)
         h.tier, h.path = Tier.T2, DecisionPath.repair
         prompt = repair_agent.render(
-            h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg)
+            h.tool.name, h.tool.base_op, h.ops, h.outcome, h.base, set(self._cfg),
+            self._secrets,
         )
         try:
             proposal, h.llm_tokens = await self._repair.propose(prompt)
@@ -519,9 +556,9 @@ class Healer:
             if self._jev is None:
                 raise JevUnavailable
             choice = await self._jev.choose(
-                render_state(h.entries, h.base),
+                sanitize(render_state(h.entries, h.base), self._secrets),
                 QUESTION,
-                [render_option(f) for f in found],
+                [sanitize(render_option(f), self._secrets) for f in found],
             )
         except JevUnavailable:
             h.path = DecisionPath.jev_unavailable
@@ -701,7 +738,10 @@ class Healer:
         """FR-17.11 (X4): Precompute candidate fixes from spec diffs before any failure occurs.
         Stores fixes with status candidate; sends 0 live requests. Returns count of fixes stored."""
         if new.spec_hash not in self._saved_specs:
-            self._store.save_spec(new.spec_hash, new.raw)
+            self._store.save_spec(
+                new.spec_hash,
+                redact_value(new.raw, self._secrets),
+            )
             self._saved_specs.add(new.spec_hash)
 
         tools_by_name = {t.name: t for t in self._tools()} if self._tools else {}
@@ -739,6 +779,11 @@ class Healer:
                         for k, v in dummy_args.items()
                         if ("query", k) in diagnose.flatten_request(tool.base_op)
                     },
+                    "route_params": {
+                        k: v
+                        for k, v in dummy_args.items()
+                        if ("route_params", k) in diagnose.flatten_request(tool.base_op)
+                    },
                     "header": {},
                 }
             else:
@@ -756,6 +801,11 @@ class Healer:
                         else "sample"
                         for p in old_op.get("params", [])
                         if p.get("in") == "query"
+                    },
+                    "route_params": {
+                        p["name"]: "sample"
+                        for p in old_op.get("params", [])
+                        if p.get("in") == "path"
                     },
                     "header": {},
                 }
@@ -866,8 +916,17 @@ class Healer:
             outcome = AUDIT_OUTCOME.get(reason, HealOutcome.ABORTED)
             self._store.audit(self._event(h, outcome, reason))
         if reason is Reason.NOT_DRIFT:
-            return api_error(replace(h.outcome, cls=ErrorClass.BUSINESS))
+            return self._safe_api_error(replace(h.outcome, cls=ErrorClass.BUSINESS))
         return HealError(h.tool.name, h.outcome.cls, h.fp, reason).to_dict()
+
+    def _safe_api_error(self, outcome: Outcome) -> dict:
+        error = api_error(outcome)
+        error["detail"] = redact_value(error["detail"], self._secrets)
+        return error
+
+    def sanitize_spec(self, raw: dict) -> dict:
+        """Redact a persisted spec copy without changing the live loaded schema."""
+        return redact_value(raw, self._secrets)
 
     def _event(
         self, h: _Heal, outcome: HealOutcome, reason: Reason | None
@@ -897,6 +956,6 @@ class Healer:
             heal_ms=int((now - h.detected) * 1000),
             jev_tokens=h.jev_tokens,
             llm_tokens=h.llm_tokens,
-            raw_error=sanitize(canonical.dumps(blob), self._cfg.values()),
+            raw_error=canonical.dumps(redact_value(blob, self._secrets)),
             layers=h.layers,
         )

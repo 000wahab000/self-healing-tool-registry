@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import sqlite3
@@ -43,16 +44,54 @@ _HEADER_VALUE = re.compile(
     re.IGNORECASE,
 )
 _BEARER = re.compile(r"\bbearer\s+[\w.~+/=-]+", re.IGNORECASE)
+_BASIC = re.compile(r"\bbasic\s+[A-Za-z0-9+/]+=*", re.IGNORECASE)
 _JWT = re.compile(r"\beyJ[\w-]+\.[\w-]+\.[\w-]*")
 
 
-def sanitize(text: str, secrets: Iterable[str] = ()) -> str:
-    """FR-5.7: the audit blob keeps no secret. Redact, then truncate (so a cut cannot expose one)."""
-    for secret in sorted(filter(None, secrets), key=len, reverse=True):
+def _secret_forms(secrets: Iterable[str]) -> list[str]:
+    forms: set[str] = set()
+    for secret in secrets:
+        if not isinstance(secret, str) or not secret:
+            continue
+        forms.update((secret, json.dumps(secret)[1:-1], json.dumps(secret, ensure_ascii=False)[1:-1]))
+        if secret.lower().startswith("basic "):
+            encoded = secret[6:].strip()
+            if not encoded:
+                continue
+            forms.add(encoded)
+            try:
+                decoded = base64.b64decode(encoded, validate=True).decode()
+            except (ValueError, UnicodeDecodeError):
+                continue
+            forms.add(decoded)
+            forms.update(part for part in decoded.split(":") if part)
+    return sorted(forms, key=len, reverse=True)
+
+
+def redact_value(value: object, secrets: Iterable[str] = ()) -> object:
+    """Redact string leaves while preserving the value's JSON structure and size."""
+    if isinstance(value, str):
+        return sanitize(value, secrets, max_chars=None)
+    if isinstance(value, list):
+        return [redact_value(item, secrets) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_value(item, secrets) for item in value)
+    if isinstance(value, dict):
+        return {key: redact_value(item, secrets) for key, item in value.items()}
+    return value
+
+
+def sanitize(
+    text: str, secrets: Iterable[str] = (), *, max_chars: int | None = RAW_ERROR_MAX
+) -> str:
+    """Redact text; truncate only when a caller explicitly supplies a storage limit."""
+    for secret in _secret_forms(secrets):
         text = text.replace(secret, REDACTED)
     text = _HEADER_VALUE.sub(rf"\1\2{REDACTED}", text)
     text = _BEARER.sub(f"Bearer {REDACTED}", text)
-    return _JWT.sub(REDACTED, text)[:RAW_ERROR_MAX]
+    text = _BASIC.sub(f"Basic {REDACTED}", text)
+    text = _JWT.sub(REDACTED, text)
+    return text[:max_chars] if max_chars is not None else text
 
 
 def _safe_layers(layers: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -402,7 +441,7 @@ class Store:
                     event.heal_ms,
                     event.jev_tokens,
                     event.llm_tokens,
-                    sanitize(event.raw_error),
+                    sanitize(event.raw_error, max_chars=RAW_ERROR_MAX),
                     canonical.dumps(_safe_layers(event.layers)),
                 ),
         )

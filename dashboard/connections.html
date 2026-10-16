@@ -61,7 +61,7 @@
     </div>
 
     <section class="card pad">
-      <h3>Add a connection</h3>
+      <h3 id="form-title">Add a connection</h3>
       <form id="form" autocomplete="off">
         <label for="type">Type</label>
         <select id="type">
@@ -78,10 +78,28 @@
         <div id="spec-box">
           <label for="spec">Spec path (optional)</label>
           <input id="spec" placeholder="/openapi.json">
+          <label for="spec-url">Separate spec URL (optional)</label><input id="spec-url" type="url" placeholder="https://example.com/openapi.json">
         </div>
         <label for="token">Token environment variable name (optional)</label>
         <input id="token" placeholder="BILLING_TOKEN" pattern="[A-Za-z_][A-Za-z0-9_]*" spellcheck="false">
         <p class="hint">Type the variable's NAME, set it in the gateway's server environment. Never paste the token itself here.</p>
+        <div id="api-auth" hidden>
+          <label for="preset">Provider suggestion (optional)</label><select id="preset"><option value="">Custom connection</option></select>
+          <label for="auth-type">API authentication</label><select id="auth-type"><option value="none">None</option><option value="bearer">Bearer</option><option value="api_key">API key in header</option><option value="basic">Basic</option></select>
+          <label for="auth-token">API bearer token environment variable</label><input id="auth-token" autocomplete="off">
+          <label for="auth-header">API key header</label><input id="auth-header" placeholder="X-API-Key">
+          <label for="auth-value">API key value environment variable</label><input id="auth-value" autocomplete="off">
+          <label for="auth-user">Basic username environment variable</label><input id="auth-user" autocomplete="off">
+          <label for="auth-password">Basic password environment variable</label><input id="auth-password" autocomplete="off">
+          <label for="spec-auth-type">Spec authentication</label><select id="spec-auth-type"><option value="none">Public / none</option><option value="bearer">Bearer</option></select>
+          <label for="spec-auth-token">Spec bearer environment variable</label><input id="spec-auth-token" autocomplete="off">
+          <label><input id="spec-reuse" type="checkbox"> Reuse API credentials for spec only when same-origin</label>
+          <label for="secret-headers">Secret header references (JSON: header to environment-variable name)</label><textarea id="secret-headers" placeholder='{"X-Workspace":"WORKSPACE_ID"}'></textarea>
+          <label for="headers">Non-secret default headers (JSON object)</label><textarea id="headers" placeholder='{"Notion-Version":"2022-06-28"}'></textarea>
+          <p class="hint">Preset URLs and auth are suggestions, not guarantees. Discovery is not credential verification.</p>
+        </div>
+        <label for="selected">Selected operation IDs/tools (one per line; empty list means no tools)</label><textarea id="selected"></textarea>
+        <label id="clear-row" hidden><input id="clear-secrets" type="checkbox"> Explicitly clear saved secret references</label>
         <div id="auth-box" hidden>
           <label for="auth">Connections access token</label>
           <input id="auth" type="password" autocomplete="off">
@@ -90,6 +108,7 @@
         <div class="actions">
           <button type="button" class="btn" id="test">Test connection</button>
           <button type="submit" class="btn primary" id="save">Save</button>
+          <button type="button" class="btn" id="cancel" hidden>Cancel edit</button>
         </div>
         <div id="result" role="status" aria-live="polite"></div>
       </form>
@@ -100,6 +119,9 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 let defaults = {};
+let presets = {};
+let editing = null;
+let lastDiscovery = [];
 
 // Build DOM with textContent only: nothing from the config or the network is ever parsed as HTML.
 function el(tag, props, ...kids) {
@@ -150,6 +172,8 @@ function row(name, kind, url, token, readonly) {
   if (readonly) {
     r.append(el("span", { className: "pill warn plain", textContent: "configured in file" }));
   } else {
+    r.append(el("span", { className: "pill warn plain", textContent: "Saved · restart required" }));
+    r.append(el("button", { className: "btn small", type: "button", textContent: "Edit", onclick: () => edit(name) }));
     r.append(el("button", { className: "btn small", type: "button", textContent: "Remove", onclick: () => remove(name) }));
   }
   return r;
@@ -158,15 +182,41 @@ function row(name, kind, url, token, readonly) {
 async function load() {
   const d = await api("GET", "/api/connections");
   defaults = d.defaults;
+  presets = d.presets || {};
   $("auth-box").hidden = !d.auth_required;
+  $("preset").replaceChildren(el("option", {value:"", textContent:"Custom connection"}));
+  for (const [key, p] of Object.entries(presets)) $("preset").append(el("option", {value:key, textContent:p.name + " · " + key}));
   const kindLabel = { openapi: "OpenAPI 3", swagger2: "Swagger 2.0", graphql: "GraphQL" };
   render($("servers"), d.servers.map((s) => row(s.name, s.transport === "http" ? "MCP / HTTP" : "MCP / " + s.transport, s.url, s.token_env, s.readonly)));
-  render($("apis"), d.apis.map((a) => row(a.name, kindLabel[a.kind] || a.kind, a.base_url + (a.spec_path || defaults[a.kind] || ""), a.token_env, false)));
+  render($("apis"), d.apis.map((a) => row(a.name, kindLabel[a.kind] || a.kind, a.base_url + (a.spec_url || a.spec_path || defaults[a.kind] || ""), a.token_env, false)));
+  window.connectionRows = [...d.servers, ...d.apis];
+}
+
+async function edit(name) {
+  const item = (window.connectionRows || []).find(x => x.name === name);
+  if (!item || item.readonly) return;
+  editing = name; $("type").value = item.kind || "mcp"; $("type").disabled = true;
+  $("name").value = name; $("name").readOnly = true;
+  $("url").value = item.base_url || item.url || ""; $("spec").value = item.spec_path || ""; $("spec-url").value = item.spec_url || "";
+  $("token").value = item.token_env || "";
+  const auth = item.auth || (item.token_env ? {type:"bearer",token_env:item.token_env} : {type:"none"});
+  $("auth-type").value = auth.type; $("auth-token").value = auth.token_env || ""; $("auth-header").value = auth.header || ""; $("auth-value").value = auth.value_env || "";
+  $("auth-user").value = auth.username_env || ""; $("auth-password").value = auth.password_env || "";
+  const specAuth = item.spec_auth || {type:"none"}; $("spec-auth-type").value = specAuth.type; $("spec-auth-token").value = specAuth.token_env || "";
+  $("spec-reuse").checked = !!item.spec_reuse_api_auth;
+  $("secret-headers").value = JSON.stringify(item.secret_headers || {}, null, 2); $("headers").value = JSON.stringify(item.headers || {}, null, 2);
+  $("selected").value = (item.selected_operations || []).join("\n"); $("preset").value = item.preset || "";
+  $("clear-row").hidden = false; $("form-title").textContent = "Edit connection"; $("save").textContent = "Save changes"; $("cancel").hidden = false; syncType();
+}
+
+function resetForm() {
+  editing = null; $("form").reset(); $("type").disabled = false; $("name").readOnly = false;
+  $("clear-row").hidden = true; $("form-title").textContent = "Add a connection"; $("save").textContent = "Save"; $("cancel").hidden = true; syncType();
 }
 
 async function remove(name) {
-  if (!confirm("Remove " + name + "?")) return;
-  try { await api("DELETE", "/api/connections/" + encodeURIComponent(name)); say(true, "Removed " + name); await load(); }
+  if (!confirm("Remove " + name + "? Loaded tools remain active until gateway restart.")) return;
+  try { const result = await api("DELETE", "/api/connections/" + encodeURIComponent(name)); say(true, "Removed " + name + (result.pending_restart ? ". Pending restart; loaded tools remain active until restart." : "")); await load(); }
   catch (e) { say(false, e.message); }
 }
 
@@ -174,8 +224,22 @@ function entry() {
   const type = $("type").value;
   const e = { name: $("name").value.trim() };
   if (type === "mcp") { e.transport = "http"; e.url = $("url").value.trim(); }
-  else { e.kind = type; e.base_url = $("url").value.trim(); e.spec_path = $("spec").value.trim(); }
-  e.token_env = $("token").value.trim();
+  else {
+    e.kind = type; e.base_url = $("url").value.trim();
+    if ($("spec").value.trim()) e.spec_path = $("spec").value.trim();
+    if ($("spec-url").value.trim()) e.spec_url = $("spec-url").value.trim();
+    const authType = $("auth-type").value;
+    e.auth = authType === "bearer" ? {type:authType,token_env:$((editing ? "auth-token" : "auth-token")).value.trim()} : authType === "api_key" ? {type:authType,header:$ ("auth-header").value.trim(),value_env:$("auth-value").value.trim()} : authType === "basic" ? {type:authType,username_env:$("auth-user").value.trim(),password_env:$("auth-password").value.trim()} : {type:"none"};
+    const specType = $("spec-auth-type").value;
+    e.spec_auth = specType === "bearer" ? {type:specType,token_env:$("spec-auth-token").value.trim()} : {type:"none"};
+    e.spec_reuse_api_auth = $("spec-reuse").checked;
+    try { e.secret_headers = JSON.parse($("secret-headers").value || "{}"); e.headers = JSON.parse($("headers").value || "{}"); }
+    catch (_) { throw new Error("Header mappings must be valid JSON objects"); }
+    e.selected_operations = $("selected").value.split("\n").map(x=>x.trim()).filter(Boolean);
+    if ($("preset").value) e.preset = $("preset").value;
+    if ($("clear-secrets").checked) e.clear_secret_refs = true;
+  }
+  if (type === "mcp") { e.selected_operations = $("selected").value.split("\n").map(x=>x.trim()).filter(Boolean); }
   return e;
 }
 
@@ -183,19 +247,28 @@ function syncType() {
   const type = $("type").value;
   const mcp = type === "mcp";
   $("spec-box").hidden = mcp;
+  $("api-auth").hidden = mcp;
   $("url-label").textContent = mcp ? "MCP endpoint URL" : "API base URL";
   $("url").placeholder = mcp ? "https://example.com/mcp" : "https://api.example.com";
   $("spec").placeholder = defaults[type] || "/openapi.json";
 }
 $("type").onchange = syncType;
+$("preset").onchange = () => {
+  const p = presets[$("preset").value]; if (!p) return;
+  $("type").value = p.kind; $("url").value = p.base_url; $("spec-url").value = p.spec_url || "";
+  $("auth-type").value = p.auth.type; $("headers").value = JSON.stringify(p.headers || {}, null, 2); syncType();
+};
+$("cancel").onclick = resetForm;
 
 $("test").onclick = async () => {
   if (!$("form").reportValidity()) return;
   $("test").disabled = true;
   say(true, "Testing...");
   try {
-    const r = await api("POST", "/api/connections/test", entry());
-    r.ok ? say(true, "Connected", r.tools) : say(false, r.error || "Failed");
+    const e = entry(); delete e.selected_operations;
+    const r = await api("POST", "/api/connections/test", e); lastDiscovery = r.tools || [];
+    say(!!r.ok, (r.ok ? "Discovery complete" : "Discovery unavailable") + " · credentials not verified · " + (r.counts?.compatible ?? lastDiscovery.length) + " compatible tool(s)" + (r.status ? " · HTTP " + r.status : "") + (r.diagnostics?.length ? " · " + r.diagnostics.map(x=>typeof x === "string" ? x : JSON.stringify(x)).join("; ") : ""), lastDiscovery);
+    if (r.ok) $("selected").value = lastDiscovery.map(t=>t.startsWith($("name").value.trim()+"__") ? t.slice($("name").value.trim().length+2) : t).join("\n");
   } catch (e) { say(false, e.message); }
   $("test").disabled = false;
 };
@@ -203,14 +276,16 @@ $("test").onclick = async () => {
 $("form").onsubmit = async (ev) => {
   ev.preventDefault();
   try {
-    const r = await api("POST", "/api/connections", entry());
-    say(true, "Saved " + r.name + ". Restart the gateway to apply.");
-    $("form").reset();
-    syncType();
+    const e = entry();
+    const r = editing ? await api("PUT", "/api/connections/" + encodeURIComponent(editing), e) : await api("POST", "/api/connections", e);
+    say(true, "Saved " + r.name + ". Pending restart: gateway activation and environment-variable rotation require restart.");
+    resetForm();
     await load();
   } catch (e) { say(false, e.message); }
 };
 
+// Remote reads require the same token as writes; expose token control before first load.
+$("auth-box").hidden = false;
 load().then(syncType).catch((e) => say(false, e.message));
 </script>
 <script src="/ui.js" defer></script>

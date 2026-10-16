@@ -19,9 +19,19 @@ from urllib.parse import parse_qsl, urlsplit
 import httpx
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
+from mcp.client.streamable_http import streamable_http_client
 
 from healer.adapters import mcp_upstream
+from healer.connection_discovery import discover
+from healer.connection_security import (
+    check_egress,
+    has_credentials,
+    no_redirect_client,
+    no_redirect_httpx2,
+    origin,
+    resolve_headers,
+    validate_entry_auth,
+)
 from healer.graphql_loader import graphql_source
 from healer.jev import JevClient
 from healer.models import LoadedSpec, SpecSource
@@ -59,19 +69,64 @@ API_KINDS = {
 }
 PROBE_TIMEOUT_S = 10.0
 API_TIMEOUT_S = 15.0
-_SERVER_KEYS = {"name", "transport", "url", "command", "token_env", "tools"}
-_API_KEYS = {"name", "kind", "base_url", "spec_path", "token_env"}
-_SECRET_PREFIXES = ("sk-", "sk_", "ghp_", "gho_", "xox", "eyj", "akia", "bearer ", "basic ")
+_SERVER_KEYS = {
+    "name",
+    "transport",
+    "url",
+    "command",
+    "token_env",
+    "tools",
+    "auth",
+    "headers",
+    "secret_headers",
+    "selected_operations",
+    "preset",
+}
+_API_KEYS = {
+    "name",
+    "kind",
+    "base_url",
+    "spec_path",
+    "spec_url",
+    "spec_auth",
+    "spec_reuse_api_auth",
+    "token_env",
+    "auth",
+    "headers",
+    "secret_headers",
+    "selected_operations",
+    "preset",
+}
+_SECRET_PREFIXES = (
+    "sk-",
+    "sk_",
+    "ghp_",
+    "gho_",
+    "xox",
+    "eyj",
+    "akia",
+    "bearer ",
+    "basic ",
+)
 _SECRET_QUERY = re.compile(r"token|secret|password|passwd|key|auth|sig", re.IGNORECASE)
 
 
 def _http_url(value: object, field: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{field} is required")
-    parts = urlsplit(value)
+    try:
+        parts = urlsplit(value)
+        _ = parts.port
+    except ValueError:
+        raise ValueError(f"{field} must be a valid http or https URL") from None
     if parts.scheme not in ("http", "https") or not parts.hostname:
         raise ValueError(f"{field} must be an http or https URL")
-    if parts.username or parts.password:
+    if (
+        parts.username
+        or parts.password
+        or parts.fragment
+        or any(c in value for c in "\r\n")
+    ):
         raise ValueError(f"{field} must not contain credentials")
     if any(_SECRET_QUERY.search(k) for k, _ in parse_qsl(parts.query)):
         raise ValueError(f"{field} must not carry secrets in the query string")
@@ -86,6 +141,7 @@ def validate_entry(entry: object, *, http_only: bool = False) -> dict:
     if not isinstance(entry, dict):
         raise ValueError("entry must be an object")  # noqa: TRY004 - callers catch ValueError
     is_api = "kind" in entry
+    validate_entry_auth(entry)
     unknown = set(entry) - (_API_KEYS if is_api else _SERVER_KEYS)
     if unknown:
         raise ValueError(f"unknown field: {min(unknown)}")
@@ -95,10 +151,14 @@ def validate_entry(entry: object, *, http_only: bool = False) -> dict:
     if mcp_upstream.SEP in name:
         raise ValueError("name must not contain '__'")
     var = entry.get("token_env")
-    if var is not None and var != "" and (
-        not isinstance(var, str)
-        or not ENV_NAME_RE.match(var)
-        or var.lower().startswith(_SECRET_PREFIXES)
+    if (
+        var is not None
+        and var != ""
+        and (
+            not isinstance(var, str)
+            or not ENV_NAME_RE.match(var)
+            or var.lower().startswith(_SECRET_PREFIXES)
+        )
     ):
         raise ValueError(
             "token_env must be an environment variable NAME, never the token itself"
@@ -107,13 +167,57 @@ def validate_entry(entry: object, *, http_only: bool = False) -> dict:
         if entry["kind"] not in API_KINDS:
             raise ValueError("kind must be openapi, swagger2 or graphql")
         _http_url(entry.get("base_url"), "base_url")
+        if entry.get("spec_path") and entry.get("spec_url"):
+            raise ValueError("spec_url and spec_path are mutually exclusive")
+        if entry.get("spec_reuse_api_auth") and entry.get("spec_auth"):
+            raise ValueError("spec_auth and spec_reuse_api_auth are mutually exclusive")
+        if "spec_reuse_api_auth" in entry and not isinstance(
+            entry["spec_reuse_api_auth"], bool
+        ):
+            raise ValueError("spec_reuse_api_auth must be boolean")
+        if entry.get("spec_url"):
+            _http_url(entry["spec_url"], "spec_url")
+            if entry.get("spec_reuse_api_auth") and origin(entry["spec_url"]) != origin(
+                entry["base_url"]
+            ):
+                raise ValueError("spec credentials require same-origin reuse")
         path = entry.get("spec_path")
-        if path is not None and path != "" and (
-            not isinstance(path, str) or not path.startswith("/") or "://" in path
+        if (
+            path is not None
+            and path != ""
+            and (
+                not isinstance(path, str)
+                or not path.startswith("/")
+                or path.startswith("//")
+                or "://" in path
+                or any(c in path for c in "\r\n#")
+            )
         ):
             raise ValueError("spec_path must be a path starting with '/'")
+        if path and any(
+            _SECRET_QUERY.search(key) for key, _ in parse_qsl(urlsplit(path).query)
+        ):
+            raise ValueError("spec_path must not carry secrets in its query string")
+        selected = entry.get("selected_operations")
+        if selected is not None and (
+            not isinstance(selected, list)
+            or any(not isinstance(x, str) or not x for x in selected)
+            or len(set(selected)) != len(selected)
+        ):
+            raise ValueError("selected_operations must be unique non-empty strings")
+        if entry.get("preset") not in (None, "github@1", "notion@1"):
+            raise ValueError("unknown preset")
     else:
         transport = entry.get("transport")
+        selected = entry.get("selected_operations")
+        if selected is not None and (
+            not isinstance(selected, list)
+            or any(not isinstance(x, str) or not x for x in selected)
+            or len(set(selected)) != len(selected)
+        ):
+            raise ValueError("selected_operations must be unique non-empty strings")
+        if entry.get("preset") not in (None, "github@1", "notion@1"):
+            raise ValueError("unknown preset")
         if http_only and (transport != "http" or "command" in entry):
             raise ValueError("only http MCP servers can be added here")
         if transport == "http":
@@ -160,14 +264,41 @@ def load_apis(path: str | Path) -> list[dict]:
 
 
 def _token_headers(server: dict, env: Mapping[str, str]) -> dict[str, str]:
-    var = server.get("token_env")
-    if not var:
-        return {}
-    if not env.get(var):  # name the variable, never its value
-        raise ValueError(
-            f"server {server['name']!r}: environment variable {var} is not set"
+    return resolve_headers(server, env)
+
+
+def _connection_config(
+    entry: dict, env: Mapping[str, str]
+) -> tuple[dict[str, str], dict[str, str], list[str]]:
+    headers = resolve_headers(entry, env)
+    sources: dict[str, str] = {}
+    values: dict[str, str] = {}
+    secret_keys: list[str] = []
+    secret_envs = list(entry.get("secret_headers", {}).values())
+    auth = entry.get("auth") or (
+        {"token_env": entry["token_env"]} if entry.get("token_env") else {}
+    )
+    secret_envs.extend(value for field, value in auth.items() if field.endswith("_env"))
+    secret_headers = {name.casefold() for name in entry.get("secret_headers", {})}
+    if auth.get("type") in {"bearer", "basic"}:
+        secret_headers.add("authorization")
+    elif auth.get("type") == "api_key":
+        secret_headers.add(auth["header"].casefold())
+    for env_name in secret_envs:
+        if env.get(env_name):
+            key = f"connection-secret:{entry['name']}:{env_name}"
+            values[key] = env[env_name]
+            secret_keys.append(key)
+    for header, value in headers.items():
+        prefix = (
+            "connection-secret" if header.casefold() in secret_headers else "connection"
         )
-    return {"Authorization": f"Bearer {env[var]}"}
+        key = f"{prefix}:{entry['name']}:{header.casefold()}"
+        sources[header] = key
+        values[key] = value
+        if header.casefold() in secret_headers:
+            secret_keys.append(key)
+    return sources, values, secret_keys
 
 
 @asynccontextmanager
@@ -175,6 +306,7 @@ async def _open(
     server: dict, env: Mapping[str, str], transport: object | None = None
 ) -> AsyncIterator[ClientSession]:
     """`transport` (an httpx2 transport) is for tests: it replaces the network."""
+    validate_entry(server)
     async with AsyncExitStack() as stack:
         if server["transport"] == "stdio":
             command = [
@@ -185,12 +317,19 @@ async def _open(
             )
         elif server["transport"] == "http":
             headers = _token_headers(server, env)
-            if transport is None:
-                client = create_mcp_http_client(headers=headers)
-            else:
-                import httpx2
-
-                client = httpx2.AsyncClient(headers=headers, transport=transport)
+            check_egress(
+                server["url"],
+                credentials=has_credentials(server),
+                mock_transport=transport is not None,
+                env=env,
+            )
+            client = no_redirect_httpx2(
+                server["url"],
+                headers,
+                transport,
+                env=env,
+                credentials=has_credentials(server),
+            )
             client = await stack.enter_async_context(client)
             streams = streamable_http_client(server["url"], http_client=client)
         else:
@@ -211,13 +350,39 @@ async def upstream_registry(
     jev: JevClient | None = None,
     overrides: Mapping[str, dict] | None = None,
     repair: RepairAgent | None = None,
+    selected_operations: list[str] | None = None,
+    connection_entry: dict | None = None,
+    env: Mapping[str, str] = os.environ,
 ) -> Registry:
     """One healing registry over one upstream server, exposing every tool it lists."""
     source = mcp_upstream.mcp_source(session, name)
+    if selected_operations is not None:
+        selected = set(selected_operations)
+        original = source
+
+        async def source() -> LoadedSpec:
+            spec = await original()
+            return LoadedSpec(
+                spec.raw,
+                {
+                    k: v
+                    for k, v in spec.ops.items()
+                    if k.split(mcp_upstream.SEP, 1)[-1] in selected
+                },
+                spec.spec_hash,
+            )
+
     spec = await source()
-    tools = {f"{name}{mcp_upstream.SEP}{t['name']}": t for t in spec.raw["tools"]}
+    tools = {
+        f"{name}{mcp_upstream.SEP}{t['name']}": t
+        for t in spec.raw["tools"]
+        if selected_operations is None or t["name"] in selected_operations
+    }
     config = {
         "header_sources": {},
+        "secret_keys": _connection_config(connection_entry, env)[2]
+        if connection_entry
+        else [],
         "tools": {
             key: {**mcp_upstream.tool_config(tool), **(overrides or {}).get(key, {})}
             for key, tool in tools.items()
@@ -226,7 +391,7 @@ async def upstream_registry(
     registry = Registry(
         None,
         config,
-        cfg,
+        _connection_config(connection_entry, env)[1] if connection_entry else cfg,
         store,
         jev,
         spec_source=source,
@@ -260,17 +425,96 @@ def api_tool_config(op: dict) -> dict:
 def _api_client(
     api: dict, env: Mapping[str, str], transport: httpx.AsyncBaseTransport | None
 ) -> httpx.AsyncClient:
-    return httpx.AsyncClient(
+    check_egress(
+        api["base_url"],
+        credentials=has_credentials(api),
+        mock_transport=transport is not None,
+        env=env,
+    )
+    return no_redirect_client(
         base_url=api["base_url"],
         headers=_token_headers(api, env),
         timeout=API_TIMEOUT_S,
         transport=transport,
+        egress_env=env,
+        egress_credentials=has_credentials(api),
     )
 
 
 def _api_source(api: dict, client: httpx.AsyncClient) -> SpecSource:
     default, factory = API_KINDS[api["kind"]]
     return namespaced(factory(client, api.get("spec_path") or default), api["name"])
+
+
+def _discovered_source(
+    api: dict,
+    source: SpecSource,
+    env: Mapping[str, str],
+    diagnostics: list[dict] | None = None,
+) -> SpecSource:
+    headers = set(resolve_headers(api, env))
+
+    async def load() -> LoadedSpec:
+        selected, found = discover(await source(), api, headers)
+        if diagnostics is not None:
+            diagnostics[:] = found
+        return selected
+
+    return load
+
+
+async def _spec_source(
+    api: dict,
+    env: Mapping[str, str],
+    transport: httpx.AsyncBaseTransport | None,
+    stack: AsyncExitStack,
+    api_client: httpx.AsyncClient,
+    diagnostics: list[dict] | None = None,
+) -> SpecSource:
+    reuse = api.get("spec_reuse_api_auth", False)
+    if api.get("spec_auth"):
+        spec_headers = resolve_headers({"auth": api["spec_auth"]}, env)
+    elif reuse or not api.get("spec_url"):
+        spec_headers = _token_headers(api, env)
+    else:
+        spec_headers = {}
+    target = api.get("spec_url") or api["base_url"]
+    if reuse and origin(target) != origin(api["base_url"]):
+        raise ValueError("spec credentials require same-origin reuse")
+    check_egress(
+        target,
+        credentials=bool(spec_headers)
+        and (
+            has_credentials(api)
+            if not api.get("spec_url") or reuse
+            else bool(api.get("spec_auth"))
+        ),
+        mock_transport=transport is not None,
+        env=env,
+    )
+    spec_client = await stack.enter_async_context(
+        no_redirect_client(
+            base_url=target,
+            headers=spec_headers,
+            timeout=API_TIMEOUT_S,
+            transport=transport,
+            egress_env=env,
+            egress_credentials=bool(spec_headers)
+            and (
+                has_credentials(api)
+                if not api.get("spec_url") or reuse
+                else bool(api.get("spec_auth"))
+            ),
+        )
+    )
+    location = api.get("spec_url") or api.get("spec_path") or API_KINDS[api["kind"]][0]
+    factory = API_KINDS[api["kind"]][1]
+    source = namespaced(factory(spec_client, location), api["name"])
+    return (
+        _discovered_source(api, source, env, diagnostics)
+        if api["kind"] != "graphql"
+        else source
+    )
 
 
 @asynccontextmanager
@@ -284,17 +528,19 @@ async def api_registry(
     transport: httpx.AsyncBaseTransport | None = None,
 ) -> AsyncIterator[Registry]:
     """One healing registry over one third-party API; the HTTP client closes on exit."""
+    validate_entry(api)
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(_api_client(api, env, transport))
-        source = _api_source(api, client)
+        source = await _spec_source(api, env, transport, stack, client)
         spec = await source()
         registry = Registry(
             client,
             {
-                "header_sources": {},
+                "header_sources": _connection_config(api, env)[0],
+                "secret_keys": _connection_config(api, env)[2],
                 "tools": {k: api_tool_config(op) for k, op in spec.ops.items()},
             },
-            cfg,
+            _connection_config(api, env)[1],
             store,
             jev,
             spec_source=source,
@@ -327,23 +573,59 @@ async def probe(
 ) -> dict:
     """Connect once to an MCP server or API and list what it offers. Never raises."""
 
+    diagnostics: list[dict] = []
+
     async def run() -> list[str]:
         if "kind" in entry:
-            async with _api_client(entry, env, transport) as client:  # type: ignore[arg-type]
-                spec = await _api_source(entry, client)()
+            validate_entry(entry)
+            async with AsyncExitStack() as stack:
+                api_client = await stack.enter_async_context(
+                    _api_client(entry, env, transport)
+                )
+                source = await _spec_source(
+                    entry, env, transport, stack, api_client, diagnostics
+                )
+                spec = await source()
                 return sorted(spec.ops)
         async with _open(entry, env, transport) as session:
             listed = await session.list_tools()
+            selected = entry.get("selected_operations")
+            offered = {t.name for t in listed.tools}
+            if selected is not None:
+                diagnostics.extend(
+                    {"operation": name, "code": "UNKNOWN_OPERATION"}
+                    for name in selected
+                    if name not in offered
+                )
             return sorted(
-                f"{entry['name']}{mcp_upstream.SEP}{t.name}" for t in listed.tools
+                f"{entry['name']}{mcp_upstream.SEP}{t.name}"
+                for t in listed.tools
+                if selected is None or t.name in selected
             )
 
     try:
+        validate_entry(entry)
         async with asyncio.timeout(PROBE_TIMEOUT_S):
             tools = await run()
-        return {"ok": True, "tools": tools, "error": None}
+        result = {"ok": True, "tools": tools, "error": None}
+        result.update(
+            step="discovery",
+            status="ok",
+            count=len(tools),
+            credentials_verified=False if "kind" in entry else None,
+            diagnostics=diagnostics,
+        )
+        return result
     except Exception as exc:  # noqa: BLE001 - report a short message only
-        return {"ok": False, "tools": [], "error": _short_error(exc)}
+        result = {"ok": False, "tools": [], "error": _short_error(exc)}
+        result.update(
+            step="discovery",
+            status="error",
+            count=0,
+            credentials_verified=False if "kind" in entry else None,
+            diagnostics=diagnostics,
+        )
+        return result
 
 
 @asynccontextmanager
@@ -369,6 +651,9 @@ async def connect_upstreams(
                     jev,
                     server.get("tools"),
                     repair,
+                    server.get("selected_operations"),
+                    server,
+                    env,
                 )
             )
         for api in load_apis(config_path):
