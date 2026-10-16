@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 
-from healer.canonical import sha256
+from healer.canonical import dumps, sha256
 from healer.models import Side
 
 _TYPES = {
@@ -37,13 +37,22 @@ def _type(schema: dict) -> str:
     return _TYPES.get(t, "obj")
 
 
-def _leaf(path: list[str], type_: str, required: bool, description: str = "") -> dict:
-    return {
+def _leaf(
+    path: list[str],
+    type_: str,
+    required: bool,
+    description: str = "",
+    enum: list | None = None,
+) -> dict:
+    leaf = {
         "path": path,
         "type": type_,
         "required": required,
         "description": description,
     }
+    if enum is not None:
+        leaf["enum"] = enum
+    return leaf
 
 
 def _leaves(schema: dict, path: list[str], required: bool) -> Iterator[dict]:
@@ -55,7 +64,13 @@ def _leaves(schema: dict, path: list[str], required: bool) -> Iterator[dict]:
         for name, sub in props.items():
             yield from _leaves(sub, [*path, name], required and name in needed)
     elif path:
-        yield _leaf(path, _type(schema), required, schema.get("description", ""))
+        yield _leaf(
+            path,
+            _type(schema),
+            required,
+            schema.get("description", ""),
+            enum=schema.get("enum"),
+        )
 
 
 def _index(leaves: Iterable[dict]) -> dict[tuple, dict]:
@@ -69,11 +84,13 @@ def flatten_request(op: dict) -> dict[tuple, dict]:
         if p["in"] not in ("query", "header"):
             continue
         name = p["name"].lower() if p["in"] == "header" else p["name"]
+        schema = _unwrap(p["schema"])
         out[(p["in"], name)] = _leaf(
             [p["in"], name],
-            _type(_unwrap(p["schema"])),
+            _type(schema),
             p["required"],
             p["description"],
+            enum=schema.get("enum") or p.get("schema", {}).get("enum"),
         )
     if "bearer" in op["security"]:
         out[("header", "authorization")] = _leaf(
@@ -109,6 +126,18 @@ def _diff_leaves(side: Side, old: dict, new: dict) -> Iterator[dict]:
             yield _entry("type_changed", side, new[key], old_type=old[key]["type"])
         if old[key]["required"] != new[key]["required"]:
             yield _entry("required_changed", side, new[key])
+        if (
+            "enum" in old[key]
+            and "enum" in new[key]
+            and old[key]["enum"] != new[key]["enum"]
+        ):
+            yield _entry(
+                "enum_changed",
+                side,
+                new[key],
+                old_enum=old[key]["enum"],
+                new_enum=new[key]["enum"],
+            )
 
 
 def _order(entry: dict) -> tuple:
@@ -135,6 +164,36 @@ def diff(old_op: dict, new_op: dict) -> list[dict]:
 
 def diff_signature(entries: list[dict]) -> str:
     return sha256([{k: v for k, v in e.items() if k != "description"} for e in entries])
+
+
+def abstract_signature(ops: list[dict], entries: list[dict]) -> str:
+    """FR-17.8: abstract structural signature with roles replacing concrete names."""
+    removed = [tuple(e["path"]) for e in entries if e.get("change") == "removed"]
+    added = [tuple(e["path"]) for e in entries if e.get("change") == "added"]
+
+    from_roles = {p: f"$from_{i}" for i, p in enumerate(removed)}
+    to_roles = {p: f"$to_{i}" for i, p in enumerate(added)}
+
+    def abstract_path(path: list, roles: dict[tuple, str]) -> list:
+        tp = tuple(path)
+        if tp in roles:
+            return [*path[:-1], roles[tp]]
+        return path
+
+    abstract_ops = []
+    for op in ops:
+        ab = dict(op)
+        if "from" in ab:
+            ab["from"] = abstract_path(ab["from"], from_roles)
+        if "to" in ab:
+            ab["to"] = abstract_path(ab["to"], to_roles)
+        if "path" in ab:
+            tp = tuple(ab["path"])
+            roles = from_roles if tp in from_roles else to_roles
+            ab["path"] = abstract_path(ab["path"], roles)
+        abstract_ops.append(ab)
+
+    return dumps(abstract_ops)
 
 
 def route_exists(ops: dict[str, dict], method: str, path: str) -> bool:

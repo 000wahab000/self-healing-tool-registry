@@ -1,58 +1,60 @@
 ## Read first
 
-`agent.md` holds the coding rules and the non-negotiable invariants; they apply to every agent and every person. `plan.md` ("Phase 13+: four parallel tracks") holds the work items. The section below says who owns which files while four people build in parallel.
+`agent.md` holds the coding rules and the non-negotiable invariants; they apply to every agent and every person. `plan.md` ("Phase 13+: MCP gateway, two teams on four machines") holds the work items and the product direction. The section below says who owns which files while four machines build in parallel.
 
-## Four-person ownership (phase 13+)
+## Two teams, four machines (phase 13+)
 
-Four people work in parallel, each with their own coding agent. P1 and P2 have the strongest setups, so they own the critical and heavy work. P3 and P4 take bounded, well-tested items.
+Two people, each running two machines with their own coding agent. Each machine owns one track and its files, so the four agents never edit the same file.
 
-| Person | Setup | Track |
+| Machine | Person | Track |
 |---|---|---|
-| **P1** | Teammate; GPT with oh-my-opencode-slim | MCP server (the product's front door), GraphQL, gRPC, Postgres |
-| **P2** | Wahab; Claude Code | Healing core, the real-LLM benchmark, review of every contract change |
-| **P3** | OpenCode free tier, no plugins or extra setup | Small isolated items: Swagger 2.0 converter, healthy-call overhead benchmark, plan hygiene |
-| **P4** | Antigravity with Gemini Flash (Gemini Pro via Jio) | Browser demo checks, dashboard, docs and pitch, spec watcher, LangGraph migration |
+| **T1-PS1** | Team 1: Wahab | Healing core for MCP drift (detect, diagnose, heal, ops, store), landing the old P2 branch |
+| **T1-PS2** | Team 1: Wahab | Mock drift MCP server, fixtures, benchmark and real-LLM evidence |
+| **T2-PS1** | Team 2: teammate | Upstream MCP client and loader, server config, registry dispatch, front-door MCP server |
+| **T2-PS2** | Team 2: teammate | Spec watcher, demo agent, dashboard, docs, README and pitch |
 
-Find out which person you are working for before editing. If the prompt does not say, ask. Kickoff prompts for each person are in `team-prompts.md`.
+Find out which machine you are working for before editing. If the prompt does not say, ask. Kickoff prompts for each machine are in `team-prompts.md`.
 
-### Files each person owns
+### Files each machine owns
 
 Only the owner edits these files. Anyone else asks the owner (issue or PR comment) for a change.
 
 | Owner | Files |
 |---|---|
-| P1 | `src/healer/mcp_server.py` (new), `src/healer/adapters/`, `src/healer/openapi_loader.py`, new protocol loaders (`graphql_loader.py`, `grpc_loader.py`), `src/healer/registry.py`, `src/healer/store_pg.py` (new), `mock_api/graphql_app.py`, `mock_api/grpc_server.py`, `tests/mcp/`, `tests/protocols/`, `tests/store_pg/` |
-| P2 | `src/healer/heal.py`, `candidates.py`, `diagnose.py`, `ops.py`, `safety.py`, `detect.py`, `contract.py`, `fingerprint.py`, `jev.py`, `retry.py`, `models.py`, `canonical.py`, `settings.py`, `store.py`; `config/tools.json`; `mock_api/app.py`; `bench/` (except `bench/overhead.py`); `agents/` until P2-0 is done |
-| P3 | `src/healer/swagger2.py` (new), `mock_api/fixtures/` (new), `bench/overhead.py` (new), `tests/p3/` (new); checkbox and progress-log fixes in `plan.md` phases 0 to 12 |
-| P4 | `src/healer/spec_watcher.py` (new), `dashboard/`, `README.md`, `pitch.md`, `writeup.md`, `docs/` (new, MCP client setup guides), `tests/p4/` (new); `agents/` after P2-0 is done |
+| T1-PS1 | `src/healer/heal.py`, `candidates.py`, `diagnose.py`, `ops.py`, `safety.py`, `detect.py`, `contract.py`, `fingerprint.py`, `jev.py`, `retry.py`, `models.py`, `canonical.py`, `settings.py`, `store.py`; `config/tools.json`; `tests/conftest.py`, `tests/integration/`, `tests/unit/`, `tests/t1ps1/` (new) |
+| T1-PS2 | `mock_api/` (including `mcp_drift_server.py` and `fixtures/`), `bench/`, `agents/`, `src/healer/swagger2.py`, `tests/mock_api/`, `tests/agents/`, `tests/bench/`, `tests/e2e/`, `tests/p3/`, `tests/t1ps2/` (new) |
+| T2-PS1 | `src/healer/mcp_server.py`, `src/healer/adapters/` (including `mcp_upstream.py`), `src/healer/openapi_loader.py`, `src/healer/registry.py`, `config/mcp_servers.json` (new), deferred protocol files (`graphql_loader.py`, `grpc_loader.py`, `store_pg.py`), `tests/mcp/`, `tests/protocols/`, `tests/t2ps1/` (new) |
+| T2-PS2 | `src/healer/spec_watcher.py` (new), `demo/` (new), `dashboard/`, `README.md`, `pitch.md`, `writeup.md`, `docs/`, `tests/dashboard/`, `tests/p4/`, `tests/t2ps2/` (new) |
 
 Shared files: append only, and only in your own subsection.
 
-- `product.md`: each person writes the FR and AC for their own items before writing code (`agent.md` invariant 10). Reserved AC numbers: **P1 AC-30 to AC-39, P2 AC-40 to AC-49, P3 AC-28 and AC-50 to AC-54, P4 AC-55 to AC-59.** AC-29 stays unassigned.
-- `plan.md`: tick your own `P1-*` to `P4-*` boxes and add your own progress-log rows.
-- `pyproject.toml`: P1 adds new optional groups only (`mcp`, `graphql`, `grpc`, `postgres`). Any other change goes through P2.
-- `tests/conftest.py` and `tests/integration/conftest.py`: P2 owns them. Everyone else adds fixtures in a `conftest.py` inside their own test folder.
+- `product.md`: each machine writes the FR and AC for its own items before writing code (`agent.md` invariant 10), inside its own `## Track <machine>` section only. Reserved AC numbers: **T2-PS1 AC-30 to AC-39, T1-PS1 AC-40 to AC-49, T1-PS2 AC-50 to AC-54, T2-PS2 AC-55 to AC-59.** AC-28 is P3's healthy-call overhead AC (done); AC-29 stays unassigned.
+- `plan.md`: tick your own `T1-*` or `T2-*` boxes, and add progress-log rows only to your own machine's table ("Progress log: T1-PS1" and so on).
+- `pyproject.toml`: T2-PS1 adds new optional groups only (`mcp`, `graphql`, `grpc`, `postgres`). Any other change goes through T1-PS1.
+- `tests/conftest.py` and `tests/integration/conftest.py`: T1-PS1 owns them. Everyone else adds fixtures in a `conftest.py` inside their own test folder.
 
 ### Contracts between the tracks
 
-These interfaces are how the tracks meet. Changing one needs a PR that P2 and the affected owner approve.
+These interfaces are how the tracks meet. Changing one needs a PR that Wahab and the affected owner approve.
 
-1. **`OperationSpec` (`models.py`).** Every spec loader (OpenAPI 3, Swagger 2.0, GraphQL, gRPC, upstream MCP) returns `dict[str, OperationSpec]` keyed by tool name. Diagnosis and candidate building only ever read this shape.
+1. **`OperationSpec` (`models.py`).** Every spec loader (OpenAPI 3, Swagger 2.0, upstream MCP, later GraphQL and gRPC) returns `dict[str, OperationSpec]` keyed by tool name. Diagnosis and candidate building only ever read this shape.
 2. **`SpecSource` (`models.py`).** An async callable that returns a `LoadedSpec` and raises `httpx.HTTPError` or `ValueError` when the spec is unavailable. `Registry` and `Healer` take one; the default is `openapi_loader.openapi_source(client)`.
-3. **`FixStore` (`store.py`).** P1's Postgres backend implements it and must pass the same store tests as SQLite. When P2 adds a table, P2 adds its methods to `FixStore` and their tests in the same PR.
+3. **`FixStore` (`store.py`).** Any other backend implements it and must pass the same store tests as SQLite. When T1-PS1 adds a table, it adds the methods to `FixStore` and their tests in the same PR.
 4. **`Registry.tools()` and `Registry.call()`.** The MCP server exposes exactly these: `tools/list` comes from `tools()` (the frozen `agent_schema`), `tools/call` goes through `call()`. The MCP server adds no healing logic of its own.
-5. **Spec-change hook.** P4's watcher calls `Healer.precompute(old: LoadedSpec, new: LoadedSpec)`. P2 implements it. The watcher must work (record snapshots) before P2's side exists.
-6. **New fix operations.** If a protocol needs an operation `ops.py` lacks, ask P2.
+5. **Spec-change hook.** T2-PS2's watcher calls `Healer.precompute(old: LoadedSpec, new: LoadedSpec)`. T1-PS1 implements it. The watcher must work (record snapshots) before the healer side exists.
+6. **New fix operations.** If a protocol needs an operation `ops.py` lacks, ask T1-PS1.
+7. **Upstream MCP mapping (`adapters/mcp_upstream.py`).** An upstream tool maps to an `OperationSpec` keyed `<server>__<tool>`, built only from its `inputSchema`. A call returns the shared `Outcome`, keeping the JSON-RPC error code and message, the `isError` flag and its content. Changes need T1-PS1 and T2-PS1 approval.
+8. **Mock drift control (`mock_api/mcp_drift_server.py`).** A documented way to apply, list and reset mutations by name (the same names as the REST mock where one exists). T1-PS2 owns it; the dashboard, demo and tests only call it.
 
 ### Working rules
 
-- Branches: `p1/<item>-<slug>` to `p4/<item>-<slug>`, one plan item per PR, cut from and merged back to `main`.
+- Branches: `t1-ps1/<item>-<slug>`, `t1-ps2/…`, `t2-ps1/…`, `t2-ps2/…`, one plan item per PR, cut from and merged back to `main`.
 - Before opening a PR: rebase on `main`, then `pytest -q` and `ruff check .` must both be clean. The repo has no CI, so this local run is the gate.
-- **Review:** P2 reviews every PR from P3 and P4, and every PR that touches a contract or a shared file. P1 reviews P2's contract changes.
+- **Review:** Wahab reviews every contract change and every shared-file change. The teammate reviews Team 1 PRs that touch a contract or a Team 2 file.
 - Every acceptance criterion gets a `test_ac_XX_*` test (`agent.md` §5).
 - No item may break the invariants in `agent.md` §2: no invented values, no executed model code, no loops, one audit row per heal, frozen `agent_schema`, no secrets stored, False-Patch Rate 0.
 - **Claims:** README, pitch and demo copy use only numbers measured in `bench/report.md`. Do not claim a heal time, "the agent never sees an error" (refusals such as M8 return a structured error by design) or any other result that has not been measured.
-- **Secrets:** never paste `.env` contents or API keys into any agent prompt. This matters most for P3: some free OpenCode models keep or train on prompts.
+- **Secrets:** never paste `.env` contents or API keys into any agent prompt. Upstream server tokens live in env vars; `config/mcp_servers.json` stores only the variable name.
 - **Running tests from a git worktree:** the shared `.venv` imports `src/` from the main checkout. Set `PYTHONPATH` to the worktree's `src` and root first.
 
 ## graphify

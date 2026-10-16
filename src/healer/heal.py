@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
@@ -19,13 +19,16 @@ from healer.models import (
     DecisionPath,
     ErrorClass,
     Fix,
+    FixStatus,
     HealError,
     HealOutcome,
+    LoadedSpec,
     Outcome,
     Reason,
     Side,
     SpecSource,
     Tier,
+    Violation,
 )
 from healer.ops import OpError, apply_ops
 from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S, SPEC_MODE
@@ -104,11 +107,13 @@ class Healer:
         attempt: Callable[..., Awaitable[Outcome]],
         clock: Callable[[], float],
         spec_mode: str = SPEC_MODE,
+        tools: Callable[[], Iterable[ToolDefinition]] | None = None,
     ) -> None:
         self._store, self._jev, self._spec_source = store, jev, spec_source
         self._spec_mode = spec_mode
         self._cfg, self._header_sources = cfg, header_sources
         self._attempt, self._clock = attempt, clock
+        self._tools = tools
         self._flights: dict[str, asyncio.Future[Reason | None]] = {}
         self._saved_specs: set[str] = set()
         # fingerprint -> when its first failing response arrived, until a heal recovers it.
@@ -174,9 +179,16 @@ class Healer:
         if fix:
             h.tier, h.path, h.fix_id = Tier.T0, DecisionPath.cache, fix.fix_id
         else:
-            if h.outcome.cls is not ErrorClass.E6:
-                await self._diagnose(h)
-            fix = await self._candidate(h)
+            cand = self._store.get_candidate(h.fp)
+            if cand:
+                fix = cand
+                h.tier = Tier.T0
+                h.path = DecisionPath.cache
+                h.fix_id = cand.fix_id
+            else:
+                if h.outcome.cls is not ErrorClass.E6:
+                    await self._diagnose(h)
+                fix = await self._candidate(h)
         self._gate(h, fix)
         if h.needs_preverify:
             await self._preverify(h, fix)
@@ -248,9 +260,13 @@ class Healer:
             raise _Abort(reason)
         index = await self._choose(h, found) if len(found) > 1 else 0
         pick = found[index]
+        order = self._schema_order(h)
+        pattern = diagnose.abstract_signature(pick.get("request_ops", []), order)
+        sig = dict(h.signature)
+        sig["abstract"] = pattern
         return Fix(
             h.fp,
-            h.signature,
+            sig,
             h.tool.name,
             outcome.cls,
             pick["request_ops"],
@@ -267,6 +283,12 @@ class Healer:
         if winner is not None:
             h.path = DecisionPath.tiebreak
             return winner
+        order = self._schema_order(h)
+        for idx, cand in enumerate(found):
+            pat = diagnose.abstract_signature(cand.get("request_ops", []), order)
+            if self._store.is_rule(pat):
+                h.path = DecisionPath.tiebreak
+                return idx
         h.path = DecisionPath.jev
         try:
             if self._jev is None:
@@ -364,10 +386,17 @@ class Healer:
 
     def _commit(self, h: _Heal, fix: Fix, result: Outcome) -> Any:
         try:
-            if h.tier is Tier.T0:
+            if fix.status is FixStatus.candidate:
+                self._store.promote(fix.fix_id)
+                self._store.record_result(fix.fix_id, True)
+                fix.status = FixStatus.active
+            elif h.tier is Tier.T0:
                 self._store.record_result(fix.fix_id, True)
             else:
                 h.fix_id = self._store.save_fix(fix)
+                pat = fix.signature.get("abstract")
+                if pat:
+                    self._store.record_rule_win(pat)
             self._store.audit(self._event(h, HealOutcome.RECOVERED, None))
         except sqlite3.Error:  # a fix that cannot be logged is not applied
             raise _Abort(Reason.VERIFY_FAILED) from None
@@ -378,7 +407,184 @@ class Healer:
             h.new_op is not None
         ):  # tier 0 skips the spec fetch, so there is nothing newer
             h.tool.wire_op = h.new_op
+        self._propagate_siblings(h, fix)
         return result.data
+
+    def _propagate_siblings(self, h: _Heal, fix: Fix) -> None:
+        """FR-17.1 (S1): Propagate candidate fixes to sibling tools sharing the removed field/type."""
+        if self._tools is None or not fix.request_ops:
+            return
+        base_leaves = diagnose.flatten_request(h.tool.base_op)
+        affected_leaves: list[tuple[dict, dict]] = []
+        for op in fix.request_ops:
+            if op.get("op") == "move":
+                src = tuple(op["from"])
+                if src in base_leaves:
+                    affected_leaves.append((base_leaves[src], op))
+            elif op.get("op") == "cast":
+                path = tuple(op["path"])
+                if path in base_leaves:
+                    affected_leaves.append((base_leaves[path], op))
+        if not affected_leaves:
+            return
+
+        for tool in self._tools():
+            if tool.name == h.tool.name:
+                continue
+            sibling_leaves = diagnose.flatten_request(tool.base_op)
+            sibling_ops = []
+            for leaf, op in affected_leaves:
+                src_path = tuple(op["from"] if op["op"] == "move" else op["path"])
+                if (
+                    src_path in sibling_leaves
+                    and sibling_leaves[src_path]["type"] == leaf["type"]
+                ):
+                    sibling_ops.append(op)
+
+            if sibling_ops:
+                sibling_sig = {k: v for k, v in h.signature.items() if k != "abstract"}
+                sibling_sig["tool"] = tool.name
+                sibling_fp = canonical.sha256(sibling_sig)[:16]
+                sibling_sig["abstract"] = fix.signature.get("abstract", "")
+                if not self._store.get_active(sibling_fp) and not self._store.get_candidate(sibling_fp):
+                    cand = Fix(
+                        fingerprint=sibling_fp,
+                        signature=sibling_sig,
+                        tool=tool.name,
+                        cls=fix.cls,
+                        request_ops=sibling_ops,
+                        response_ops=[],
+                        tier=Tier.T0,
+                        source=DecisionPath.diff,
+                        schema_hash=fix.schema_hash,
+                        status=FixStatus.candidate,
+                    )
+                    self._store.save_fix(cand)
+
+    async def precompute(self, old: LoadedSpec, new: LoadedSpec) -> int:
+        """FR-17.11 (X4): Precompute candidate fixes from spec diffs before any failure occurs.
+        Stores fixes with status candidate; sends 0 live requests. Returns count of fixes stored."""
+        if new.spec_hash not in self._saved_specs:
+            self._store.save_spec(new.spec_hash, new.raw)
+            self._saved_specs.add(new.spec_hash)
+
+        tools_by_name = {t.name: t for t in self._tools()} if self._tools else {}
+        count = 0
+        cfg_keys = set(self._cfg)
+
+        for tool_name, old_op in old.ops.items():
+            new_op = new.ops.get(tool_name)
+            if new_op is None:
+                continue
+            entries = diagnose.diff(old_op, new_op)
+            if not entries:
+                continue
+
+            tool = tools_by_name.get(tool_name)
+            if tool is not None:
+                dummy_args = {
+                    p[-1]: 1 if leaf.get("type") in ("int", "integer") else "sample"
+                    for p, leaf in diagnose.flatten_request(tool.base_op).items()
+                }
+                base = {
+                    "route": {"method": tool.base_op["method"], "path": tool.base_op["path"]},
+                    "body": {k: v for k, v in dummy_args.items() if ("body", k) in diagnose.flatten_request(tool.base_op)},
+                    "query": {k: v for k, v in dummy_args.items() if ("query", k) in diagnose.flatten_request(tool.base_op)},
+                    "header": {},
+                }
+            else:
+                base = {
+                    "route": {"method": old_op["method"], "path": old_op["path"]},
+                    "body": {
+                        k: 1 if v.get("type") == "integer" else "sample"
+                        for k, v in (old_op.get("body_schema") or {}).get("properties", {}).items()
+                    },
+                    "query": {
+                        p["name"]: 1 if p.get("schema", {}).get("type") == "integer" else "sample"
+                        for p in old_op.get("params", [])
+                        if p.get("in") == "query"
+                    },
+                    "header": {},
+                }
+
+            failing = frozenset(
+                tuple(e["path"])
+                for e in entries
+                if e["side"] == Side.REQ and e["change"] in ("added", "type_changed")
+            )
+            found, reason = candidates.build(
+                entries, base, self._header_sources, cfg_keys, failing
+            )
+            if not found or reason is not None:
+                continue
+
+            write = bool(tool.config.get("write")) if tool else False
+            rank = {
+                ("removed", p): i
+                for i, p in enumerate(diagnose.flatten_request(old_op))
+            } | {("added", p): i for i, p in enumerate(diagnose.flatten_request(new_op))}
+            order = sorted(
+                entries, key=lambda e: rank.get((e["change"], tuple(e["path"])), -1)
+            )
+            winner = candidates.tiebreak(found, order, write=write) if len(found) > 1 else 0
+            if winner is None:
+                continue
+            pick = found[winner]
+
+            req_entries = [e for e in entries if e["side"] == Side.REQ]
+            added_req = [
+                e for e in req_entries if e["change"] == "added" and e.get("required")
+            ]
+            type_req = [e for e in req_entries if e["change"] == "type_changed"]
+
+            diff_sig = None
+            if any(
+                e["path"][0] == "header" and e["path"][1] == "authorization"
+                for e in added_req
+            ):
+                cls = ErrorClass.E4
+                raw_code = "401"
+                v_list = [Violation(Side.REQ, ["header", "authorization"], "missing")]
+            elif added_req:
+                cls = ErrorClass.E2
+                raw_code = "422"
+                v_list = [Violation(Side.REQ, e["path"], "missing") for e in added_req]
+            elif type_req:
+                cls = ErrorClass.E2
+                raw_code = "422"
+                v_list = [
+                    Violation(Side.REQ, e["path"], f"{e['type']}_type")
+                    for e in type_req
+                ]
+            else:
+                cls = ErrorClass.E6
+                raw_code = "200"
+                diff_sig = diagnose.diff_signature(entries)
+                v_list = []
+
+            predicted = Outcome(
+                cls=cls, protocol="rest", raw_code=raw_code, violations=v_list
+            )
+            fp, sig = fingerprint.fingerprint(tool_name, predicted, diff_sig)
+            sig["abstract"] = diagnose.abstract_signature(pick.get("request_ops", []), order)
+
+            if not self._store.get_active(fp) and not self._store.get_candidate(fp):
+                cand_fix = Fix(
+                    fingerprint=fp,
+                    signature=sig,
+                    tool=tool_name,
+                    cls=cls,
+                    request_ops=pick["request_ops"],
+                    response_ops=pick["response_ops"],
+                    tier=Tier.T0,
+                    source=DecisionPath.diff,
+                    schema_hash=new.spec_hash,
+                    status=FixStatus.candidate,
+                )
+                self._store.save_fix(cand_fix)
+                count += 1
+
+        return count
 
     def _abort(self, h: _Heal, reason: Reason) -> Any:
         if not h.waiter:
