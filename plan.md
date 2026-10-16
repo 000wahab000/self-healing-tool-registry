@@ -522,6 +522,9 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 
 | Date | Item | Status | Notes |
 |---|---|---|---|
+| 2026-10-15 | P1-1 | implemented; packaging hand-off pending | Official MCP 2.x low-level stdio interface, frozen schemas, structured refusals, no list-change notifications; SDK memory and actual stdio subprocess tests, custom-spec healing and secret-leak regressions in `tests/mcp/`. Launch with `python -m healer.mcp_server`; P2 request: add `[project.scripts] healer-mcp = "healer.mcp_server:main"`. No P2-owned packaging edit made. |
+| 2026-10-15 | P1-2 | done | Stateful Streamable HTTP shares one registry; loopback default, optional environment-selected bearer authentication on every method, explicit remote host allowlist and exact origins. SDK clients exercise the ASGI HTTP path without sockets, M1/M8 parity and five overlapping sessions producing one heal. `pytest -q`: 584 passed, 5 skipped; `ruff check .` clean. Remote deployment needs a trusted TLS reverse proxy. |
+| 2026-10-16 | P1-3 | hand-off prepared; live acceptance pending | Client-specific stdio/HTTP snippets for P4 are in `tests/mcp/client-handoff.md`; existing opt-in config launcher is in `tests/mcp/test_client_config.py`. Final helper suppresses SDK diagnostic logs and discards child stderr to avoid secret leakage. Static review and lint only after user requested no further tests; final helper runtime validation, live configuration checks and P4 client UI checks remain pending. P2 console-entry request remains unchanged. |
 
 ### Progress log: T2-PS2
 

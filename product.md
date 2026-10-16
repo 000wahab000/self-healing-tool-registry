@@ -651,6 +651,57 @@ T1-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 
 T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-30 to AC-39.
 
+### MCP front door (old P1-1 to P1-3, X8)
+
+#### Functional requirements
+
+- **FR-X8.1:** The MCP stdio server exposes `Registry.tools()` without changing the frozen tool definitions; each tool's `agent_schema` is its MCP `inputSchema`.
+- **FR-X8.2:** Tool calls invoke only `Registry.call()`. Registry error dictionaries, including heal refusals, are returned as structured content with `isError: true`; successful data is returned with `isError: false`.
+- **FR-X8.3:** The server never sends `tools/list_changed`; protocol traffic alone uses stdout and diagnostics use stderr.
+- **FR-X8.4:** `python -m healer.mcp_server` accepts `--base-url`, `--spec-path`, `--tools`, and `--db`; startup configuration is read from the environment, the injected HTTP client and custom spec path are used for both initial spec load and healing, and owned resources are closed on shutdown. A named `healer-mcp` console command is blocked pending P2 approval.
+- **FR-X8.5 (P1-2, pending):** Streamable HTTP reuses a shared registry, binds to localhost by default, and requires an optional bearer token for remote access.
+- **FR-X8.6 (P1-2, pending):** Concurrent MCP calls preserve single-flight healing, so five equivalent concurrent requests trigger one heal.
+- **FR-X8.7 (P1-3, pending):** Client hand-off configuration is opt-in.
+
+#### Acceptance criteria
+
+- **AC-30:** MCP `tools/list` matches the registry's tools and schemas exactly.
+- **AC-31:** A healthy `get_user` MCP call returns the registry result.
+- **AC-32:** After an M1 mutation in the same session, the tool schema remains unchanged and no `tools/list_changed` notification is sent.
+- **AC-33:** An M8 refusal is returned as structured content with `isError: true` and its reason.
+- **AC-34:** The module CLI uses a custom spec path for startup and healing, cleans up its resources, and keeps protocol stdout free of diagnostics; a named console command remains blocked pending P2 approval.
+- **AC-35 (P1-2, pending):** Streamable HTTP has stdio-equivalent behavior, localhost default binding, and bearer-token protection for remote access.
+- **AC-36 (P1-2, pending):** Five concurrent equivalent MCP calls produce only one heal.
+- **AC-37 (P1-3, pending):** Client configuration hand-off is opt-in.
+
+#### P1-2 HTTP amendment
+
+Implementation clarification: **FR-X8.5 and AC-35** are implemented with a stateful Streamable HTTP server sharing the existing registry. It binds to loopback by default; bearer-token checks cover every HTTP method and session continuation when configured. Remote binds require a bearer token and explicit allowed request hosts; wildcard origins are rejected. **FR-X8.6 and AC-36** use the same registry instance for concurrent sessions, preserving the registry's single-flight healing behavior.
+
+Remote deployments must terminate TLS at a trusted reverse proxy; bearer authentication does not encrypt traffic. Configure concrete request hostnames and only the required exact origins (no wildcard origins). `0.0.0.0` is a bind address, not an allowed request hostname.
+
+#### P1-3 client hand-off amendment
+
+**FR-X8.7 clarification:** `tests/mcp/client-handoff.md` contains client-specific Claude Desktop, Cursor, and Windsurf stdio setup plus Cursor/Windsurf HTTP setup. It documents Claude remote setup through Connectors/custom connector UI (not an invented `mcpServers.url`), local-versus-hosted networking limits, token handling, installation and launch commands, and the pending P2 approval for a named console command. The document is a hand-off for P4 to copy to `docs/mcp-clients.md`; it does not claim manual UI verification.
+
+**AC-37 clarification:** Evidence consists of those setup snippets and the opt-in `test_ac_37_live_client_config` using `RUN_MCP_CLIENT_E2E=1`, `MCP_CLIENT_CONFIG`, and optional `MCP_CLIENT_NAME` (default `healer`). It supports stdio `command`/`args`/`env`, Cursor HTTP `url`, and Windsurf HTTP `serverUrl`/`headers`; it makes only the known `get_user` request (`user_id: 123`) and no paid LLM calls. Configured commands execute, so only trusted config files may be selected. The test-lane implementation and P4's fresh-client manual checks remain outstanding; normal tests remain offline.
+
+#### P1-3 status amendment
+
+The opt-in test implementation now exists in `tests/mcp/test_client_config.py`; the live config run and P4 fresh-client/UI checks remain outstanding. Default tests use a temporary config to launch the repository's offline stdio harness but do not read operator-supplied configs or contact external endpoints. The smoke helper's temporary log suppression and child-stderr discard are unverified at the user's request. Correction to the AC-37 clarification above: the known `get_user` argument is the string `"123"`, not the number `123`.
+
+#### P1-4 to P1-6: GraphQL, gRPC and Postgres
+
+- **FR-X4 (P1-4):** The GraphQL loader emits `OperationSpec` and its adapter normalizes results into `Outcome` for registry dispatch. GraphQL M1–M3 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Subscriptions and streaming are out of scope.
+- **FR-X5 (P1-5):** The unary gRPC loader emits `OperationSpec` and its adapter maps gRPC status codes into the shared `Outcome` model for registry dispatch. Unary M1–M2 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Streaming is out of scope.
+- **FR-X6 (P1-6):** The Postgres backend implements `FixStore`; active-fix uniqueness per fingerprint is enforced by the database. Registries sharing the database observe committed fixes across instances and reuse them at tier 0. A live Postgres test is opt-in; default tests remain offline.
+
+#### Acceptance criteria
+
+- **AC-38:** Through the registry, GraphQL M1–M3 and unary gRPC M1–M2 equivalents heal and preserve the expected final state without changing the frozen `agent_schema` or introducing values.
+- **AC-39:** A fix committed by one registry is visible to another registry using the shared Postgres database and is reused at tier 0; the database enforces one active fix per fingerprint. Live Postgres verification is opt-in.
+
+
 
 ## 20. Track T2-PS2: Watcher, Demo, Dashboard and Docs
 

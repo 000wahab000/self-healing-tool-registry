@@ -83,6 +83,7 @@ class Registry:
         jitter: Callable[[], float] = retry.random_jitter,
         spec_mode: str = SPEC_MODE,
         spec_source: SpecSource | None = None,
+        grpc_channel: object | None = None,
     ) -> None:
         if spec_mode not in (
             "on",
@@ -93,7 +94,16 @@ class Registry:
         self.tools_config = tools_config
         self.cfg = cfg
         self.store = store
-        self.spec_source = spec_source or openapi_source(client)
+        self.grpc_channel = grpc_channel
+        if spec_source is not None:
+            self.spec_source = spec_source
+        elif grpc_channel is not None:
+            from healer.grpc_loader import grpc_source
+
+            self.spec_source = grpc_source(grpc_channel)
+        else:
+            self.spec_source = openapi_source(client)
+        self.grpc_source = self.spec_source if grpc_channel is not None else None
         self.defs: dict[str, ToolDefinition] = {}
         self.spec_hash = ""
         self._clock, self._sleep, self._jitter = clock, sleep, jitter
@@ -150,6 +160,9 @@ class Registry:
             "query": {k: v for k, v in args.items() if k in query},
             "header": {},
         }
+        if op["method"] == "GRAPHQL":
+            # The adapter uses this name to select the current introspected operation.
+            doc["operation"] = op["operation_id"]
         if tool.config.get("idempotency_key"):
             doc["header"]["idempotency-key"] = (
                 uuid.uuid4().hex
@@ -169,8 +182,42 @@ class Registry:
         doc = apply_ops(fix.request_ops, base, self.cfg) if fix else base
         if route:
             doc = {**doc, "route": route}
-        resp, exc = await rest.send(self.client, doc, timeout)
-        outcome = detect.classify(resp, exc)
+        protocol = tool.base_op["method"]
+        if protocol == "GRAPHQL":
+            from healer.adapters import graphql
+
+            outcome = await graphql.send(
+                self.client, doc, timeout, spec_source=self.spec_source
+            )
+        elif protocol == "GRPC":
+            from healer.adapters import grpc
+            from healer.grpc_loader import _pool, message_class
+
+            if self.grpc_source is None:
+                return contract.check(
+                    Outcome(ErrorClass.E1, "grpc", "REFLECTION_UNAVAILABLE"),
+                    output_schema=tool.output_schema,
+                    postchecks=tool.config["postchecks"],
+                    base_doc=base,
+                )
+            try:
+                latest = await self.grpc_source()
+                service, method_name = tool.base_op["operation_id"].rsplit(".", 1)
+                pool = _pool([bytes.fromhex(item) for item in latest.raw["descriptors"]])
+                method = pool.FindServiceByName(service).methods_by_name[method_name]
+                outcome = await grpc.send(
+                    self.grpc_channel,
+                    doc,
+                    timeout,
+                    message_class(pool, method.input_type.full_name),
+                    message_class(pool, method.output_type.full_name),
+                )
+            except (ValueError, KeyError, TypeError):
+                # Reflection and descriptor failures are transport failures, not leaked details.
+                outcome = Outcome(ErrorClass.E1, "grpc", "REFLECTION_UNAVAILABLE")
+        else:
+            resp, exc = await rest.send(self.client, doc, timeout)
+            outcome = detect.classify(resp, exc)
         if fix and outcome.cls is ErrorClass.OK:
             outcome = replace(
                 outcome, data=apply_ops(fix.response_ops, outcome.data, self.cfg)
