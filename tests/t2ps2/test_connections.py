@@ -23,7 +23,11 @@ def cfg_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "mcp_servers.json"
     path.write_text(
         json.dumps(
-            {"servers": [{"name": "users", "transport": "stdio", "command": ["python", "x"]}]}
+            {
+                "servers": [
+                    {"name": "users", "transport": "stdio", "command": ["python", "x"]}
+                ]
+            }
         )
     )
     monkeypatch.setenv("MCP_SERVERS_CONFIG", str(path))
@@ -35,7 +39,7 @@ def cfg_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 @pytest.fixture
 def client(cfg_file: Path):
     # No `with`: lifespan shutdown would close the SQLite store from another thread.
-    return TestClient(create_app(":memory:"))
+    return TestClient(create_app(":memory:"), client=("127.0.0.1", 50000))
 
 
 # validation
@@ -78,7 +82,9 @@ def test_ac_59_valid_entries_accepted() -> None:
 
 def test_ac_59_duplicate_names_across_servers_and_apis(tmp_path: Path) -> None:
     path = tmp_path / "c.json"
-    path.write_text(json.dumps({"servers": [MCP], "apis": [{**API, "name": "billing"}]}))
+    path.write_text(
+        json.dumps({"servers": [MCP], "apis": [{**API, "name": "billing"}]})
+    )
     with pytest.raises(ValueError, match="unique"):
         gateway.load_config(path)
     with pytest.raises(ValueError, match="unique"):
@@ -101,22 +107,38 @@ def test_ac_59_round_trip(client: TestClient, cfg_file: Path) -> None:
     assert first["servers"][0]["readonly"] is True
     assert "command" not in first["servers"][0]
 
-    assert client.post("/api/connections", json={**MCP, "token_env": "BILL"}).status_code == 200
-    assert client.post("/api/connections", json={**API, "spec_path": ""}).status_code == 200
+    assert (
+        client.post("/api/connections", json={**MCP, "token_env": "BILL"}).status_code
+        == 200
+    )
+    assert (
+        client.post("/api/connections", json={**API, "spec_path": ""}).status_code
+        == 200
+    )
     listed = client.get("/api/connections").json()
     assert [s["name"] for s in listed["servers"]] == ["users", "billing"]
-    assert listed["apis"][0]["name"] == "crm" and listed["servers"][1]["token_env"] == "BILL"
+    assert (
+        listed["apis"][0]["name"] == "crm"
+        and listed["servers"][1]["token_env"] == "BILL"
+    )
     on_disk = json.loads(cfg_file.read_text())
     assert on_disk["apis"] == [API]  # blank optional fields are not stored
-    assert not list(cfg_file.parent.glob(".mcp_servers-*"))  # temp file replaced, not left
+    assert not list(
+        cfg_file.parent.glob(".mcp_servers-*")
+    )  # temp file replaced, not left
 
     assert client.post("/api/connections", json=MCP).status_code == 409
-    assert client.post("/api/connections", json={**API, "name": "billing"}).status_code == 409
+    assert (
+        client.post("/api/connections", json={**API, "name": "billing"}).status_code
+        == 409
+    )
 
     assert client.delete("/api/connections/billing").status_code == 200
     assert client.delete("/api/connections/billing").status_code == 404
     assert client.delete("/api/connections/crm").status_code == 200
-    assert [s["name"] for s in client.get("/api/connections").json()["servers"]] == ["users"]
+    assert [s["name"] for s in client.get("/api/connections").json()["servers"]] == [
+        "users"
+    ]
     assert json.loads(cfg_file.read_text())["servers"][0]["command"] == ["python", "x"]
 
 
@@ -262,3 +284,11 @@ def test_ac_59_api_tool_config_by_method() -> None:
     for method, (write, idem) in cases.items():
         cfg = gateway.api_tool_config({"method": method})
         assert (cfg["write"], cfg["idempotent"], cfg["postchecks"]) == (write, idem, [])
+
+
+def test_ac_59_non_local_client_needs_token_even_on_a_local_bind(cfg_file):
+    remote = TestClient(create_app(":memory:"), client=("203.0.113.9", 50000))
+    resp = remote.post(
+        "/api/connections", json={"kind": "mcp", "name": "x", "url": "http://a"}
+    )
+    assert resp.status_code == 403

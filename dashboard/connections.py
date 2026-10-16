@@ -33,7 +33,10 @@ def is_remote() -> bool:
 
 
 def require_write(request: Request) -> None:
-    if not is_remote():
+    # Local means both: bound to localhost AND the request comes from this machine, so
+    # starting the app another way (uvicorn --host 0.0.0.0) cannot open these routes.
+    client = request.client.host if request.client else ""
+    if not is_remote() and client in ("127.0.0.1", "::1"):
         return
     expected = os.environ.get("CONNECTIONS_TOKEN")
     if not expected:
@@ -91,7 +94,9 @@ def _view_server(s: dict) -> dict:
 
 @router.get("/connections", include_in_schema=False)
 async def page() -> FileResponse:
-    return FileResponse(HERE / "connections.html", headers={"Cache-Control": "no-cache"})
+    return FileResponse(
+        HERE / "connections.html", headers={"Cache-Control": "no-cache"}
+    )
 
 
 @router.get("/api/connections")
@@ -100,7 +105,10 @@ async def list_connections() -> dict:
     return {
         "servers": [_view_server(s) for s in data["servers"]],
         "apis": [
-            {k: a.get(k) for k in ("name", "kind", "base_url", "spec_path", "token_env")}
+            {
+                k: a.get(k)
+                for k in ("name", "kind", "base_url", "spec_path", "token_env")
+            }
             for a in data["apis"]
         ],
         "auth_required": is_remote(),
