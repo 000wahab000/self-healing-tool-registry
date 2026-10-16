@@ -5,6 +5,8 @@
 .pytest_cache
 .ruff_cache
 *.db
+*.db-wal
+*.db-shm
 .env
 bench/results*
 graphify-out

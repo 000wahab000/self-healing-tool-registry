@@ -19,6 +19,26 @@ client launched from another working directory find the tools file and database.
 
 ## 1. Install and start the mock API
 
+For a local Linux/macOS stack instead of starting services separately, install
+the MCP extra and run `.venv/bin/python start.py` from the repository root. From
+elsewhere, use absolute paths to both the virtual-environment interpreter and
+`start.py`; service paths are resolved from the repository root regardless of
+the caller's working directory. It starts the REST mock separately and serves
+the dashboard at `http://127.0.0.1:8080/` and MCP at
+`http://127.0.0.1:8080/mcp`; configured upstreams are owned by the gateway.
+Ctrl+C stops the launched services. Port and database overrides are documented
+in the [README quick start](../README.md#quick-start). It loads the repository
+`.env` and shares the default `healer.db` with the dashboard audit reader. A port conflict fails
+startup without stopping the process that owns the port; stop it manually or
+choose another port. This launcher defaults to loopback locally and does not
+launch agents, benchmarks or drift scenarios. Existing stdio and individual-service
+instructions below remain available.
+
+Dashboard demo/mutation controls use in-process mocks, independent of the
+standalone REST mock and configured MCP upstreams. The shared audit database
+does not merge dashboard traces with external MCP client traces. No real-client
+verification is implied by this setup.
+
 From the repository root, install the project and its MCP extra into the
 environment you will run the server with:
 
@@ -183,7 +203,10 @@ token, and allow only the exact request hostname and required Origin. The
 allowed host is the hostname clients send (for example `registry.example.com`),
 not the bind address `0.0.0.0`. Origins must be exact; wildcards are rejected.
 The proxy must preserve/set the expected `Host` header and protect the upstream
-listener. Bearer auth does not encrypt HTTP traffic.
+listener. Bearer auth does not encrypt HTTP traffic. MCP bearer auth only
+protects `/mcp`; the dashboard has mutating routes (including `/api/start`,
+`/api/explore` and `/api/reset`) and no global authentication. Any remotely
+exposed dashboard needs authenticated TLS ingress; MCP auth alone is not enough.
 
 ```sh
 .venv/bin/python -m healer.mcp_server \

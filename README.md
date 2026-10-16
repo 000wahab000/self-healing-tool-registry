@@ -34,7 +34,7 @@ Scripted mode (fixed calls, no LLM), N = 3, from [`bench/report.md`](bench/repor
    ```
 
    ```bash
-   pip install -e ".[dev,agents]"
+   pip install -e ".[dev,agents,mcp]"
    ```
 
 2. Copy the example settings. The dashboard loads `.env` at startup; put `NVIDIA_API_KEY` there for live agents. Jev is optional (`JEV_API_KEY` / `JEV_URL` / `JEV_MODEL`, or an `OPENROUTER_API_KEY` fallback).
@@ -43,17 +43,45 @@ Scripted mode (fixed calls, no LLM), N = 3, from [`bench/report.md`](bench/repor
    cp .env.example .env
    ```
 
-3. Pick what to run:
+3. Start the local stack, or use an individual service command:
 
-   | I want to… | Command |
-   |---|---|
-   | See the live dashboard | `python -m dashboard` → open http://127.0.0.1:8080 |
-   | Watch a terminal demo (no browser) | `python -m dashboard.demo` |
-   | Re-run the benchmark | `python -m bench.run --agent scripted --n 3` |
-   | Serve the gateway over MCP (needs `pip install -e ".[mcp]"`) | `python -m healer.mcp_server`, see [`docs/mcp-clients.md`](docs/mcp-clients.md) |
-   | Front your own upstreams (MCP servers and APIs) | `python -m healer.mcp_server --mcp-servers config/mcp_servers.json` (tier 2 is on when `NVIDIA_API_KEY` is set; `--no-repair` to turn it off) |
-   | Run the MCP demo agent (no key; `--llm` for a live agent) | `python -m demo.mcp_agent` |
-   | Run the mock API alone / the tests | `python -m mock_api` (http://127.0.0.1:8000/docs) / `pytest -q` |
+   ```bash
+   .venv/bin/python start.py
+   ```
+
+   Run that relative command from the repository root. From elsewhere, use the
+   absolute paths to both `.venv/bin/python` and `start.py`; service paths are
+   resolved from the repository root regardless of the caller's working
+   directory. On Linux/macOS, this starts the standalone REST mock and the
+   unified dashboard+MCP web process in dependency order. The REST mock is at
+   http://127.0.0.1:8000; dashboard is at http://127.0.0.1:8080/ and its MCP
+   endpoint is http://127.0.0.1:8080/mcp. Stop the stack with Ctrl+C. The
+   default database is the shared root `healer.db`; the launcher loads `.env`.
+   If either default port is occupied, startup fails without stopping the
+   existing process; stop it manually or choose another port. For example:
+
+   ```bash
+   .venv/bin/python start.py --mock-port 8100 --port 8180 --db /tmp/opencode/healer.db
+   ```
+
+   The unified web process hosts the MCP gateway and watcher, including
+   configured upstreams from `config/mcp_servers.json`. Dashboard demo and
+   mutation controls use their own in-process mocks; they do not change the
+   standalone REST mock or configured upstreams. The shared SQLite audit store
+   does not merge dashboard traces with full external MCP client traces. No
+   agent, benchmark, or drift scenario is launched automatically.
+
+   To run a service separately:
+
+| I want to… | Command |
+|---|---|
+| See the live dashboard | `python -m dashboard` → open http://127.0.0.1:8080 |
+| Watch a terminal demo (no browser) | `python -m dashboard.demo` |
+| Re-run the benchmark | `python -m bench.run --agent scripted --n 3` |
+| Serve the gateway over MCP (needs `pip install -e ".[mcp]"`) | `python -m healer.mcp_server`, see [`docs/mcp-clients.md`](docs/mcp-clients.md) |
+| Front your own upstreams (MCP servers and APIs) | `python -m healer.mcp_server --mcp-servers config/mcp_servers.json` (tier 2 is on when `NVIDIA_API_KEY` is set; `--no-repair` to turn it off) |
+| Run the MCP demo agent (no key; `--llm` for a live agent) | `python -m demo.mcp_agent` |
+| Run the mock API alone / the tests | `python -m mock_api` (http://127.0.0.1:8000/docs) / `pytest -q` |
 
 **Dashboard** (`python -m dashboard`): `/` landing page with a guided tour, `/live` demo, patch log, metrics, MCP view, report, and `/connections` to add MCP servers and APIs by URL (tokens by environment-variable name only). Page-by-page flows: [`FLOW.md`](FLOW.md).
 
@@ -65,7 +93,27 @@ RUN_E2E=1 .venv/bin/python -m pytest tests/e2e -q
 .venv/bin/python -m bench.run --agent llm --n 10
 ```
 
-**Deploying the dashboard:** one long-running, single-instance process (run state is in memory). Use the `Dockerfile` (Railway via `railway.json`, Fly.io, Cloud Run, Spaces) or `requirements.txt` + `Procfile`. Start: `python -m dashboard` (binds `0.0.0.0:$PORT` when `PORT` is set, else `127.0.0.1:8080`). Optional: `DB_PATH` for a volume.
+**Deploying the dashboard and MCP gateway:** `Dockerfile` and `Procfile` run
+`python start.py`, which starts the REST mock separately and serves dashboard
+`/` and MCP `/mcp` on the same listener. Use one worker, no reload, and a
+persistent volume for SQLite (`DB_PATH`). Locally the listener defaults to
+`127.0.0.1:8080`; a platform-provided `PORT` selects the web port and defaults
+the bind host to `0.0.0.0` (override with `HOST`). Configure remote MCP using
+environment settings, for example:
+
+```dotenv
+MCP_TOKEN_ENV=HEALER_MCP_TOKEN
+MCP_ALLOWED_HOSTS=registry.example.com
+MCP_ALLOWED_ORIGINS=https://registry.example.com
+```
+
+Set the actual `HEALER_MCP_TOKEN` value through the deployment secret manager;
+the config contains only its variable name. MCP requires a non-empty token and
+an exact allowed host; origin allowlists, when used, are exact too. These guard
+MCP only. Dashboard routes such as `/api/start`, `/api/explore`, and
+`/api/reset` mutate state and may spend configured model credentials, so expose
+the dashboard only behind authenticated TLS ingress. The existing app has no
+global dashboard authentication; this is not a production-ready security claim.
 
 ## Docs
 

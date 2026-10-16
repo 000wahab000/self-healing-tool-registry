@@ -1,6 +1,6 @@
 # plan.md: Status and next steps
 
-> Status as of 2026-10-16. How it works: `FLOW.md`. Requirements: `product.md`. Before ticking or claiming anything run `pytest -q` and `ruff check .`. One strict xfail (GraphQL M3) is known.
+> Status as of 2026-10-17. How it works: `FLOW.md`. Requirements: `product.md`. Before ticking or claiming anything run `pytest -q` and `ruff check .`. One strict xfail (GraphQL M3) is known.
 
 ## Built
 
@@ -12,6 +12,7 @@
 | Dashboard | Landing page, live demo (two agents, scenario cards, editable prompt, drift buttons, "broke here" marker, cost chart), patch log with highlighted broken field, metrics, MCP view, report, connections page, guided tour with auto-play, light and dark themes |
 | Benchmark | `bench/run.py` for the REST mock and the mock MCP drift server (scripted run recorded in `bench/report.md`), healthy-call overhead, MCP fixtures |
 | Demo agent | `demo/mcp_agent.py` (scripted or `--llm`) over the front door with a mid-task rename; `python -m dashboard.demo` terminal demo |
+| Local launcher | `start.py` starts the separate REST mock and one FastAPI dashboard/MCP process; AC-81/AC-82 focused tests and same-port HTTP smoke verified; full-suite gate remains blocked by existing failures |
 
 ## Remaining
 
@@ -52,3 +53,5 @@
 | 2026-10-15 | Contracts between modules written; overhead and Swagger 2.0 loader; MCP front door |
 | 2026-10-16 | Direction changed to an MCP gateway; upstream gateway, mock drift server, tier-2 repair with Jev triage, connections page, demo agent, MCP benchmark and docs rewrite landed; dashboard design pass |
 | 2026-10-16 | Docs decluttered: stale team docs removed, `FLOW.md` added, this plan rewritten |
+| 2026-10-16 | Added the unified local launcher; verified startup outside the checkout, HTTP MCP calls, REST M1 recovery visible in the shared dashboard audit, port-conflict safety and SIGTERM cleanup. Ruff passed; full pytest: 835 passed, 10 failed, 14 skipped, 1 xfailed. All 10 failures reproduce on unchanged HEAD (failure-layer checks and MCP drift healing/demo); no healing-core changes made. |
+| 2026-10-17 | Combined dashboard and MCP into one FastAPI app/listener; REST mock remains separate. Verified dashboard routes, MCP initialization/list/call, real transport metadata, shared recovery audit and shutdown of both services and their upstream children. Ruff passed; full pytest: 845 passed, the same 10 baseline failures, 14 skipped, 1 xfailed. Real-client UI and container deployment checks remain outstanding. |

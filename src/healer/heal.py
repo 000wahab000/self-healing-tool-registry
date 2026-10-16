@@ -87,7 +87,7 @@ AUDIT_OUTCOME = {
 
 
 def _layer_reason(detail: str) -> Reason:
-    if detail == Reason.UNSAFE_REPLAY.value:
+    if detail in (Reason.UNSAFE_REPLAY.value, "unsafe_replay"):
         return Reason.UNSAFE_REPLAY
     return Reason.UNSAFE_PATCH
 
@@ -269,7 +269,7 @@ class Healer:
             fix={"request_ops": fix.request_ops, "response_ops": fix.response_ops},
             original_failure=h.outcome.cls, cfg=self._cfg, tool_cfg=h.tool.config,
             original_status=h.outcome.raw_code,
-            no_side_effect=h.outcome.raw_code in {"400", "422"},
+            no_side_effect=h.outcome.raw_code in {"400", "422", "-32602", "-32601", "isError"},
         )
         failed = next((row for row in h.layers if row["status"] == "fail"), None)
         if failed:
@@ -557,7 +557,7 @@ class Healer:
             raise _Abort(Reason.LOW_CONFIDENCE)
 
     def _gate(self, h: _Heal, fix: Fix) -> None:
-        spec_paths = spec_routes = None
+        spec_paths = spec_routes = spec_enums = None
         if h.new_op is not None:
             # Response ops write into the agent's (base) response shape, so its leaves count too.
             spec_paths = (
@@ -566,6 +566,11 @@ class Healer:
                 | set(diagnose.flatten_response(h.tool.base_op))
             )
             spec_routes = {(o["method"], o["path"]) for o in h.ops.values()}
+            spec_enums = {
+                p: set(leaf["enum"])
+                for p, leaf in diagnose.flatten_request(h.new_op).items()
+                if leaf.get("enum") is not None
+            }
         reason = safety.check(
             {"request_ops": fix.request_ops, "response_ops": fix.response_ops},
             base_doc=h.base,
@@ -576,6 +581,7 @@ class Healer:
             n_evidence=max(len(h.entries), len(h.outcome.violations)),
             spec_paths=spec_paths,
             spec_routes=spec_routes,
+            spec_enums=spec_enums,
         )
         if reason is not None:
             raise _Abort(reason)

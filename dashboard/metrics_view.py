@@ -199,3 +199,93 @@ def live_safety(audit: list[AuditEvent] | None) -> dict[str, Any]:
         "refusals": refusals,
         "tokens": tokens,
     }
+
+
+def fix_lifecycle(store: Any) -> dict[str, Any]:
+    """Fix lifecycle view: rules, candidates, active fixes and replays (AC-80). Read-only."""
+    from healer.models import HealOutcome
+
+    rules = store.get_rules() if hasattr(store, "get_rules") else []
+    audit_events = store.audit_events() if hasattr(store, "audit_events") else []
+
+    seen_fixes: dict[int, Any] = {}
+    fps_with_audit: dict[str, list[Any]] = {}
+
+    for e in audit_events:
+        fp = getattr(e, "fingerprint", "")
+        if fp:
+            fps_with_audit.setdefault(fp, []).append(e)
+        fix_id = getattr(e, "fix_id", None)
+        if fix_id is not None and fix_id not in seen_fixes:
+            fix = store.get_fix(fix_id)
+            if fix is not None:
+                seen_fixes[fix_id] = fix
+
+    fixes_list: list[dict[str, Any]] = []
+    processed_fps: set[str] = set()
+
+    for fix_id, fix in sorted(seen_fixes.items()):
+        fp = fix.fingerprint
+        processed_fps.add(fp)
+        events_for_fp = fps_with_audit.get(fp, [])
+        recovered = [
+            ev for ev in events_for_fp
+            if getattr(ev, "outcome", None) in (HealOutcome.RECOVERED, "RECOVERED")
+        ]
+
+        tier1_heals = sum(1 for ev in recovered if int(getattr(ev, "tier", 1)) == 1)
+        tier0_replays = sum(1 for ev in recovered if int(getattr(ev, "tier", 0)) == 0)
+        first_heal_tier = (
+            int(recovered[0].tier)
+            if recovered
+            else (int(fix.tier) if hasattr(fix, "tier") else None)
+        )
+
+        pattern = getattr(fix, "signature", {}).get("pattern", "") or fp
+        if fp in rules or pattern in rules:
+            state = "rule"
+        elif getattr(fix, "status", None) and getattr(fix.status, "value", str(fix.status)) == "active":
+            state = "active"
+        else:
+            state = "candidate"
+
+        ops = (getattr(fix, "request_ops", []) or []) + (getattr(fix, "response_ops", []) or [])
+
+        fixes_list.append({
+            "fix_id": fix.fix_id,
+            "tool": fix.tool,
+            "fingerprint": fp,
+            "state": state,
+            "ops": ops,
+            "tier": int(fix.tier) if hasattr(fix, "tier") else 1,
+            "first_heal_tier": first_heal_tier,
+            "tier1_heals": tier1_heals,
+            "tier0_replays": tier0_replays,
+            "wins": getattr(fix, "wins", 0),
+        })
+
+    for fp in fps_with_audit:
+        if fp in processed_fps:
+            continue
+        cand = store.get_candidate(fp)
+        if cand is not None:
+            ops = (getattr(cand, "request_ops", []) or []) + (getattr(cand, "response_ops", []) or [])
+            fixes_list.append({
+                "fix_id": cand.fix_id,
+                "tool": cand.tool,
+                "fingerprint": fp,
+                "state": "candidate",
+                "ops": ops,
+                "tier": int(cand.tier) if hasattr(cand, "tier") else 1,
+                "first_heal_tier": None,
+                "tier1_heals": 0,
+                "tier0_replays": 0,
+                "wins": getattr(cand, "wins", 0),
+            })
+
+    return {
+        "rules": rules,
+        "fixes": fixes_list,
+        "snapshots": {"count": 0, "latest_ms": None},
+        "unavailable": ["snapshots"],
+    }

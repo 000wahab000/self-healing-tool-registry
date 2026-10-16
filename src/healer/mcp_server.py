@@ -9,7 +9,8 @@ import json
 import logging
 import os
 import sys
-from contextlib import AsyncExitStack
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -174,7 +175,9 @@ def _arguments(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-async def _serve(args: argparse.Namespace) -> None:
+@asynccontextmanager
+async def registry_context(args: argparse.Namespace) -> AsyncIterator[Registry | Gateway]:
+    """Build registries and keep their backing resources alive until exit."""
     tools_config = json.loads(
         await asyncio.to_thread(Path(args.tools).read_text, encoding="utf-8")
     )
@@ -238,41 +241,46 @@ async def _serve(args: argparse.Namespace) -> None:
                 registry = (
                     registries[0] if len(registries) == 1 else Gateway(registries)
                 )
-                if getattr(args, "transport", "stdio") == "http":
-                    import uvicorn
-
-                    token_name = getattr(args, "token_env", None)
-                    token = os.environ.get(token_name) if token_name else None
-                    if token_name and not token:
-                        raise ValueError(
-                            "configured bearer-token environment variable is empty"
-                        )
-                    app = create_http_app(
-                        registry,
-                        host=args.host,
-                        bearer_token=token,
-                        allowed_hosts=getattr(args, "allowed_host", None),
-                        allowed_origins=getattr(args, "allowed_origin", None),
-                    )
-                    config = uvicorn.Config(
-                        app,
-                        host=args.host,
-                        port=args.port,
-                        access_log=False,
-                    )
-                    await uvicorn.Server(config).serve()
-                else:
-                    server = create_server(registry)
-                    async with stdio.stdio_server() as (read_stream, write_stream):
-                        await server.run(
-                            read_stream,
-                            write_stream,
-                            server.create_initialization_options(),
-                        )
+                yield registry
         finally:
             store.close()
     finally:
         await client.aclose()
+
+
+async def _serve(args: argparse.Namespace) -> None:
+    async with registry_context(args) as registry:
+        if getattr(args, "transport", "stdio") == "http":
+            import uvicorn
+
+            token_name = getattr(args, "token_env", None)
+            token = os.environ.get(token_name) if token_name else None
+            if token_name and not token:
+                raise ValueError(
+                    "configured bearer-token environment variable is empty"
+                )
+            app = create_http_app(
+                registry,
+                host=args.host,
+                bearer_token=token,
+                allowed_hosts=getattr(args, "allowed_host", None),
+                allowed_origins=getattr(args, "allowed_origin", None),
+            )
+            config = uvicorn.Config(
+                app,
+                host=args.host,
+                port=args.port,
+                access_log=False,
+            )
+            await uvicorn.Server(config).serve()
+        else:
+            server = create_server(registry)
+            async with stdio.stdio_server() as (read_stream, write_stream):
+                await server.run(
+                    read_stream,
+                    write_stream,
+                    server.create_initialization_options(),
+                )
 
 
 def main() -> None:
