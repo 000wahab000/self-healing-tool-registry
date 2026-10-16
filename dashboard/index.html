@@ -255,6 +255,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
       <button role="tab" aria-selected="true" data-tab="live">Live stream</button>
       <button role="tab" aria-selected="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
       <button role="tab" aria-selected="false" data-tab="metrics">Metrics</button>
+      <button role="tab" aria-selected="false" data-tab="mcp">MCP</button>
       <button role="tab" aria-selected="false" data-tab="report" id="tab-report" hidden>Report</button>
     </nav>
     <span class="spacer"></span>
@@ -353,6 +354,22 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
     <div class="head"><div><p class="eyebrow">bench/report.md</p><h2>Benchmark report</h2></div></div>
     <section class="card pad"><pre id="report"></pre></section>
   </div>
+
+  <!-- MCP FRONT DOOR -->
+  <div id="view-mcp" role="tabpanel" hidden>
+    <div class="head"><div><p class="eyebrow">MCP gateway</p><h2>Front door <span class="dim">· the frozen tools any MCP client sees</span></h2></div></div>
+    <div class="cards" id="mcp-transports"></div>
+    <section class="card scroll">
+      <table class="log">
+        <thead><tr><th>Tool</th><th>Description</th><th>Input schema</th></tr></thead>
+        <tbody id="mcp-tools"></tbody>
+      </table>
+    </section>
+    <section class="card pad">
+      <h3>Upstream servers</h3>
+      <div id="mcp-upstreams"></div>
+    </section>
+  </div>
 </main>
 
 <script>
@@ -375,6 +392,16 @@ const STEP_LABEL = { get_user: "Look up user 123", update_email: "Set the new em
 const CONTROL_TOOLS = { C2: ["get_user"], C3: ["get_user", "update_email"] };  // bench CONTROL_STEPS
 const SINGLE_TOOL_RUNS = { M8: ["create_ticket"], "M6-N": ["set_manager"] };
 const MAX_CALLS = 10;  // agents/common.py MAX_ITERATIONS
+// Offline stand-in for /api/mcp so the static demo shows the MCP view too.
+const DEMO_MCP = {
+  front_door: {
+    name: "healer",
+    transports: { stdio: true, http: { path: "/mcp", default_host: "127.0.0.1", default_port: 8001 } },
+    tools: TOOLS.map((name) => ({ name, description: STEP_LABEL[name], parameters: { type: "object", properties: {}, required: [] } })),
+  },
+  upstream_config_present: false,
+  upstream_servers: [],
+};
 const ACTS = [
   ["CLEAN", "Act 1", "Healthy v1", "Both agents finish 4/4 steps"],
   ["M5", "Act 2", "The headline break", "user_id → target.id (int) + X-Tenant-Id"],
@@ -595,6 +622,7 @@ const Demo = (() => {
     if (path === "/api/start") { start(); return Promise.resolve(state(0)); }
     if (path === "/api/reset") { reset(); return Promise.resolve(state(0)); }
     if (path === "/api/report") return Promise.resolve({ report: SAMPLE_REPORT });
+    if (path === "/api/mcp") return Promise.resolve(DEMO_MCP);
     if (path === "/api/explorer/info") return fetch("/api/explorer/info").then(r => r.json()).catch(() => ({ predefined_queries: [], error_classes: [], mock_info: { tools: {} } }));
     if (path === "/api/explore") {
       // The simulator cannot call an LLM; saying so beats inventing a result.
@@ -633,11 +661,11 @@ async function act(path, body) {
 /* ---------- tabs ---------- */
 function showTab(name) {
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
-  for (const v of ["live", "heals", "metrics", "report"]) $("view-" + v).hidden = v !== name;
+  for (const v of ["live", "heals", "metrics", "mcp", "report"]) $("view-" + v).hidden = v !== name;
 }
 for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => showTab(b.dataset.tab);
 // The landing page links to /live#heals etc.
-if (["heals", "metrics", "report"].includes(location.hash.slice(1))) showTab(location.hash.slice(1));
+if (["heals", "metrics", "mcp", "report"].includes(location.hash.slice(1))) showTab(location.hash.slice(1));
 
 /* ---------- shared rendering ---------- */
 const path = (p) => p.join(".");
@@ -1216,13 +1244,43 @@ async function poll() {
     busy = false;
   }
 }
+function renderMcp(info) {
+  const fd = info.front_door || {};
+  const transports = fd.transports || {};
+  const http = transports.http || {};
+  const cards = [
+    metric("stdio transport", transports.stdio ? "enabled" : "—", "", "python -m healer.mcp_server"),
+    metric("Streamable HTTP", http.path || "—", "", http.default_host ? http.default_host + ":" + http.default_port : ""),
+  ];
+  $("mcp-transports").replaceChildren(...cards);
+
+  const rows = (fd.tools || []).map((t) => {
+    const tr = el("tr");
+    tr.append(el("td", t.name, { class: "mono" }), el("td", t.description || ""), el("td", formatJson(t.parameters)));
+    return tr;
+  });
+  $("mcp-tools").replaceChildren(...rows);
+
+  const ups = info.upstream_servers || [];
+  if (ups.length) {
+    $("mcp-upstreams").replaceChildren(...ups.map((u) => el("span", u.name || String(u), { class: "op" })));
+  } else {
+    const msg = info.upstream_config_present
+      ? "Upstream servers are listed once T2-3 defines the config shape."
+      : "No upstream servers configured yet. Add them in config/mcp_servers.json (T2-3).";
+    $("mcp-upstreams").replaceChildren(el("p", msg, { class: "muted" }));
+  }
+}
+function loadMcp() {
+  call("/api/mcp").then(renderMcp).catch(() => {});
+}
 function loadReport() {
   call("/api/report").then((r) => {
     if (r.report) { $("report").textContent = r.report; $("tab-report").hidden = false; }
   }).catch(() => {});
 }
 clearView();
-poll().then(() => { loadReport(); initPresets(); });
+poll().then(() => { loadReport(); loadMcp(); initPresets(); });
 setInterval(poll, 500);
 </script>
 <script src="/guide.js" defer></script>

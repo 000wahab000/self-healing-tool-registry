@@ -32,6 +32,7 @@ from dashboard.explorer import (
     run_explore,
 )
 from healer import metrics
+from healer.gateway import load_apis, load_config
 from healer.jev import from_env
 from healer.models import AuditEvent
 from healer.registry import Registry
@@ -100,6 +101,7 @@ class Dashboard:
         self.base_heal = 0
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
+        self._mcp_info: dict | None = None
 
     async def start(self, kind: str, step_delay: float) -> None:
         if kind == "llm" and not os.environ.get("NVIDIA_API_KEY"):
@@ -272,6 +274,46 @@ class Dashboard:
                 custom,
             )
 
+    async def mcp_info(self) -> dict:
+        """What the MCP front door exposes, read from the same `Registry.tools()`."""
+        if self._mcp_info is None:
+            # A fresh mock, so the frozen schemas come from the clean v1 spec,
+            # never from a mutation the live demo happens to have applied.
+            token = self.cfg["OAUTH_BEARER"].removeprefix("Bearer ")
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=create_mock(token)),
+                base_url="http://mock",
+            ) as client:
+                registry = Registry(client, self.tools, self.cfg, self.store)
+                await registry.load()
+                tools = registry.tools()
+            upstream = ROOT / "config" / "mcp_servers.json"
+            self._mcp_info = {
+                "front_door": {
+                    "name": "healer",
+                    "transports": {
+                        "stdio": True,
+                        "http": {
+                            "path": "/mcp",
+                            "default_host": "127.0.0.1",
+                            "default_port": 8001,
+                        },
+                    },
+                    "tools": tools,
+                },
+                "upstream_config_present": upstream.is_file(),
+                # names and where they live only; token env names and commands stay out
+                "upstream_servers": [
+                    {"name": s["name"], "transport": s["transport"], "url": s.get("url")}
+                    for s in (load_config(upstream) if upstream.is_file() else [])
+                ]
+                + [
+                    {"name": a["name"], "transport": a["kind"], "url": a.get("base_url")}
+                    for a in (load_apis(upstream) if upstream.is_file() else [])
+                ],
+            }
+        return self._mcp_info
+
     async def wait(self) -> None:
         await asyncio.gather(*self.tasks.values())
 
@@ -400,6 +442,10 @@ def create_app(db_path: str | None = None) -> FastAPI:
             )
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+
+    @app.get("/api/mcp")
+    async def mcp() -> dict:
+        return await dash.mcp_info()
 
     @app.get("/api/report")
     async def report() -> dict:
