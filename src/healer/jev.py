@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import string
+import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -50,19 +51,21 @@ class JevChoice:
 class JevClient:
     def __init__(
         self,
-        api_key: str,
+        api_key: str | None,
         client: httpx.AsyncClient | None = None,
         model: str = "jev-latest",
         url: str = "https://api.typesafe.ai/v1/systemone",
+        session_header: bool = False,
     ) -> None:
         self._key = api_key
         self._owned = client is None
-        self._client = client or httpx.AsyncClient()
+        self._client = client  # created on first use: no idle client when Jev is never asked
         self._model = model
         self._url = url
+        self._session_header = session_header
 
     async def aclose(self) -> None:
-        if self._owned:
+        if self._owned and self._client is not None:
             await self._client.aclose()
 
     async def choose(self, state: str, question: str, options: list[str]) -> JevChoice:
@@ -79,11 +82,18 @@ class JevClient:
                 }
             },
         }
+        if self._client is None:
+            self._client = httpx.AsyncClient()
         try:
+            headers = {}
+            if self._key:
+                headers["Authorization"] = f"Bearer {self._key}"
+            if self._session_header:
+                headers["x-opencode-session"] = str(uuid.uuid4())
             response = await self._client.post(
                 self._url,
                 json=body,
-                headers={"Authorization": f"Bearer {self._key}"},
+                headers=headers,
                 timeout=JEV_TIMEOUT_S,
             )
             response.raise_for_status()
@@ -152,7 +162,7 @@ def render_option(fix: dict) -> str:
 
 
 def from_env(env=None) -> JevClient | None:
-    """JEV_API_KEY (+ JEV_URL, JEV_MODEL) for TypeSafe direct, else Jev via OpenRouter, else none."""
+    """Prefer TypeSafe direct, then OpenRouter, then opt-in OpenCode free Jev."""
     env = os.environ if env is None else env
     if key := env.get("JEV_API_KEY"):
         extra = {
@@ -166,5 +176,12 @@ def from_env(env=None) -> JevClient | None:
             key,
             url="https://openrouter.ai/api/v1/systemone",
             model="~typesafe/jev-latest",
+        )
+    if env.get("OPENCODE_JEV_FREE") == "1":
+        return JevClient(
+            None,
+            url="https://opencode.ai/inference/systemone/v1/systemone",
+            model="jev-1.13-free",
+            session_header=True,
         )
     return None
