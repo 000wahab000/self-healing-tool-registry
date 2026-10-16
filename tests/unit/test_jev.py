@@ -6,7 +6,14 @@ import httpx
 import pytest
 
 from healer import candidates, diagnose
-from healer.jev import JevChoice, JevClient, JevUnavailable, render_option, render_state
+from healer.jev import (
+    JevChoice,
+    JevClient,
+    JevUnavailable,
+    from_env,
+    render_option,
+    render_state,
+)
 from healer.settings import JEV_TIMEOUT_S
 
 URL = "https://api.typesafe.ai/v1/systemone"
@@ -302,8 +309,6 @@ async def test_real_diff_and_candidates_render_and_round_trip(respx_mock, jev):
 
 
 def test_from_env_prefers_direct_key_then_openrouter_then_none():
-    from healer.jev import from_env
-
     direct = from_env(
         {
             "JEV_API_KEY": "k",
@@ -318,3 +323,62 @@ def test_from_env_prefers_direct_key_then_openrouter_then_none():
         "~typesafe/jev-latest",
     )
     assert from_env({}) is None
+
+
+def test_ac_48_free_jev_requires_opt_in_without_keyed_provider():
+    free = from_env({"OPENCODE_JEV_FREE": "1"})
+    assert free is not None
+    assert (free._url, free._model, free._key, free._session_header) == (
+        "https://opencode.ai/inference/systemone/v1/systemone",
+        "jev-1.13-free",
+        None,
+        True,
+    )
+    assert from_env({"OPENCODE_JEV_FREE": "true"}) is None
+
+
+async def test_ac_48_free_request_has_no_auth_and_parses_choice(respx_mock):
+    url = "https://opencode.ai/inference/systemone/v1/systemone"
+    route = respx_mock.post(url).respond(json=reply("B", 0.91))
+    async with httpx.AsyncClient() as http:
+        free = from_env({"OPENCODE_JEV_FREE": "1"})
+        free._client = http
+        assert await free.choose("s", "q", OPTIONS) == JevChoice(1, 0.91, 0)
+    request = route.calls.last.request
+    assert "authorization" not in request.headers
+    assert request.headers["x-opencode-session"]
+    assert json.loads(request.content)["model"] == "jev-1.13-free"
+
+
+async def test_ac_48_free_uses_fresh_session_per_choice(respx_mock):
+    url = "https://opencode.ai/inference/systemone/v1/systemone"
+    route = respx_mock.post(url).respond(json=reply())
+    async with httpx.AsyncClient() as http:
+        free = from_env({"OPENCODE_JEV_FREE": "1"})
+        free._client = http
+        await free.choose("s", "q", OPTIONS)
+        await free.choose("s", "q", OPTIONS)
+    sessions = [call.request.headers["x-opencode-session"] for call in route.calls]
+    assert len(set(sessions)) == 2
+
+
+def test_ac_48_keyed_providers_take_precedence_over_free():
+    direct = from_env({"JEV_API_KEY": "d", "OPENROUTER_API_KEY": "o", "OPENCODE_JEV_FREE": "1"})
+    routed = from_env({"OPENROUTER_API_KEY": "o", "OPENCODE_JEV_FREE": "1"})
+    assert (direct._url, direct._model, direct._key, direct._session_header) == (
+        "https://api.typesafe.ai/v1/systemone", "jev-latest", "d", False
+    )
+    assert (routed._url, routed._model, routed._key, routed._session_header) == (
+        "https://openrouter.ai/api/v1/systemone", "~typesafe/jev-latest", "o", False
+    )
+
+
+async def test_ac_48_free_failure_is_unavailable(respx_mock):
+    url = "https://opencode.ai/inference/systemone/v1/systemone"
+    route = respx_mock.post(url).respond(status_code=503)
+    async with httpx.AsyncClient() as http:
+        free = from_env({"OPENCODE_JEV_FREE": "1"})
+        free._client = http
+        with pytest.raises(JevUnavailable):
+            await free.choose("s", "q", OPTIONS)
+    assert route.call_count == 1

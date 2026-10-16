@@ -167,6 +167,7 @@ From phase 13 on, each machine appends rows only to its own table below. Separat
 | 2026-10-16 | T1-1 to T1-4 | done | MCP outcomes classified in the adapter (FR-24.2), tool-rename diagnosis (`diagnose.renamed_op`), MCP heal path and MCP precompute (AC-64, AC-65) |
 | 2026-10-16 | T1-5 (S3) | done | Tier-2 repair agent `src/healer/repair.py` (FR-17.12 to 17.14, AC-43, AC-45). Mock mutation T-MOVE added. Live check on gpt-oss-20b: T-MOVE healed 6 of 6 runs, M8 refused 2 of 2 without a model call (one manual run, not a benchmark) |
 | 2026-10-16 | T1-5 (S3 triage) | done | Jev triage before repair; repair widened to LOW_CONFIDENCE, UNSAFE_PATCH, VERIFY_FAILED on reads (FR-17.15, AC-46). Live Jev not checked: Jev via OpenRouter returns 401 on this machine |
+| 2026-10-16 | T1-5 (free Jev) | done | Opt-in OpenCode Jev 1.13 Free (AC-48): live M6-N reached tier-2 repair; dashboard M6-N correctness still assumes refusal and needs T2-PS2 follow-up |
 
 ### Progress log: T1-PS2
 
