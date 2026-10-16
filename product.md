@@ -1,109 +1,23 @@
 # Product Spec: Self-Healing Gateway for MCP and REST Tools (PS 01)
 
-> **PS 01: Self-Healing Tool Registries Under Runtime API Schema Drift**
+> Source of truth for **what** is built (FR and AC ids; tests reference them). How it works: `FLOW.md`. Status: `plan.md`. Rules: `agent.md`, `AGENTS.md`.
 >
-> Source of truth for **what** we build. How: `technical-approach.md`. Order and owners: `plan.md`, `AGENTS.md`. Coding rules: `agent.md`.
->
-> **Direction (2026-10-16):** the product is a self-healing gateway. Agents call our MCP server; the registry forwards each call to an upstream MCP server or a REST/OpenAPI API and heals drift in either. §1 to §16 specify the healing core, built and tested on REST/OpenAPI; the MCP path reuses it unchanged (same `Outcome`, ops, safety gate and audit). MCP requirements are in the track sections §17 to §20 and `plan.md` (Phase 13+). GraphQL, gRPC and Postgres are deferred (T2-6).
->
-> Labels: **MUST** = MVP, required for the demo. **OPTIONAL** = built in the MVP, but every other MUST criterion must pass without it. **STRETCH** = after every MUST criterion passes. **FUTURE** = after the hackathon. **[A]** = assumption to confirm during the build.
+> Section numbers are stable references; sections that only repeated other docs were removed, so numbering has gaps. Labels: **MUST** MVP; **OPTIONAL** built, nothing else depends on it; **STRETCH** after MUST; **FUTURE** later; **[A]** assumption.
 
 ---
 
-## 1. Problem
-
-- Agents call APIs and MCP servers through tool definitions (function-calling schemas) generated once from a spec or a `tools/list`. The definitions are static; the upstream keeps changing.
-- Breaking changes at runtime: a renamed parameter, a changed field type, a nested request or response body, a new mandatory header (such as OAuth), a renamed tool, a new required argument.
-- Calls then fail with `4xx` (`422`, `400`, `401`) or a JSON-RPC error, or return `200` while the upstream ignores or misreads the input.
-- Standard frameworks either raise an unhandled exception, or return the raw error to the agent, which retries the same invalid call until it runs out of iterations or passes hallucinated defaults that corrupt data.
-- Post-mortems attribute over 40% of runtime tool-call outages in long-lived agents to interface drift (per the problem statement).
-
 ## 2. Product Definition
 
-A **self-healing tool registry** sits between an agent and the upstreams it calls. On every tool call it:
-
-1. detects runtime schema drift,
-2. diagnoses the difference between the expected schema and the actual one,
-3. builds the smallest fix it can from a fixed set of safe operations,
-4. hot-patches the tool definition in memory,
-5. re-sends the call once and verifies the result,
-6. logs the patch,
-7. returns the result. The agent continues without a restart or any manual step.
+A self-healing registry sits between an agent and its upstreams (MCP servers, REST/OpenAPI, Swagger 2.0, GraphQL). On every call it detects drift, diagnoses it, builds the smallest fix from a fixed set of safe operations, hot-patches the tool in memory, re-sends once, verifies, logs one audit row and returns the result.
 
 | Principle | Meaning |
 |---|---|
-| Code heals, Jev breaks ties | Detection, diagnosis, fix building, validation and storage are deterministic code, including a deterministic tie-breaker. The only model in the healing path is **Jev** (TypeSafe AI's hosted, non-generative classifier). It is optional: called only when code finds two or more valid fixes and the tie-breaker finds no unique winner. The demo must work without it. |
-| Nothing is invented | Every value in a patched request comes from the agent's own arguments, configuration, or the published schema. |
-| Nothing loops | One heal attempt per broken call. A failed fix is never retried. |
+| Code heals | Detection, diagnosis, fix building, validation and storage are deterministic. Jev (optional classifier) only breaks ties; the tier-2 repair LLM (STRETCH S3) only emits gated operations. |
+| Nothing is invented | Every value in a patched request comes from the agent's arguments, configuration or the published schema. |
+| Nothing loops | One heal attempt per broken call; a failed fix is never retried. |
 | Fixes are data | Machine-readable operation lists, never generated code or English text. |
-| Known breaks heal from memory | After a heal, the tool's in-memory definition carries the fix. Persisting fixes and reusing them by fingerprint across restarts (tier 0) is S6 (built). A new break is diagnosed by code (tier 1). |
+| Known breaks heal from memory | The tool definition carries the fix; S6 persists it by fingerprint (tier 0). |
 
-## 3. Target Users
-
-| User | Need | What the product gives them |
-|---|---|---|
-| Agent developers | Tools keep working when an upstream changes | Automatic recovery with no redeploy |
-| Platform and agent-infra engineers | One place that keeps every tool definition current | A gateway in front of MCP servers and REST APIs |
-| Operators and on-call | Know what changed, what was patched, why a call failed | An audit log of every heal attempt, with reason codes |
-
-## 4. Core Workflow
-
-**Per tool call**
-
-1. The agent calls a tool. Its arguments are shaped by the tool's agent-facing schema, which never changes.
-2. The registry validates the arguments against the agent-facing schema. Invalid arguments are returned to the agent as `AGENT_ARG_ERROR`. This is an agent mistake, not drift, so no healing happens.
-3. The registry builds the request from the arguments and applies the tool's active fix, if it has one.
-4. The protocol adapter sends the request and normalizes the response into an **Outcome**.
-5. The detector classifies the Outcome as `OK`, `BUSINESS`, or one of `E1` to `E6` (see §8).
-6. Routing:
-   - `OK` or `BUSINESS`: return to the agent.
-   - `E1`: retry with a bound.
-   - `E3`: return a structured error (`UNSUPPORTED_CLASS`). Healing it is FUTURE.
-   - `E2`, `E4`, `E5`, `E6`: heal. An `E2` whose spec diff is empty and whose violations are all value errors is reclassified `BUSINESS` (FR-3.4).
-
-**Heal** (deadline: 3.5 s from failure detection)
-
-7. Compute the break's **fingerprint**.
-8. (STRETCH, S7) If the fingerprint is in the negative cache, abort immediately with `retry: false`.
-9. (STRETCH, S6) If a stored fix exists for the fingerprint, use it (**tier 0**). In the MVP, a fix already committed in this process is carried by the tool's in-memory definition and applied at step 3.
-10. Otherwise diagnose (**tier 1**):
-    - Collect clues: the error body, the current OpenAPI spec diffed against the stored snapshot, and the original arguments.
-    - Build candidate fixes. With 0 candidates, abort. With 1, use it. With 2 or more, run the deterministic tie-breaker (FR-7.6). If it finds a unique winner, use it. Otherwise, if Jev is configured, ask Jev to choose. If Jev is unavailable or its confidence is low, abort with `LOW_CONFIDENCE`.
-11. Run the safety gate. For a write tool with 2 or more candidates, the gate applies the extra rule in FR-9.6.
-12. Apply the fix. For a request-side fix, re-send once. For a response-side fix, remap the response that was already received.
-13. Verify the result with the same checks plus the tool's postchecks.
-14. Finish:
-    - **Pass:** record the fix as active (persist it under S6), update the in-memory tool definition, write the audit event, and return the result.
-    - **Fail:** roll back, add the fingerprint to the negative cache (STRETCH, S7), write the audit event, and return a structured error with `retry: false`.
-
-## 5. MVP Features
-
-| ID | Feature | Priority |
-|---|---|---|
-| F1 | OpenAPI-driven tool registry with in-memory tool definitions | MUST |
-| F2 | REST protocol adapter with argument pre-validation | MUST |
-| F3 | Runtime error detection: 6 drift classes plus business errors | MUST |
-| F4 | Error fingerprinting | MUST |
-| F5 | Audit log (SQLite, machine-readable). The persistent fix store is STRETCH (S6) | MUST (audit log only) |
-| F6 | Schema diagnosis: spec diff plus error clues | MUST |
-| F7 | Candidate fix builder (operation set: `move`, `cast`, `header`, `route`) with a deterministic tie-breaker | MUST |
-| F8 | Jev disambiguation, used only when the deterministic tie-breaker finds no unique winner | OPTIONAL |
-| F9 | Safety gate | MUST |
-| F10 | Hot-patch, replay or remap, verify, then commit or roll back | MUST |
-| F11 | Bounded retries and loop prevention (`E1` retry bounds, one heal attempt per call, heal deadline) | MUST |
-| F12 | Mock drift API with a runtime mutation switch | MUST |
-| F13 | Healing agent: standard framework plus LLM, with tools routed through the registry | MUST |
-| F14 | Baseline agent: same framework and LLM, static tools, no healing | MUST |
-| F15 | Benchmark runner and metrics: ZTAR, Safe-Refusal Rate, False-Patch Rate, MTTR, Token Overhead, error-only ablation | MUST |
-| F16 | Live demo dashboard | MUST |
-| S1 | Sibling fix propagation (prepare fixes for related tools) | STRETCH |
-| S2 | Rule mining (promote repeated tier-1 fixes into rules) | STRETCH |
-| S3 | Tier-2 repair agent: an LLM outputs operation lists only, for breaks tier 1 cannot build | STRETCH |
-| S4 | GraphQL adapter and GraphQL mock (deferred, T2-6) | STRETCH |
-| S5 | gRPC (unary) adapter and gRPC mock (deferred, T2-6) | STRETCH |
-| S6 | Persistent fix store: save fixes, reload them at startup, tier-0 reuse by fingerprint across restarts, retire a fix after 2 losses | STRETCH |
-| S7 | Negative cache (`KNOWN_UNFIXABLE` for 60 s) and single-flight per fingerprint | STRETCH |
-| S8 | Injection-resistance scenario M10 (hostile text in error bodies and OpenAPI descriptions) | STRETCH |
 
 ## 6. Functional Requirements
 ### F1 Tool registry
@@ -301,9 +215,9 @@ A **self-healing tool registry** sits between an agent and the upstreams it call
 - **FR-16.3** A patch log read from the audit log, and a metrics panel.
 - **FR-16.4** A landing page at `/` explains the problem, where the registry sits, and how drift is detected, classified and patched. The Live view (`/live`) has four presets (CLEAN, M5, M8, M3) that run both agents side by side with a 4-step tracker per agent. Each tool call is a dropdown, closed by default, showing the agent input, the error, the new input the registry sent (header names only, never values) and the final output.
 
-### F18 Spec watcher (MCP gateway, T2-7)
+### F18 Spec watcher
 
-> Numbered F18; FR-17 is the STRETCH section (S1 to S8 plus `Healer.precompute`, FR-17.11). The watcher feeds that precompute hook (contract 5 in `AGENTS.md`).
+> Numbered F18; FR-17 is the STRETCH section (S1 to S8 plus `Healer.precompute`, FR-17.11). The watcher feeds that precompute hook (contract 5, `AGENTS.md`).
 
 - **FR-18.1** The watcher polls each `SpecSource` on an interval and keeps, per source, the last `LoadedSpec` it saw. It runs as a background task and never blocks a tool call.
 - **FR-18.2** When a source's `spec_hash` differs from the last one seen, the watcher saves the new snapshot to the `FixStore` (`save_spec`) exactly once per change. The first observation of a source establishes the baseline: it saves the snapshot but triggers no precompute.
@@ -316,7 +230,7 @@ A **self-healing tool registry** sits between an agent and the upstreams it call
 - **S1:** After a commit, prepare `candidate` fixes for other tools on the same API whose base schema contains the same removed field (same name and type). A candidate is used only when that tool's fingerprint matches, and it is always verified.
 - **S2:** Store an abstract signature of each fix, with field names replaced by roles. When the same signature wins 3 times, add a deterministic rule that skips Jev.
 - **S3:** When tier 1 yields 0 candidates (and the reason is not `NO_SAFE_VALUE`), a repair LLM receives the structured clue bundle. It must return operations that validate against the operations JSON Schema. Its fix passes the same safety gate and verification, with a 30 s budget. If no operation can express the fix, it writes a structured proposal record. LLM-generated code is never executed.
-- **S4 / S5:** GraphQL and gRPC (unary) adapters feeding the same Outcome model and detection classes. Deferred to T2-6; not active work.
+- **S4 / S5:** GraphQL and gRPC (unary) adapters feeding the same Outcome model and detection classes. Deferred; not active work.
 - **S6:** Persist fixes in the store, reload active fixes at startup, reuse them by fingerprint (tier 0) across restarts, and retire a fix after 2 losses (FR-5.1, FR-5.2, FR-5.6, FR-10.3, FR-10.4).
 - **S7:** Negative cache (`KNOWN_UNFIXABLE` for 60 s) and single-flight per fingerprint (FR-10.5, FR-11.3). Until S7 is built, registry-level loop prevention relies on one heal attempt per call and on the agent obeying `retry: false`.
 - **S8:** Mutation M10, injection resistance. It is STRETCH because the problem statement does not require it and the MVP is being kept lean. The property it tests (no value is ever derived from error or description text) is enforced by the MVP design itself (provenance rules, FR-5.4, FR-8.8). M10 only demonstrates it.
@@ -427,45 +341,10 @@ New operations are added only through code review (see `agent.md`). No operation
 | OpenAPI 3.x and Swagger 2.0 specs; upstream MCP servers (`tools/list`, §19) | APIs without any spec beyond error-clue mode |
 | The four required mutation types, plus route changes | Value transformations (splitting fields, unit or format conversion) |
 | Header values supplied through config | Obtaining or refreshing OAuth tokens |
-| Single process, single machine | Multi-host fix sharing (deferred, T2-6: Postgres) |
-| REST/OpenAPI and upstream MCP | GraphQL and gRPC (deferred, T2-6), streaming, non-JSON payloads |
+| Single process, single machine | Multi-host fix sharing (deferred: Postgres) |
+| REST/OpenAPI and upstream MCP | GraphQL and gRPC (deferred), streaming, non-JSON payloads |
 | A mock API we control | Changing real third-party APIs |
 | Structured error for undecodable bodies (`E3`) | Healing undecodable bodies (FUTURE) |
-
-## 10. Minimal Architecture
-
-| Component | Responsibility |
-|---|---|
-| Tool Registry | Loads the spec, holds the tool definitions (`agent_schema`, `wire_schema`, active fix), exposes tools to agents |
-| REST Adapter | Builds requests, applies operations, sends, normalizes responses into Outcomes. The upstream MCP adapter (T2-1) returns the same Outcome (contract 7 in `AGENTS.md`). |
-| Detector | Classifies Outcomes; runs the output-schema check and postchecks |
-| Heal Controller | Orchestrates tiers 0 and 1: deadline, one attempt per call, commit or rollback. Single-flight and the negative cache are STRETCH (S7) |
-| Diagnoser | Fetches and diffs the spec, extracts error clues |
-| Candidate Builder | Turns the diff and clues into candidate operation lists and runs the deterministic tie-breaker |
-| Jev Client (optional) | Makes one Choice call when the tie-breaker finds no unique winner |
-| Safety Gate | Checks provenance, casts, operation count and replay safety |
-| Store | SQLite (WAL): audit events. Under S6 and S7 also fixes, spec snapshots, the active-fix cache and the negative cache |
-| Mock Drift API | Serves the endpoints, the spec and the mutation switch |
-| Healing Agent / Baseline Agent | The same framework and LLM; the only difference is the registry |
-| Benchmark Runner | Runs the scenarios and computes the metrics |
-| Dashboard | Live view, mutation triggers, patch log, metrics |
-
-```
-Agent ──tool call──▶ Tool Registry ──▶ REST Adapter ──▶ Mock Drift API
-  ▲                                         │ Outcome
-  │                                         ▼
-  │                                     Detector ── OK / BUSINESS ──▶ Agent
-  │                                         │ E1 ──▶ bounded retry
-  │                                         ▼ E2–E6
-  │                                  Heal Controller
-  │                     ┌───────────────────┼─────────────────────┐
-  │                 Store (T0)        Diagnoser + Candidate     Safety Gate
-  │                                     Builder (T1) ── Jev
-  │                                         ▼
-  └────── result / error(retry=false) ◀── replay or remap ── verify ── commit/rollback ──▶ Store (audit)
-```
-
-Note: "Store (T0)" and the negative cache are S6 and S7 (built). Jev is optional (F8). On the MCP path the REST Adapter box is the upstream MCP client and the Mock Drift API is an upstream MCP server (`technical-approach.md` §3).
 
 ## 11. Non-Functional Requirements
 
@@ -508,25 +387,6 @@ Note: "Store (T0)" and the negative cache are S6 and S7 (built). Jev is optional
 | Heal exceeds 3.5 s | Abort `DEADLINE` |
 | SQLite write fails during commit | The heal is treated as failed and `retry: false` is returned. No unlogged patch is ever applied. |
 
-## 13. Non-Goals
-
-- Executing model-generated code at any time.
-- Inventing, defaulting or guessing missing values.
-- Modifying the upstream API.
-- Using an LLM to heal in tiers 0 and 1.
-- Treating text in error bodies or OpenAPI descriptions as instructions, or as a source of values.
-- Changing the agent-facing tool schema at runtime.
-- Production deployment, multi-tenancy, or a UI beyond the demo dashboard.
-- Tuning the baseline to perform badly. It uses framework defaults.
-
-## 14. Future Scope
-
-- Healing undecodable bodies (`E3`): load the current spec and re-send, with a defined operation set.
-- Lossless value transforms with explicit checks. (`enum_map` and `encoding` are X3, FR-17.3 to 17.5; the drift watcher is F18; precompute is FR-17.11.)
-- Jev yes/no checks to separate drift from business errors when the spec is missing.
-- Deferred to T2-6: Postgres for multi-instance fix sharing, GraphQL, gRPC, streaming.
-- Any STRETCH item not finished during the hackathon.
-
 ## 15. Acceptance Criteria
 
 | AC | Criterion | Test |
@@ -558,10 +418,10 @@ Note: "Store (T0)" and the negative cache are S6 and S7 (built). Jev is optional
 | AC-25 | An `E3` fixture (non-JSON body) returns a structured error with reason `UNSUPPORTED_CLASS`, writes exactly one audit event and replays nothing | Integration |
 | AC-26 | (STRETCH, S8) M10: the heal produces the same operations as M1, the final mock state is correct, no field, header or value in any request is derived from the injected text, and the audit decision path matches M1's | Integration |
 | AC-27 | The deterministic tie-breaker: M6-D yields exactly one winner, M6-N yields none, and on a write tool an order-only or type-only advantage is not a win | Unit table |
-| AC-28 | The registry adds < 10 ms p95 per call, excluding network. A healthy `Registry.call()` against the in-process mock is less than 10 ms p95 slower than the same request sent straight through the transport the registry wraps, over at least 200 calls on each side | Unit (T1-PS2) |
-| AC-60 | A Swagger 2.0 copy of the mock spec (`mock_api/fixtures/swagger2.json`) converts to exactly the same `operations()` map as the mock API's own OpenAPI 3 document, for every operation (body schemas, params, response schemas, descriptions) | Unit (T1-PS2) |
-| AC-61 | Loaded through `swagger2_source` as the base spec, the Swagger 2.0 fixture heals M1 on the first `get_user` call and returns the v1 user | Integration (T1-PS2) |
-| AC-62 | `convert` maps `securityDefinitions` to `components/securitySchemes` and the resulting `security` list matches the contract (2.0 `basic` to 3.0 `http`/`basic`, `apiKey` and `oauth2` preserved) | Unit (T1-PS2) |
+| AC-28 | The registry adds < 10 ms p95 per call, excluding network. A healthy `Registry.call()` against the in-process mock is less than 10 ms p95 slower than the same request sent straight through the transport the registry wraps, over at least 200 calls on each side | Unit |
+| AC-60 | A Swagger 2.0 copy of the mock spec (`mock_api/fixtures/swagger2.json`) converts to exactly the same `operations()` map as the mock API's own OpenAPI 3 document, for every operation (body schemas, params, response schemas, descriptions) | Unit |
+| AC-61 | Loaded through `swagger2_source` as the base spec, the Swagger 2.0 fixture heals M1 on the first `get_user` call and returns the v1 user | Integration |
+| AC-62 | `convert` maps `securityDefinitions` to `components/securitySchemes` and the resulting `security` list matches the contract (2.0 `basic` to 3.0 `http`/`basic`, `apiKey` and `oauth2` preserved) | Unit |
 | AC-55 | The spec watcher snapshots a changed spec within one poll interval, does no extra work for an unchanged spec, backs off a failing source until it recovers, and calls `Healer.precompute(old, new)` only when the healer provides it | Unit |
 
 ### Traceability
@@ -591,19 +451,9 @@ Note: "Store (T0)" and the negative cache are S6 and S7 (built). Jev is optional
 | S7 | FR-10.5, FR-11.3 | AC-12, AC-19 |
 | S8 | FR-12.8 | AC-26 |
 
-## 16. Deliverables
-
-| Deliverable | Where it comes from | Produced by |
-|---|---|---|
-| Live demo (schema changes on stage, baseline loops, healer completes, one refusal) | F16 dashboard with F12 triggers; demo script `dashboard/demo.py` | Team, rehearsed after AC-18 passes |
-| Baseline-vs-healer comparison | F15 results file and `bench/report.md` (`technical-approach.md` §8.4), plus the dashboard metrics panel | Benchmark runner |
-| Metrics: ZTAR, MTTR, Token Overhead, Safe-Refusal Rate, False-Patch Rate | F15, definitions in FR-15.4 | Benchmark runner |
-| Short write-up of the diagnosis and patch logic | `writeup.md` | Team |
-| 30-second pitch | `pitch.md`; only numbers in `bench/report.md` | Team |
-
 ---
 
-## 17. Track T1-PS1: Healing Core (Wahab)
+## 17. Healing core: STRETCH features and tier-2 repair
 
 ### Requirements
 
@@ -621,7 +471,7 @@ Note: "Store (T0)" and the negative cache are S6 and S7 (built). Jev is optional
 #### X4: Fix Precomputation (Heal side)
 - **FR-17.11** `Healer.precompute(old: LoadedSpec, new: LoadedSpec)` computes candidate fixes from spec diffs before any failure occurs and records them as `candidate` status in the store, without sending live API requests.
 
-### Acceptance Criteria (T1-PS1 Reserved: AC-40 to AC-49)
+### Acceptance Criteria
 
 | ID | Criterion | Verification |
 |---|---|---|
@@ -640,38 +490,37 @@ Note: "Store (T0)" and the negative cache are S6 and S7 (built). Jev is optional
 - **FR-17.14** The repair runs with its own 30 s budget (`REPAIR_DEADLINE_S`), audits tier 2 with path `repair` and `llm_tokens`, and stores its fix for tier-0 reuse. It is on by default whenever `NVIDIA_API_KEY` is set, using the same key and `LLM_MODEL` as the agents, for every registry the front door builds (REST, MCP and APIs); `python -m healer.mcp_server --no-repair` turns it off, and without a key the front door starts without it and says so on stderr.mcp_server --repair`, needs `NVIDIA_API_KEY`).
 - **FR-17.15** Jev triage: when Jev is configured, a tier-1 refusal in the repairable set (NO_CANDIDATE, LOW_CONFIDENCE, UNSAFE_PATCH, and VERIFY_FAILED on a read tool with a non-transient failure) is shown to Jev as structure only, with the choice "repair" or "report". Only "repair" at or above the Jev threshold (0.5 read, 0.9 write) runs the repair agent; otherwise, or when Jev is unavailable, the original refusal goes to the agent. Without Jev only NO_CANDIDATE is repaired (FR-17.12).
 
-## 18. Track T1-PS2: Mock Drift Server and Benchmark
+## 18. Mock drift server and benchmark
 
-### Functional requirements (T1-6: Mock Drift MCP Server)
+### Functional requirements
 
 - **FR-23.1**: `mock_api/mcp_drift_server.py` implements an in-memory MCP server built on the low-level MCP SDK Server class, supporting stdio and Streamable HTTP. It serves tool sets determined by a `profile` parameter: `users` (tools `get_user`, `update_email`, `set_manager`, `create_ticket`) and `tickets` (tools `create_ticket`, `list_tickets`), seeded with in-memory data matching `mock_api/app.py`.
 - **FR-23.2**: The server implements Contract 8 (mock drift control), providing programmatic Python methods `apply_mutation(name)`, `reset()`, `list_mutations()`, and `current_mutation`, as well as administrative MCP tools `__admin_apply`, `__admin_reset`, and `__admin_list`.
 - **FR-23.3**: Supported mutations include `M1` (rename argument `user_id` to `customer_id`), `M2` (retype `user_id` from string to integer), `T-RENAME` (rename tool `get_user` to `fetch_user`), `T-REQUIRED` (add required argument `reason` to `update_email`), `T-ENUM` (restrict `update_email` format or enum), and `M8` (unsafe change adding required `priority` with no safe default).
 - **FR-23.4**: When a mutation is active, `tools/list` reflects the altered schema. Calling a mutated tool with its pre-mutation arguments returns a standard failure: unknown tools return a JSON-RPC error (-32601), and validation failures return an `isError: true` result explaining the failure. Calling `reset()` restores `tools/list` and handler behavior to the initial baseline.
 
-### Acceptance criteria (Track T1-PS2)
+### Acceptance criteria
 
 - **AC-50**: For each supported mutation, `tools/list` returns a modified tool definition/schema, and calling the tool with its baseline (pre-drift) shape fails with a JSON-RPC error or an `isError: true` result.
 - **AC-51**: Executing `reset()` restores the tools and schemas returned by `tools/list` to match the baseline definition exactly.
 
-### Functional requirements (T1-7 to T1-9: MCP fixtures and benchmark)
+### Functional requirements
 
 - **FR-23.5** (T1-7): `python -m bench.record_mcp_fixtures` writes `mock_api/fixtures/mcp/<profile>/<mutation>.json` = `{"before": tools/list, "after": tools/list}` for every mutation that changes that profile's tools, leaving out the `__admin*` tools.
 - **FR-23.6** (T1-8): `python -m bench.overhead mcp` times at least 200 healthy `users__get_user` calls through `Gateway`/`upstream_registry` against the same calls sent straight through `ClientSession.call_tool`, both in-memory, and prints p50, p95 and mean for the gateway, the direct call and their difference. The REST mode is unchanged.
 - **FR-23.7** (T1-9): `bench/run.py` runs, per drift-server mutation, a fixed `get_user`, `update_email`, `create_ticket` task through a healing gateway and through a baseline (`upstream_registry` with no store). Rows have the REST run-row fields (scenario `MCP-<mutation>`, phase `mcp`), so ZTAR, Safe-Refusal, False-Patch and MTTR apply. Healable: M1, M2, T-RENAME, T-ENUM. Refusal expected: T-REQUIRED, M8. T-MOVE needs the repair agent and runs only in LLM mode. The report gets an "## MCP gateway" section, with the MCP overhead numbers.
 
-### Acceptance criteria (T1-7 to T1-9)
+### Acceptance criteria (fixtures and benchmark)
 
 - **AC-52**: Every fixture in `mock_api/fixtures/mcp/` loads, has no `__admin*` tool, and has `before != after`; a fresh recording reproduces the committed files. | Unit (`tests/t1ps2/test_ac_52_mcp_fixtures.py`)
 - **AC-53**: The MCP overhead bench runs with 200+ samples and returns finite, non-negative p50, p95 and mean values. | Unit (`tests/t1ps2/test_ac_53_mcp_overhead.py`)
 - **AC-54**: In the scripted MCP benchmark, healing recovers M1, M2, T-RENAME and T-ENUM (task done, state correct); refuses T-REQUIRED and M8 with `NO_SAFE_VALUE`; the False-Patch Rate is 0; the baseline never completes the task; T-MOVE is skipped without the repair agent. | Unit (`tests/t1ps2/test_ac_54_mcp_bench.py`)
 
 
-## 19. Track T2-PS1: MCP Client, Loader and Front Door
+## 19. MCP front door and upstream gateway
 
-T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-30 to AC-39 (used by the front-door work below) and AC-63 to AC-69 for T2-1 onward.
 
-### MCP front door (X8; built as the old P1-1 to P1-3)
+### MCP front door (X8; built)
 
 #### Functional requirements
 
@@ -689,7 +538,7 @@ T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 - **AC-31:** A healthy `get_user` MCP call returns the registry result.
 - **AC-32:** After an M1 mutation in the same session, the tool schema remains unchanged and no `tools/list_changed` notification is sent.
 - **AC-33:** An M8 refusal is returned as structured content with `isError: true` and its reason.
-- **AC-34:** The module CLI uses a custom spec path for startup and healing, cleans up its resources, and keeps protocol stdout free of diagnostics; a named console command remains blocked pending T1-PS1 approval.
+- **AC-34:** The module CLI uses a custom spec path for startup and healing, cleans up its resources, and keeps protocol stdout free of diagnostics; no console script is declared.
 - **AC-35 (implemented):** Streamable HTTP has stdio-equivalent behavior, localhost default binding, and bearer-token protection for remote access.
 - **AC-36 (implemented):** Five concurrent equivalent MCP calls produce only one heal.
 - **AC-37 (live acceptance pending):** Client configuration hand-off is opt-in.
@@ -704,18 +553,18 @@ Stateful Streamable HTTP shares the existing registry. It binds to loopback by d
 
 AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` in `tests/mcp/test_client_config.py` (`RUN_MCP_CLIENT_E2E=1`, `MCP_CLIENT_CONFIG`, optional `MCP_CLIENT_NAME`, default `healer`). It supports stdio `command`/`args`/`env`, Cursor HTTP `url`, and Windsurf HTTP `serverUrl`/`headers`; it makes only the known `get_user` request (`user_id: "123"`, a string) and no paid LLM calls. Configured commands execute, so select only trusted config files. Default tests use a temporary config to launch the repository's offline stdio harness and do not read operator-supplied configs or contact external endpoints. The live config run and fresh-client UI checks remain outstanding; the smoke helper's log suppression and child-stderr discard are unverified at the user's request.
 
-#### GraphQL, gRPC and Postgres (deferred to T2-6; not active work)
+#### GraphQL, gRPC and Postgres (deferred; not active work)
 
-- **FR-X4 (old P1-4):** The GraphQL loader emits `OperationSpec` and its adapter normalizes results into `Outcome` for registry dispatch. GraphQL M1–M3 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Subscriptions and streaming are out of scope.
-- **FR-X5 (old P1-5):** The unary gRPC loader emits `OperationSpec` and its adapter maps gRPC status codes into the shared `Outcome` model for registry dispatch. Unary M1–M2 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Streaming is out of scope.
-- **FR-X6 (old P1-6):** The Postgres backend implements `FixStore`; active-fix uniqueness per fingerprint is enforced by the database. Registries sharing the database observe committed fixes across instances and reuse them at tier 0. A live Postgres test is opt-in; default tests remain offline.
+- **FR-X4 :** The GraphQL loader emits `OperationSpec` and its adapter normalizes results into `Outcome` for registry dispatch. GraphQL M1–M3 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Subscriptions and streaming are out of scope.
+- **FR-X5 :** The unary gRPC loader emits `OperationSpec` and its adapter maps gRPC status codes into the shared `Outcome` model for registry dispatch. Unary M1–M2 equivalents use the existing healing flow; `agent_schema` remains frozen and fixes use no invented values. Streaming is out of scope.
+- **FR-X6 :** The Postgres backend implements `FixStore`; active-fix uniqueness per fingerprint is enforced by the database. Registries sharing the database observe committed fixes across instances and reuse them at tier 0. A live Postgres test is opt-in; default tests remain offline.
 
 - **AC-38:** Through the registry, GraphQL M1–M3 and unary gRPC M1–M2 equivalents heal and preserve the expected final state without changing the frozen `agent_schema` or introducing values.
 - **AC-39:** A fix committed by one registry is visible to another registry using the shared Postgres database and is reused at tier 0; the database enforces one active fix per fingerprint. Live Postgres verification is opt-in.
 
 
 
-### Upstream MCP gateway (T2-1 to T2-5, with T1-1 to T1-4)
+### Upstream MCP gateway
 
 - **FR-24.1** `adapters/mcp_upstream.py` maps each upstream tool to an `OperationSpec` keyed `<server>__<tool>`: method `MCP`, path = upstream tool name, `body_schema` = its `inputSchema`. Tools whose name starts with `__` are not exposed (contract 7).
 - **FR-24.2** A call returns the shared `Outcome`: success gives `OK`; JSON-RPC `-32601` gives `E2` with a route violation; `-32602` and `isError` results give `E2` "rejected"; other JSON-RPC errors and transport failures give `E1`.
@@ -731,11 +580,10 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 | AC-65 | T-REQUIRED and M8 refuse with `SCHEMA_DRIFT_UNRECOVERABLE`, `retry: false`; a business error (unknown user) is returned as `API_ERROR` class `BUSINESS`, never healed | same file |
 | AC-66 | `config/mcp_servers.json` loads two servers and holds no secret; a name containing `__` is rejected | same file |
 
-## 20. Track T2-PS2: Watcher, Demo, Dashboard and Docs
+## 20. Demo, dashboard and client guides
 
-T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59. Used: AC-55 (F18, §6), AC-56 and AC-57 (dashboard, below), AC-58 (client guides). AC-59 stays reserved for T2-11.
 
-### Dashboard MCP view (T2-9; AC-68 from T2-PS1's spare range, T2-PS2's is full)
+### Dashboard MCP view (AC-68)
 
 #### Functional requirements
 
@@ -751,14 +599,14 @@ T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 |---|---|---|
 | AC-68 | The dashboard exposes the MCP front-door view: `GET /api/mcp` lists exactly the front door's `Registry.tools()` (name, description, input schema), reports the stdio and Streamable HTTP (`/mcp`) transports, and reports no upstream servers while `config/mcp_servers.json` is absent without inventing any; the live page has an `mcp` tab that renders it and the offline demo answers `/api/mcp`. Mutation buttons (contract 8) are deferred to T1-6. | Unit (`tests/dashboard/test_ac_57_mcp_view.py`) |
 
-### Client guides (T2-10)
+### Client guides
 
 #### Functional requirements
 
 - **FR-19.1** `docs/mcp-clients.md` is derived from `tests/mcp/client-handoff.md` and covers connecting a client to the healer MCP server: the install command, the stdio server command (`-m healer.mcp_server` with `--base-url`, `--spec-path`, `--tools`, `--db`), Claude Desktop, Cursor and Windsurf stdio configuration, and Cursor and Windsurf Streamable HTTP configuration (`--transport http`, `--host`, `--port`).
 - **FR-19.2** The guide explains how to add an upstream server: upstream servers are listed in `config/mcp_servers.json` (T2-3), each entry names the transport (stdio or Streamable HTTP) and a command or URL, and the file stores only the *name* of the environment variable that holds a token, never the token value. It states that upstream tools appear namespaced as `<server>__<tool>`.
 - **FR-19.3** No secret value appears in the guide. Examples pass an environment variable's name (`--token-env HEALER_MCP_TOKEN`) and never a bearer value.
-- **FR-19.4** The guide states that the `healer-mcp` console command is not available until T1-PS1 approves the `[project.scripts]` addition, and that real-client UI checks are outstanding (as the hand-off states).
+- **FR-19.4** The guide states that the `healer-mcp` console command is not available (no console script is declared), and that real-client UI checks are outstanding (as the hand-off states).
 - **FR-19.5** The guide's snippets are valid: every JSON block parses, every stdio block launches `-m healer.mcp_server`, and every documented CLI flag is accepted by `healer.mcp_server`.
 
 #### Acceptance criteria
@@ -780,13 +628,13 @@ T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserv
 - **FR-20.5** The Connections routes write config and make outbound requests, so they accept only http/https URLs (no stdio, no `command`), take the config path from `MCP_SERVERS_CONFIG` and never from the request, and off localhost require `Authorization: Bearer $CONNECTIONS_TOKEN` (403 when it is unset).
 - **AC-59** Invalid names, `__`, non-http schemes, `command`/stdio entries, secret-like `token_env` and duplicate names are rejected; add, list and delete round-trip through the config file atomically; remote mode gives 403 without `CONNECTIONS_TOKEN` and works with it; `probe` returns `{ok, tools, error}` with a short error for an MCP server and an OpenAPI API; `api_registry` exposes namespaced tools and a healthy call passes through. | Unit + FastAPI TestClient (`tests/t2ps2/test_connections.py`)
 
-### Demo agent (T2-8)
+### Demo agent
 
 - **FR-20.11** `demo/mcp_agent.py` connects only to the front door (`python -m healer.mcp_server --mcp-servers demo/mcp_servers.demo.json --no-rest`, stdio) and runs one task that needs tools from both the `users` and `tickets` upstreams. `--scripted` (default) runs a fixed call sequence; `--llm` runs a LangGraph agent over the front door's tools (NVIDIA NIM, `NVIDIA_API_KEY`). It prints each call, result and heal, then the audit rows read from `--db`.
 - **FR-20.12** A drift happens mid-task without touching contract 8: `mock_api/mcp_drift_server.py` accepts `--drift <mutation> --drift-after N`, and the demo-only config starts `users` with `--drift M1 --drift-after 1`, so the second `users__get_user` call meets the renamed argument.
-- **AC-67** (number borrowed from T2-PS1's AC-63..69 range, AC-55..59 being used) Scripted mode through a real stdio subprocess finishes all four calls with no error ever returned to the agent, and the audit log holds exactly one `RECOVERED` row (for `users__get_user`). | Integration (`tests/t2ps2/test_ac_67_demo_agent.py`)
+- **AC-67** Scripted mode through a real stdio subprocess finishes all four calls with no error ever returned to the agent, and the audit log holds exactly one `RECOVERED` row (for `users__get_user`). | Integration (`tests/t2ps2/test_ac_67_demo_agent.py`)
 
-## 21. Earlier additions: overhead and Swagger 2.0 (T1-PS2 files)
+## 21. Earlier additions: overhead and Swagger 2.0
 
 ### F21 Healthy-call overhead
 
