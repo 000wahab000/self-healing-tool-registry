@@ -108,9 +108,18 @@ class Dashboard:
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
         self._mcp_info: dict | None = None
 
+    def _not_busy(self) -> None:
+        """A scenario (and a live-LLM one can take minutes) holds the lock for its whole run.
+        Say so at once instead of letting clicks queue up and hang the browser."""
+        if self.lock.locked():
+            raise ValueError(
+                "A scenario is still running on both agents. Wait for it to finish, then try again."
+            )
+
     async def start(self, kind: str, step_delay: float) -> None:
         if kind == "llm" and not os.environ.get("NVIDIA_API_KEY"):
             raise ValueError("llm agents need NVIDIA_API_KEY")
+        self._not_busy()
         async with self.lock:
             await self._stop()
             mutation = self.mutation  # a drift picked before Start applies to this run
@@ -242,6 +251,7 @@ class Dashboard:
     async def mutate(self, mid: str | None) -> None:
         if mid is not None and mid not in MUTATIONS and mid not in ALIASES:
             raise ValueError(f"unknown mutation {mid!r}")
+        self._not_busy()
         async with self.lock:
             for mock in self.mocks.values():
                 mock.set_mutation(mid)
@@ -249,6 +259,7 @@ class Dashboard:
             self._drift(mid)
 
     async def reset(self) -> None:
+        self._not_busy()
         async with self.lock:
             await self._stop()
             self._clear()
@@ -265,6 +276,7 @@ class Dashboard:
         known = (*MUTATIONS, *ALIASES, CUSTOM)
         if mutation is not None and mutation not in known:
             raise ValueError(f"unknown mutation {mutation!r}")
+        self._not_busy()
         async with self.lock:
             await self._stop()
             self._clear()
