@@ -39,3 +39,45 @@ F7 and V2 both read `state()` data. F7 changes only how `state()` reads the audi
 - New panels drop a file in `dashboard/panels/` and register with V0's `registerPanel()`. No edit to existing panels.
 - New metrics go in `dashboard/metrics_view.py` as one pure function each, plus one route.
 - New `FixStore` backends implement the methods F7 adds (contract 3).
+
+---
+
+# ZTAR series (Z0-Z15)
+
+Give an agent **`_PREAMBLE.md`, then `_ZTAR_RULES.md`, then exactly one Z task file**.
+
+Skipped as already on `main`: Phase 0 audit (its result is the status table in `_ZTAR_RULES.md`), Phase 1 oracle (`bench/oracle.py`, mock request log, `expected_canonical`), the core of Phase 2 (`verify.py`, the `layers` audit field, W1/U1/D1), and L4 echo (working).
+
+| ID | Title | Owns (may edit) | Depends on | AC |
+|---|---|---|---|---|
+| Z0 | Split `verify.py` into one module per layer | `src/healer/layers/` (new), `verify.py` | none | AC-81 |
+| Z1 | L1: enum targets checked against the current spec | `layers/l1_provenance.py` | Z0 | AC-82 |
+| Z2 | L2: unknown headers; MCP/GraphQL/gRPC requests | `layers/l2_request.py` | Z0 | AC-83 |
+| Z3 | L3: E5 move/unwrap only; response-source provenance | `layers/l3_output.py` | Z0 | AC-84 |
+| Z4 | L5: read-back for `set_manager` and `create_ticket` | `layers/l5_readback.py`, `config/tools.json` (readback), mock W1 variants | Z0 | AC-85 |
+| Z5 | L6: U1 wrong units through the frozen registry | `layers/l6_invariants.py`, `config/tools.json` (invariants) | Z0 | AC-86 |
+| Z6 | L7: MCP replay guard | `layers/l7_replay.py` | Z0 | AC-87 |
+| Z7 | One mutation catalog; honest denominator | `mock_api/catalog.py` (new), constants in bench/mock | none | AC-88 |
+| Z8 | Evidence ranking; refuse on a tie | `candidates.py` | none | AC-89 |
+| Z9 | Verify-before-commit proof matrix (tests only) | `tests/integration/test_ac_90_*` | best after Z1-Z6 | AC-90 |
+| Z10 | Seeded fuzz generator | `bench/fuzz.py` (new), mock hook | Z7 | AC-91 |
+| Z11 | Fault-injection matrix; `Retry-After` date | `detect.py` | none | AC-92 |
+| Z12 | Wilson CIs; N=30 | `metrics.py`, `bench/run.py` `--n` | none (Z7 optional) | AC-93 |
+| Z13 | `INTERNAL_ERROR` typing; bounded `_first_seen` | `heal.py` (two spots), `models.py` | none | AC-94 |
+| Z14 | Cyclic `$ref`, MCP pagination, retry jitter | `openapi_loader.py`, `mcp_upstream.py`, retry tests | none | AC-95 |
+| Z15 | Report: layers, CIs, fuzz | `bench/run.py` report functions, `bench/report.md` | Z7, Z9, Z10, Z12 | AC-96 |
+
+## ZTAR lanes
+
+- Lane H: Z0, then Z1, Z2, Z3, Z4, Z5 and Z6 in parallel (each owns one layer file; Z4 and Z5 both touch `config/tools.json` in different keys, so the second rebases)
+- Lane I: Z7, then Z10
+- Lane J: Z8 · Lane K: Z11 · Lane L: Z12 · Lane M: Z13 · Lane N: Z14 (all independent)
+- Last: Z9 (after the layer tasks), then Z15
+
+Conflict watch: `mock_api/app.py` (Z4, Z5, Z7, Z10) and `bench/run.py` (Z7, Z12, Z15). Merge those in lane order and rebase each before its PR.
+
+## Room for later (ZTAR)
+
+- New layer = one file in `src/healer/layers/` + one `ORDERED` entry.
+- New mutation = one `mock_api/catalog.py` row + `expected_canonical`.
+- New fuzz primitive = one class in `bench/fuzz.py` with spec, request and canonical transforms.
