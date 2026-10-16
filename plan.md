@@ -396,14 +396,14 @@ Two teams of one person each. Each person runs two machines, so four agents work
 |---|---|---|---|---|
 | **T1-PS1** | Team 1 (Wahab) | Healing core for MCP drift | AC-40 to AC-49 | `t1-ps1/` |
 | **T1-PS2** | Team 1 (Wahab) | Mock drift server, fixtures, benchmark, evidence | AC-50 to AC-54 | `t1-ps2/` |
-| **T2-PS1** | Team 2 (teammate) | MCP client, upstream loader, registry, front-door server | AC-30 to AC-39 | `t2-ps1/` |
+| **T2-PS1** | Team 2 (teammate) | MCP client, upstream loader, registry, front-door server | AC-30 to AC-39 (used by the old P1 work), then AC-63 to AC-69 | `t2-ps1/` |
 | **T2-PS2** | Team 2 (teammate) | Spec watcher, demo agent, dashboard, docs, pitch | AC-55 to AC-59 | `t2-ps2/` |
 
 ### Step 0: land open branches and fix the shared interfaces (before the tracks)
 
-- [ ] Merge the clean open branches into `main`: `p4/p4-1-ac18-check`, `plan-hygiene` (P3-1 to P3-3), `p1/p1-1-mcp-stdio` (P1-1 to P1-3). Run `pytest -q` and `ruff check .` after each merge.
+- [x] Merge the clean open branches into `main`: `p4/p4-1-ac18-check`, `plan-hygiene` (P3-1 to P3-3), `p1/p1-1-mcp-stdio` (P1-1 to P1-3). Run `pytest -q` and `ruff check .` after each merge.
 - [ ] Close `feat/updateUI` (stale, conflicts in `dashboard/index.html`). Delete the six already-merged remote branches.
-- [ ] T1-PS1 splits `origin/p2/p2-0-llm-benchmark` into one PR per item (item T1-0). The split PRs merge before T1-1.
+- [x] T1-PS1 splits `origin/p2/p2-0-llm-benchmark` into one PR per item (item T1-0). The split PRs merge before T1-1.
 - [x] Contract 7 (upstream tool mapping) and contract 8 (mock drift control) are written in `AGENTS.md`. Both teams confirm them on day one.
 
 ### Track T1-PS1: healing core for MCP drift (Team 1)
