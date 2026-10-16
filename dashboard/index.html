@@ -751,6 +751,10 @@ function brokeRow(h) {  // the short version for the table row
   const what = fields.length ? fields.slice(0, 2).join(", ") + (fields.length > 2 ? " +" + (fields.length - 2) + " more" : "") : (CLASS_NAMES[h.class] || h.class) + " (" + h.raw_code + ")";
   return (h.drift ? h.drift + " · " + (DRIFT_LABEL[h.drift] || "") + ": " : "") + what;
 }
+// Field names the audit row recorded as broken, for the red highlight.
+function brokenNames(h) {
+  return ((h.raw_error && h.raw_error.violations) || []).map(([, p]) => p && p.length ? String(p[p.length - 1]) : "").filter(Boolean);
+}
 function storyView(h) {
   const box = el("div", null, { class: "story" });
   const did = h.outcome === "RECOVERED"
@@ -760,7 +764,7 @@ function storyView(h) {
   const write = h.write ? " " + h.tool + " changes data, so the patched request was sent at most once." : " " + h.tool + " only reads data.";
   box.append(el("b", "What broke: "), brokeShort(h) + ". ", el("b", "What we did: "), did + write);
   const body = h.raw_error && h.raw_error.body;
-  if (body !== null && body !== undefined) { box.append(el("br")); box.append(el("small", "The API's own error:", { class: "muted" }), pre(body)); }
+  if (body !== null && body !== undefined) { box.append(el("br")); box.append(el("small", "The API's own error:", { class: "muted" }), preHighlight(body, brokenNames(h))); }
   return box;
 }
 function changeView(h) {
