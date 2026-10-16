@@ -5,19 +5,17 @@
 :root {
   color-scheme: light;
   /* surfaces and lines */
-  --bg: #F6F7F9; --panel: #FFFFFF; --raised: #FFFFFF; --soft: #EFF1F5;
-  --line: #E8EBEF; --sage: #E8EBEF; --line-2: #D9DDE3; --dash: #D9DDE3;
-  /* text */
-  --ink: #1B1F24; --ink-2: #4A5260; --muted: #646B78; --on-ink: #FFFFFF; --on-accent: #FFFFFF;
-  /* accent and status (fg on tinted bg) */
-  --accent: #3B5BDB; --accent-ink: #3B5BDB; --accent-bg: #E8EDFD;
-  --ok: #1F7A4D; --ok-bg: #E6F6EE; --warn: #8A5A12; --warn-bg: #FDF3E1; --bad: #B42C45; --bad-bg: #FCE8EC;
-  --biz: #3B5BDB; --biz-bg: #E8EDFD;
-  --e1: #8A5A12; --e1-bg: #FDF3E1; --e2: #B42C45; --e2-bg: #FCE8EC; --e3: #6B46C1; --e3-bg: #F0EAFB;
-  --e4: #A8480F; --e4-bg: #FCEBDD; --e5: #A3306A; --e5-bg: #FBE7F1; --e6: #1B6B66; --e6-bg: #DFF2F0;
+  --bg: #f5f5f2; --panel: #fbfbf8; --raised: #fbfbf8; --soft: #eceee8;
+  --line: #e1eadd; --sage: #e1eadd; --line-2: #b9c6b3; --dash: #cdc8c7;
+  --ink: #000000; --ink-2: #3b4237; --muted: #7d8778; --on-ink: #ffffff; --on-accent: #000000;
+  --accent: #19e76e; --accent-ink: #00b86b; --accent-bg: #e8fbef;
+  --ok: #00804a; --ok-bg: #e3f9ea; --warn: #93650a; --warn-bg: #f6ecd2; --bad: #b3372d; --bad-bg: #f8e4e0;
+  --biz: #2f5b96; --biz-bg: #e3ebf6;
+  --e1: #93650a; --e1-bg: #f6ecd2; --e2: #b3372d; --e2-bg: #f8e4e0; --e3: #6f3fb0; --e3-bg: #efe6fa;
+  --e4: #b5521c; --e4-bg: #fbe9db; --e5: #a8336c; --e5-bg: #f9e3ee; --e6: #1f6f6a; --e6-bg: #dcefed;
   --pink: var(--e5);
   /* cost chart series (validated) */
-  --series-baseline: #c2410c; --series-healing: #1d4ed8;
+  --series-baseline: #c2410c; --series-healing: #00804a;
   /* semantic aliases */
   --surface: var(--panel); --border: var(--line-2); --border-muted: var(--line); --text: var(--ink); --text-2: var(--ink-2);
   --info: var(--accent); --info-bg: var(--accent-bg); --focus: var(--accent);
@@ -39,29 +37,29 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #111318; --panel: #171A21; --raised: #1E222B; --soft: #1E222B;
-    --line: #232834; --sage: #232834; --line-2: #2C3240; --dash: #2C3240;
-    --ink: #E6E9EF; --ink-2: #A7AFBD; --muted: #8A93A3; --on-ink: #0B1020; --on-accent: #0B1020;
-    --accent: #7C93FF; --accent-ink: #7C93FF; --accent-bg: #1A2340;
-    --ok: #3DD68C; --ok-bg: #14291F; --warn: #F5B94A; --warn-bg: #2E2612; --bad: #FF6B81; --bad-bg: #3A1A21;
-    --biz: #7C93FF; --biz-bg: #1A2340;
-    --e1: #F5B94A; --e1-bg: #2E2612; --e2: #FF6B81; --e2-bg: #3A1A21; --e3: #B79CFF; --e3-bg: #261E3D;
-    --e4: #FF9E5E; --e4-bg: #34200F; --e5: #FF86BB; --e5-bg: #35182A; --e6: #4FD6CB; --e6-bg: #12302D;
-    --series-baseline: #ea580c; --series-healing: #5b8cff;
+    --bg: #141512; --panel: #1b1c19; --raised: #22241f; --soft: #22241f;
+    --line: #2a2d27; --sage: #2a2d27; --line-2: #3a3e35; --dash: #3a3e35;
+    --ink: #ecede8; --ink-2: #b9bdb1; --muted: #8d9386; --on-ink: #000000; --on-accent: #000000;
+    --accent: #19e76e; --accent-ink: #3ddc84; --accent-bg: #15291d;
+    --ok: #3ddc84; --ok-bg: #15291d; --warn: #e8b04a; --warn-bg: #2d2513; --bad: #ff7a6b; --bad-bg: #3a1c18;
+    --biz: #8fb3e6; --biz-bg: #1b2433;
+    --e1: #e8b04a; --e1-bg: #2d2513; --e2: #ff7a6b; --e2-bg: #3a1c18; --e3: #b79cff; --e3-bg: #261e3d;
+    --e4: #ff9e5e; --e4-bg: #34200f; --e5: #ff86bb; --e5-bg: #35182a; --e6: #4fd6cb; --e6-bg: #12302d;
+    --series-baseline: #ea580c; --series-healing: #22a866;
     --shadow-float: 0 0 0 1px #2C3240; --scrim: rgba(0,0,0,.65);
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #111318; --panel: #171A21; --raised: #1E222B; --soft: #1E222B;
-  --line: #232834; --sage: #232834; --line-2: #2C3240; --dash: #2C3240;
-  --ink: #E6E9EF; --ink-2: #A7AFBD; --muted: #8A93A3; --on-ink: #0B1020; --on-accent: #0B1020;
-  --accent: #7C93FF; --accent-ink: #7C93FF; --accent-bg: #1A2340;
-  --ok: #3DD68C; --ok-bg: #14291F; --warn: #F5B94A; --warn-bg: #2E2612; --bad: #FF6B81; --bad-bg: #3A1A21;
-  --biz: #7C93FF; --biz-bg: #1A2340;
-  --e1: #F5B94A; --e1-bg: #2E2612; --e2: #FF6B81; --e2-bg: #3A1A21; --e3: #B79CFF; --e3-bg: #261E3D;
-  --e4: #FF9E5E; --e4-bg: #34200F; --e5: #FF86BB; --e5-bg: #35182A; --e6: #4FD6CB; --e6-bg: #12302D;
-  --series-baseline: #ea580c; --series-healing: #5b8cff;
+  --bg: #141512; --panel: #1b1c19; --raised: #22241f; --soft: #22241f;
+  --line: #2a2d27; --sage: #2a2d27; --line-2: #3a3e35; --dash: #3a3e35;
+  --ink: #ecede8; --ink-2: #b9bdb1; --muted: #8d9386; --on-ink: #000000; --on-accent: #000000;
+  --accent: #19e76e; --accent-ink: #3ddc84; --accent-bg: #15291d;
+  --ok: #3ddc84; --ok-bg: #15291d; --warn: #e8b04a; --warn-bg: #2d2513; --bad: #ff7a6b; --bad-bg: #3a1c18;
+  --biz: #8fb3e6; --biz-bg: #1b2433;
+  --e1: #e8b04a; --e1-bg: #2d2513; --e2: #ff7a6b; --e2-bg: #3a1c18; --e3: #b79cff; --e3-bg: #261e3d;
+  --e4: #ff9e5e; --e4-bg: #34200f; --e5: #ff86bb; --e5-bg: #35182a; --e6: #4fd6cb; --e6-bg: #12302d;
+  --series-baseline: #ea580c; --series-healing: #22a866;
   --shadow-float: 0 0 0 1px #2C3240; --scrim: rgba(0,0,0,.65);
 }
 
@@ -122,8 +120,8 @@ h3 { font-weight: 600; font-size: var(--fs-md); line-height: var(--lh-md); lette
 /* buttons: default 36px, small 32px; primary = accent, secondary = surface + border, ghost = transparent */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--panel); color: var(--ink); font: 500 var(--fs-base)/var(--lh-sm) var(--sans); white-space: nowrap; }
 .btn:hover { background: var(--soft); }
-.btn.primary, a.btn.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.btn.primary:hover { background: var(--accent); filter: brightness(1.08); }
+.btn.primary, a.btn.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.btn.primary:hover { background: var(--ink); opacity: .88; }
 .btn.ghost, a.btn.ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
 .btn.ghost:hover { background: var(--soft); color: var(--ink); }
 .btn.small { height: 32px; padding: 0 12px; font-size: var(--fs-sm); }
