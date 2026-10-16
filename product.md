@@ -591,3 +591,20 @@ Beyond the code, the problem statement requires the items below. This section on
 | Metrics: ZTAR, MTTR, Token Overhead, plus Safe-Refusal Rate and False-Patch Rate | F15, definitions in FR-15.4 | Benchmark runner |
 | Short write-up of the diagnosis and patch logic | §4 and §8 of this spec, `technical-approach.md` §5 and §6, and the measured results | Team, after the benchmark (phase 10) [A: file location to confirm in `plan.md`] |
 | 30-second pitch | Measured numbers from `report.md`; claims limited to what the benchmark shows | Team, after the benchmark (phase 10) [A: file location to confirm in `plan.md`] |
+
+---
+
+## 17. Track P2: Healing Core & Future Scope (Wahab)
+
+### Requirements
+
+#### S1: Sibling Propagation
+- **FR-17.1** After committing an active fix for a field rename or type cast on a tool, the registry inspects other tools loaded from the same API spec. If a sibling tool shares the identical removed field name and type in its base schema, the registry pre-generates a candidate fix.
+- **FR-17.2** When a sibling tool experiences a break with a matching fingerprint, the candidate fix is verified and promoted directly at Tier-0 speed (<500 ms) without running Tier-1 diagnosis.
+
+### Acceptance Criteria (P2 Reserved: AC-40 to AC-49)
+
+| ID | Criterion | Verification |
+|---|---|---|
+| AC-40 | (STRETCH, S1) Sibling propagation: a second tool hit by the same rename heals at Tier-0 speed (<500 ms) on its first occurrence | Integration |
+

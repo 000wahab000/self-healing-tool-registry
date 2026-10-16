@@ -19,6 +19,7 @@ from healer.models import (
     DecisionPath,
     ErrorClass,
     Fix,
+    FixStatus,
     HealError,
     HealOutcome,
     Outcome,
@@ -176,9 +177,16 @@ class Healer:
         if fix:
             h.tier, h.path, h.fix_id = Tier.T0, DecisionPath.cache, fix.fix_id
         else:
-            if h.outcome.cls is not ErrorClass.E6:
-                await self._diagnose(h)
-            fix = await self._candidate(h)
+            cand = self._store.get_candidate(h.fp)
+            if cand:
+                fix = cand
+                h.tier = Tier.T0
+                h.path = DecisionPath.cache
+                h.fix_id = cand.fix_id
+            else:
+                if h.outcome.cls is not ErrorClass.E6:
+                    await self._diagnose(h)
+                fix = await self._candidate(h)
         self._gate(h, fix)
         if h.needs_preverify:
             await self._preverify(h, fix)
@@ -366,7 +374,11 @@ class Healer:
 
     def _commit(self, h: _Heal, fix: Fix, result: Outcome) -> Any:
         try:
-            if h.tier is Tier.T0:
+            if fix.status is FixStatus.candidate:
+                self._store.promote(fix.fix_id)
+                self._store.record_result(fix.fix_id, True)
+                fix.status = FixStatus.active
+            elif h.tier is Tier.T0:
                 self._store.record_result(fix.fix_id, True)
             else:
                 h.fix_id = self._store.save_fix(fix)
@@ -380,7 +392,59 @@ class Healer:
             h.new_op is not None
         ):  # tier 0 skips the spec fetch, so there is nothing newer
             h.tool.wire_op = h.new_op
+        self._propagate_siblings(h, fix)
         return result.data
+
+    def _propagate_siblings(self, h: _Heal, fix: Fix) -> None:
+        """FR-17.1 (S1): Propagate candidate fixes to sibling tools sharing the removed field/type."""
+        if self._tools is None or not fix.request_ops:
+            return
+        base_leaves = diagnose.flatten_request(h.tool.base_op)
+        affected_leaves: list[tuple[dict, dict]] = []
+        for op in fix.request_ops:
+            if op.get("op") == "move":
+                src = tuple(op["from"])
+                if src in base_leaves:
+                    affected_leaves.append((base_leaves[src], op))
+            elif op.get("op") == "cast":
+                path = tuple(op["path"])
+                if path in base_leaves:
+                    affected_leaves.append((base_leaves[path], op))
+        if not affected_leaves:
+            return
+
+        for tool in self._tools():
+            if tool.name == h.tool.name:
+                continue
+            sibling_leaves = diagnose.flatten_request(tool.base_op)
+            sibling_ops = []
+            for leaf, op in affected_leaves:
+                src_path = tuple(op["from"] if op["op"] == "move" else op["path"])
+                if (
+                    src_path in sibling_leaves
+                    and sibling_leaves[src_path]["type"] == leaf["type"]
+                ):
+                    sibling_ops.append(op)
+
+            if sibling_ops:
+                sibling_sig = {k: v for k, v in h.signature.items() if k != "abstract"}
+                sibling_sig["tool"] = tool.name
+                sibling_fp = canonical.sha256(sibling_sig)[:16]
+                sibling_sig["abstract"] = fix.signature.get("abstract", "")
+                if not self._store.get_active(sibling_fp) and not self._store.get_candidate(sibling_fp):
+                    cand = Fix(
+                        fingerprint=sibling_fp,
+                        signature=sibling_sig,
+                        tool=tool.name,
+                        cls=fix.cls,
+                        request_ops=sibling_ops,
+                        response_ops=[],
+                        tier=Tier.T0,
+                        source=DecisionPath.diff,
+                        schema_hash=fix.schema_hash,
+                        status=FixStatus.candidate,
+                    )
+                    self._store.save_fix(cand)
 
     def _abort(self, h: _Heal, reason: Reason) -> Any:
         if not h.waiter:
