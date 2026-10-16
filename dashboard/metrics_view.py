@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from healer.models import AuditEvent
+
 ROOT = Path(__file__).parents[1]
 
 
@@ -139,3 +141,61 @@ def scorecard(report_path: Path | str | None = None) -> dict[str, Any]:
             "available": False,
             "hint": "python -m bench.run --agent scripted --n 3",
         }
+
+
+def live_safety(audit: list[AuditEvent] | None) -> dict[str, Any]:
+    """Live session safety, timing and refusal metrics (AC-79). Pure function."""
+    from healer import metrics
+
+    events = list(audit) if audit else []
+    timing = metrics.timing_summary(events)
+
+    def _tier_stats(tier_num: int) -> dict[str, Any]:
+        for k, v in timing.items():
+            if int(k) == tier_num:
+                return v
+        return {
+            "n": 0,
+            "mttr_ms": {"n": 0, "mean": 0.0, "p50": 0.0, "p95": 0.0},
+            "heal_ms": {"n": 0, "mean": 0.0, "p50": 0.0, "p95": 0.0},
+        }
+
+    by_tier = {
+        "0": _tier_stats(0),
+        "1": _tier_stats(1),
+    }
+
+    raw_counts = metrics.outcome_counts(events).get("by_outcome", {})
+    outcomes: dict[str, int] = dict(raw_counts)
+    outcomes.setdefault("RECOVERED", 0)
+    refused_n = outcomes.get("ABORTED", 0) + outcomes.get("REFUSED", 0)
+    outcomes["REFUSED"] = refused_n
+
+    refusals: list[dict[str, Any]] = []
+    for e in events:
+        outcome = getattr(e, "outcome", None)
+        outcome_str = outcome.value if hasattr(outcome, "value") else str(outcome) if outcome is not None else ""
+        reason = getattr(e, "reason", None)
+        reason_str = reason.value if hasattr(reason, "value") else str(reason) if reason is not None else None
+
+        is_refusal = (outcome_str in ("ABORTED", "REFUSED")) or (reason_str is not None and outcome_str != "RECOVERED")
+        if is_refusal:
+            tool_name = getattr(e, "tool", "") or (e.get("tool", "") if isinstance(e, dict) else "")
+            ts = getattr(e, "ts_ms", 0) if not isinstance(e, dict) else e.get("ts_ms", 0)
+            refusals.append({
+                "tool": tool_name,
+                "reason": reason_str,
+                "ts_ms": ts,
+            })
+
+    tokens = {
+        "jev": sum(int(getattr(e, "jev_tokens", 0) or 0) for e in events),
+        "llm": sum(int(getattr(e, "llm_tokens", 0) or 0) for e in events),
+    }
+
+    return {
+        "by_tier": by_tier,
+        "outcomes": outcomes,
+        "refusals": refusals,
+        "tokens": tokens,
+    }
