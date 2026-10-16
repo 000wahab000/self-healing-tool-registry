@@ -25,6 +25,7 @@ import httpx
 from agents import baseline_agent, common, healing_agent, scripted
 from bench import overhead
 from bench.mcp_session import session
+from bench.oracle import classify_run
 from healer.gateway import Gateway, upstream_registry
 from healer.jev import JevClient, from_env
 from healer.metrics import (
@@ -186,6 +187,9 @@ async def _pass(
         finally:
             store.close()
         state = api.state()
+        oracle = classify_run(
+            api.expected_canonical[scenario], api.requests, api.received, cfg
+        ) if scenario in api.expected_canonical else "REJECTED"
         reasons = [e.reason.value for e in heals if e.reason]
         paths = [e.path.value for e in heals if e.path]
         priority = any(
@@ -236,6 +240,8 @@ async def _pass(
             "hit_limit": result.hit_limit,
             "error": result.error,
             "priority_sent": priority,
+            "oracle": oracle,
+            "requests": api.received,
             "heals": [
                 {
                     "tool": e.tool,

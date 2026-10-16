@@ -26,6 +26,16 @@ from healer.settings import NEG_CACHE_TTL_S, RETIRE_AT_LOSSES
 
 RAW_ERROR_MAX = 2048
 REDACTED = "[REDACTED]"
+SAFE_LAYERS = {"L1", "L2", "L3", "L4", "L5", "L6", "L7"}
+SAFE_LAYER_NAMES = {
+    "safety", "request_schema", "response_schema", "postchecks", "readback",
+    "invariants", "replay_safety",
+}
+SAFE_LAYER_DETAILS = {
+    "ok", "spec_unavailable", "schema_invalid", "postcheck_failed",
+    "not_configured", "invariant_failed", "unsafe_replay", "readback_failed",
+    "deadline",
+}
 # ponytail: header-shaped `name: value` / `"name": "value"` text, to the end of the line or JSON
 # string. A JSON-escaped multi-header string is redacted whole, never leaked.
 _HEADER_VALUE = re.compile(
@@ -43,6 +53,27 @@ def sanitize(text: str, secrets: Iterable[str] = ()) -> str:
     text = _HEADER_VALUE.sub(rf"\1\2{REDACTED}", text)
     text = _BEARER.sub(f"Bearer {REDACTED}", text)
     return _JWT.sub(REDACTED, text)[:RAW_ERROR_MAX]
+
+
+def _safe_layers(layers: list[dict[str, str]]) -> list[dict[str, str]]:
+    allowed = {
+        "layer": SAFE_LAYERS,
+        "name": SAFE_LAYER_NAMES,
+        "status": {"pass", "fail", "skip"},
+        "detail": SAFE_LAYER_DETAILS,
+    }
+    safe = []
+    for item in layers:
+        if not isinstance(item, dict):
+            continue
+        safe.append(
+            {
+                key: value if isinstance(value, str) and value in values else REDACTED
+                for key, values in allowed.items()
+                for value in (item.get(key),)
+            }
+        )
+    return safe
 
 
 def _in(col: str, enum: type[Enum]) -> str:
@@ -90,7 +121,8 @@ CREATE TABLE IF NOT EXISTS heal_events (
     heal_ms INTEGER NOT NULL,
     jev_tokens INTEGER NOT NULL,
     llm_tokens INTEGER NOT NULL,
-    raw_error TEXT NOT NULL
+    raw_error TEXT NOT NULL,
+    layers TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS call_events (
     event_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,7 +154,7 @@ FIX_COLS = (
 )
 AUDIT_COLS = (
     "ts_ms, tool, fingerprint, class AS cls, raw_code, tier, path, fix_id, outcome,"
-    " reason, mttr_ms, heal_ms, jev_tokens, llm_tokens, raw_error"
+    " reason, mttr_ms, heal_ms, jev_tokens, llm_tokens, raw_error, layers"
 )
 
 
@@ -152,6 +184,7 @@ def _event(row: sqlite3.Row) -> AuditEvent:
             "path": DecisionPath(d["path"]) if d["path"] else None,
             "outcome": HealOutcome(d["outcome"]),
             "reason": Reason(d["reason"]) if d["reason"] else None,
+            "layers": json.loads(d["layers"]),
         }
     )
 
@@ -164,6 +197,7 @@ class FixStore(Protocol):
     def get_active(self, fp: str) -> Fix | None: ...
     def get_fix(self, fix_id: int) -> Fix | None: ...
     def save_fix(self, fix: Fix) -> int: ...
+    def save_fix_and_audit(self, fix: Fix, event: AuditEvent) -> int: ...
     def record_result(self, fix_id: int, won: bool) -> None: ...
     def audit(self, event: AuditEvent) -> None: ...
     def audit_events(self) -> list[AuditEvent]: ...
@@ -190,6 +224,8 @@ class Store:
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.executescript(SCHEMA)
+        if "layers" not in {row["name"] for row in self._db.execute("PRAGMA table_info(heal_events)")}:
+            self._db.execute("ALTER TABLE heal_events ADD COLUMN layers TEXT NOT NULL DEFAULT '[]'")
         self._active = {
             f.fingerprint: f
             for f in map(
@@ -290,6 +326,34 @@ class Store:
             self._candidates[fix.fingerprint] = fix
         return fix.fix_id
 
+    def save_fix_and_audit(self, fix: Fix, event: AuditEvent) -> int:
+        """Persist a fix and its success event together, updating caches after commit."""
+        with self._db:
+            if fix.status is FixStatus.active:
+                self._db.execute(
+                    "UPDATE fixes SET status = ? WHERE fingerprint = ? AND status = ?",
+                    (FixStatus.retired, fix.fingerprint, FixStatus.active),
+                )
+            cur = self._db.execute(
+                "INSERT INTO fixes (fingerprint, signature, tool, class, request_ops,"
+                " response_ops, tier, source, schema_hash, dsl_version, status, wins,"
+                " losses, created_ms, last_used_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    fix.fingerprint, canonical.dumps(fix.signature), fix.tool, fix.cls,
+                    canonical.dumps(fix.request_ops), canonical.dumps(fix.response_ops),
+                    fix.tier, fix.source, fix.schema_hash, fix.dsl_version, fix.status,
+                    fix.wins, fix.losses, fix.created_ms or self._now_ms(), fix.last_used_ms,
+                ),
+            )
+            self._insert_audit(event)
+        fix.fix_id = cur.lastrowid
+        if fix.status is FixStatus.active:
+            self._active[fix.fingerprint] = fix
+            self._candidates.pop(fix.fingerprint, None)
+        elif fix.status is FixStatus.candidate:
+            self._candidates[fix.fingerprint] = fix
+        return fix.fix_id
+
     def record_result(self, fix_id: int, won: bool) -> None:
         col = "wins" if won else "losses"
         with self._db:
@@ -314,10 +378,13 @@ class Store:
 
     def audit(self, event: AuditEvent) -> None:
         with self._db:
-            self._db.execute(
+            self._insert_audit(event)
+
+    def _insert_audit(self, event: AuditEvent) -> None:
+        self._db.execute(
                 "INSERT INTO heal_events (ts_ms, tool, fingerprint, class, raw_code, tier,"
                 " path, fix_id, outcome, reason, mttr_ms, heal_ms, jev_tokens,"
-                " llm_tokens, raw_error) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " llm_tokens, raw_error, layers) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     event.ts_ms,
                     event.tool,
@@ -333,9 +400,10 @@ class Store:
                     event.heal_ms,
                     event.jev_tokens,
                     event.llm_tokens,
-                    event.raw_error,
+                    sanitize(event.raw_error),
+                    canonical.dumps(_safe_layers(event.layers)),
                 ),
-            )
+        )
 
     def audit_events(self) -> list[AuditEvent]:
         rows = self._db.execute(

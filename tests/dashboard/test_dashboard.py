@@ -125,12 +125,12 @@ async def test_landing_links_to_the_live_page(client):
 
 
 def test_mutation_buttons_cover_every_scenario_including_m6_m9_and_c3():
-    """Phase 12D: one button per mutation (M6-D, M6-N, M9 and C3 included)."""
+    """One button per mutation, including ambiguous, write-integrity and control cases."""
     page = (Path(__file__).parents[2] / "dashboard" / "index.html").read_text(
         encoding="utf-8"
     )
     groups = page.split("const GROUPS = [", 1)[1].split("];", 1)[0]
-    buttons = set(re.findall(r'\["((?:M|C)\d+(?:-[A-Z])?)"', groups))
+    buttons = set(re.findall(r'\["((?:M|C|W|U|D)\d+(?:-[A-Z])?)"', groups))
     assert buttons == set(MUTATIONS)
 
 

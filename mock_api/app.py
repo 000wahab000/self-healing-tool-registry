@@ -11,6 +11,7 @@ import copy
 import json
 import re
 from typing import Annotated, Literal
+from urllib.parse import parse_qsl
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -32,10 +33,33 @@ MUTATIONS = (
     "M9",
     "M10",
     "M11",
+    "W1",
+    "U1",
+    "D1",
     "C1",
     "C2",
     "C3",
 )
+EXPECTED_CANONICAL = {
+    "M1": {"method": "POST", "path": "/users/lookup", "body": {"customer_id": "123"}, "query": {}, "headers": {}},
+    "M2": {"method": "PATCH", "path": "/users/email", "body": {"user_id": 123, "email": "ada.new@example.com"}, "query": {}, "headers": {}},
+    "M3": {"method": "POST", "path": "/users/lookup", "body": {"user_id": "123"}, "query": {}, "headers": {}},
+    "M4": {"method": "POST", "path": "/tickets", "body": {"user_id": "123", "title": "Email changed"}, "query": {}, "headers": {"authorization": {"ref": "config", "key": "OAUTH_BEARER"}}},
+    "M5": {"method": "POST", "path": "/users/lookup", "body": {"target": {"id": 123}}, "query": {}, "headers": {"x-tenant-id": {"ref": "config", "key": "TENANT_ID"}}},
+    "M6-D": {"method": "POST", "path": "/users/manager", "body": {"subject": "123", "supervisor": "456"}, "query": {}, "headers": {}},
+    "M6-N": {"method": "POST", "path": "/users/manager", "body": {"subject": "123", "supervisor": "456"}, "query": {}, "headers": {}},
+    "M7": {"method": "PATCH", "path": "/users/email", "body": {"user_id": "123", "email_address": "ada.new@example.com"}, "query": {}, "headers": {}},
+    "M8": {"method": None, "path": None, "body": None, "query": None, "headers": None, "must_refuse": True},
+    "M9": {"method": "PATCH", "path": "/users/email", "body": {"payload": {"user_id": "123", "email": "ada.new@example.com"}}, "query": {}, "headers": {}},
+    "M10": {"method": "POST", "path": "/users/lookup", "body": {"customer_id": "123"}, "query": {}, "headers": {}},
+    "M11": {"method": "POST", "path": "/customers/lookup", "body": {"customer_id": "123"}, "query": {}, "headers": {}},
+    "W1": {"method": "PATCH", "path": "/users/email", "body": {"user_id": "123", "email": "ada.new@example.com"}, "query": {}, "headers": {}},
+    "U1": {"method": "POST", "path": "/payments", "body": {"amount_cents": 1250}, "query": {}, "headers": {}},
+    "D1": {"method": "POST", "path": "/tickets", "body": {"user_id": "123", "title": "Email changed"}, "query": {}, "headers": {}},
+    "C1": {"method": "POST", "path": "/users/lookup", "body": {"user_id": "123"}, "query": {}, "headers": {}},
+    "C2": {"method": "POST", "path": "/users/lookup", "body": {"user_id": "123"}, "query": {}, "headers": {}},
+    "C3": {"method": "POST", "path": "/users/lookup", "body": {"user_id": "123"}, "query": {}, "headers": {}},
+}
 ALIASES = {"M6": "M6-D", "S1": "S1"}  # accepted, not listed
 CUSTOM = "CUSTOM"  # dashboard-only drift composed at runtime; never in the benchmark
 EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"  # C3
@@ -343,9 +367,9 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
         uid = str(body.user_id)
         user = api.user(uid)
         new = body.email_address if mid == "M7" else body.email
-        if new is not None:
+        if new is not None and mid != "W1":
             user["email"] = new
-        return {"id": uid, "email": user["email"]}
+        return {"id": uid, "email": new if mid == "W1" else user["email"]}
 
     def manager_ids(body) -> tuple[str, str]:  # 404 checks shared with the dry run
         uid, manager = (
@@ -394,7 +418,21 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
         api.data["tickets"].append(ticket)
         if idempotency_key:
             api.idempotency[idempotency_key] = ticket
+        if mid == "D1":
+            raise HTTPException(503, "Service unavailable")
         return ticket
+
+    if mid == "U1":
+
+        class PaymentIn(Strict):
+            amount_cents: int
+
+        class PaymentOut(BaseModel):
+            amount_cents: int
+
+        @app.post("/payments", operation_id="create_payment", response_model=PaymentOut)
+        async def create_payment(body: PaymentIn):
+            return {"amount_cents": body.amount_cents * 100}
 
     return app
 
@@ -431,6 +469,10 @@ def build_admin(api: "MockApi") -> FastAPI:
     async def list_mutations():
         return mutations()
 
+    @admin.get("/admin/received")
+    async def received():
+        return copy.deepcopy(api.received)
+
     return admin
 
 
@@ -438,6 +480,7 @@ class MockApi:
     def __init__(self, token: str) -> None:
         self.token = token
         self.requests: list[dict] = []
+        self.received: list[dict] = []
         self.custom: dict | None = None
         self.admin = build_admin(self)
         self.reset()
@@ -446,6 +489,7 @@ class MockApi:
         self.data = copy.deepcopy(SEED)
         self.idempotency: dict[str, dict] = {}
         self.requests.clear()
+        self.received.clear()
         self.set_mutation(None)
 
     def set_mutation(self, mid: str | None, custom: dict | None = None) -> None:
@@ -461,6 +505,10 @@ class MockApi:
 
     def state(self) -> dict:
         return copy.deepcopy(self.data)
+
+    @property
+    def expected_canonical(self) -> dict[str, dict]:
+        return copy.deepcopy(EXPECTED_CANONICAL)
 
     def user(self, uid: str) -> dict:
         if uid not in self.data["users"]:
@@ -510,7 +558,32 @@ class MockApi:
             replayed = True
             return {"type": "http.request", "body": body, "more_body": False}
 
-        await self.inner(scope, replay, send)
+        status: int | None = None
+
+        async def capture(message):
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+            await send(message)
+
+        await self.inner(scope, replay, capture)
+        if status is not None:
+            headers = {
+                f"{name}_present": any(
+                    key.lower() == name.encode("ascii") for key, _ in scope["headers"]
+                )
+                for name in ("authorization", "x-tenant-id")
+            }
+            self.received.append(
+                {
+                    "method": scope["method"],
+                    "path": scope["path"],
+                    "body": copy.deepcopy(decoded),
+                    "query": dict(parse_qsl(scope["query_string"].decode("latin-1"))),
+                    "headers": headers,
+                    "status": status,
+                }
+            )
 
 
 def create_app(token: str = "test-token") -> MockApi:

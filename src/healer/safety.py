@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 
 from healer import settings
 from healer.canonical import get
@@ -20,6 +21,7 @@ def check(
     n_evidence: int,
     spec_paths: set[tuple] | None = None,
     spec_routes: set[tuple[str, str]] | None = None,
+    spec_enums: Mapping[tuple, set[Any]] | None = None,
 ) -> Reason | None:
     req, resp = fix["request_ops"], fix["response_ops"]
     try:
@@ -43,6 +45,9 @@ def check(
             if name == OpName.enum_map:
                 mapping = op.get("mapping", {})
                 if len(set(mapping.values())) != len(mapping):
+                    return Reason.UNSAFE_PATCH
+                allowed = spec_enums.get(tuple(op["path"])) if spec_enums is not None else None
+                if allowed is None or not set(mapping.values()) <= allowed:
                     return Reason.UNSAFE_PATCH
             if name in (OpName.move, OpName.cast, OpName.enum_map) and spec_paths is not None:
                 dest = op["to"] if name == OpName.move else op["path"]
