@@ -162,6 +162,8 @@ class FixStore(Protocol):
         self, agent: str, run_id: str, tool: str, cls: ErrorClass, latency_ms: int
     ) -> None: ...
     def call_events(self, after_id: int = 0) -> list[dict]: ...
+    def get_candidate(self, fp: str) -> Fix | None: ...
+    def promote(self, fix_id: int) -> None: ...
     def close(self) -> None: ...
 
 
@@ -182,6 +184,16 @@ class Store:
                 ),
             )
         }
+        self._candidates = {
+            f.fingerprint: f
+            for f in map(
+                _fix,
+                self._db.execute(
+                    f"SELECT {FIX_COLS} FROM fixes WHERE status = ?",
+                    (FixStatus.candidate,),
+                ),
+            )
+        }
         # ponytail: expiry is checked on read, entries are never purged (bounded by distinct fingerprints)
         self._neg: dict[str, float] = {}  # fingerprint -> expiry, clock seconds
 
@@ -190,6 +202,33 @@ class Store:
 
     def get_active(self, fp: str) -> Fix | None:
         return self._active.get(fp)
+
+    def get_candidate(self, fp: str) -> Fix | None:
+        return self._candidates.get(fp)
+
+    def promote(self, fix_id: int) -> None:
+        now = self._now_ms()
+        with self._db:
+            row = self._db.execute(
+                f"SELECT {FIX_COLS} FROM fixes WHERE fix_id = ?", (fix_id,)
+            ).fetchone()
+            if not row:
+                return
+            fp = row["fingerprint"]
+            self._db.execute(
+                "UPDATE fixes SET status = ? WHERE fingerprint = ? AND status = ?",
+                (FixStatus.retired, fp, FixStatus.active),
+            )
+            self._db.execute(
+                "UPDATE fixes SET status = ?, last_used_ms = ? WHERE fix_id = ?",
+                (FixStatus.active, now, fix_id),
+            )
+            promoted_row = self._db.execute(
+                f"SELECT {FIX_COLS} FROM fixes WHERE fix_id = ?", (fix_id,)
+            ).fetchone()
+            fix = _fix(promoted_row)
+            self._active[fp] = fix
+            self._candidates.pop(fp, None)
 
     def save_fix(self, fix: Fix) -> int:
         with self._db:  # retire-then-insert commits together or not at all
@@ -223,6 +262,9 @@ class Store:
         fix.fix_id = cur.lastrowid
         if fix.status is FixStatus.active:
             self._active[fix.fingerprint] = fix
+            self._candidates.pop(fix.fingerprint, None)
+        elif fix.status is FixStatus.candidate:
+            self._candidates[fix.fingerprint] = fix
         return fix.fix_id
 
     def record_result(self, fix_id: int, won: bool) -> None:
@@ -239,12 +281,13 @@ class Store:
                     "UPDATE fixes SET status = ? WHERE fix_id = ?",
                     (FixStatus.retired, fix_id),
                 )
-        cached = self._active.get(fp)
+        cached = self._active.get(fp) or self._candidates.get(fp)
         if cached and cached.fix_id == fix_id:
             cached.wins, cached.losses, cached.last_used_ms = wins, losses, used_ms
             if retire:
                 cached.status = FixStatus.retired
-                del self._active[fp]
+                self._active.pop(fp, None)
+                self._candidates.pop(fp, None)
 
     def audit(self, event: AuditEvent) -> None:
         with self._db:
