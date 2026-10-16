@@ -513,6 +513,15 @@ const Demo = (() => {
       { scenario: "C3", healing_overhead: 0, baseline_wasted: 0 }
     ]
   };
+  const DEMO_LIVE_METRICS = {
+    by_tier: {
+      "0": { n: 3, mttr_ms: { mean: 4.5, p50: 4.0, p95: 5.0 }, heal_ms: { mean: 4.5, p50: 4.0, p95: 5.0 } },
+      "1": { n: 1, mttr_ms: { mean: 29.0, p50: 29.0, p95: 29.0 }, heal_ms: { mean: 29.0, p50: 29.0, p95: 29.0 } }
+    },
+    outcomes: { RECOVERED: 4, REFUSED: 1, ABORTED: 1 },
+    refusals: [{ tool: "create_ticket", reason: "NO_SAFE_VALUE", ts_ms: Date.now() }],
+    tokens: { jev: 0, llm: 0 }
+  };
   const d = { on: false, epoch: 1, eid: 0, mut: null, events: [], heals: [], runs: null, data: null, timer: null, idx: {}, errs: {}, fp: 0 };
   const fresh = () => ({ users: { "123": { email: "old@example.com", manager_id: null } }, tickets: [] });
   const idle = () => ({ status: "idle", final_text: "", tool_calls: 0, llm_tokens: 0, hit_limit: false, error: null });
@@ -714,6 +723,7 @@ const Demo = (() => {
     if (path === "/api/reset") { reset(); return Promise.resolve(state(0)); }
     if (path === "/api/report") return Promise.resolve({ report: SAMPLE_REPORT });
     if (path === "/api/metrics/scorecard") return Promise.resolve(DEMO_SCORECARD);
+    if (path === "/api/metrics/live") return Promise.resolve(DEMO_LIVE_METRICS);
     if (path === "/api/mcp") return Promise.resolve(DEMO_MCP);
     if (path === "/api/explorer/info") return fetch("/api/explorer/info").then(r => r.json()).catch(() => ({ predefined_queries: [], error_classes: [], mock_info: { tools: {} } }));
     if (path === "/api/explore") {
@@ -1588,6 +1598,7 @@ setInterval(poll, 500);
 </script>
 <script src="/panels/registry.js"></script>
 <script src="/panels/scorecard.js" defer></script>
+<script src="/panels/live_safety.js" defer></script>
 <script src="/ui.js" defer></script>
 <script src="/guide.js" defer></script>
 </body>
