@@ -376,23 +376,6 @@
 
 ---
 
-## Phase 13+: STRETCH (only after phase 12)
-
-The order column below was the original single-person plan. The work now runs as the MCP gateway tracks in the next section; this table keeps the task details and "done when" conditions for the S items.
-
-| Order | Item | Key tasks | Done when |
-|---|---|---|---|
-| done | S6 persistent fix store | Built in phases 4, 6 and 7 (see above) | AC-11 passes (it does) |
-| done | S7 negative cache and single-flight | Built in phases 4 and 6 (see above) | AC-12 and AC-19 pass (they do) |
-| 13 | S1 sibling propagation | After a commit, create `candidate` fixes for tools with the same removed field (same name and type). Use them only when their fingerprint matches, and always verify. | A second tool hit by the same rename heals at tier 0 speed on its first occurrence |
-| 14 | S3 tier-2 repair agent | Structured clue bundle in; operations JSON out, validated against the schema; same safety gate and verification; 30 s budget; `proposals` table for inexpressible fixes; MTTR reported separately | A scenario that tier 1 cannot build is healed or produces a proposal, and no code is ever executed |
-| 15 | S2 rule mining | An abstract signature per fix; after 3 wins, a `rules` row that skips Jev | A repeated ambiguous pattern on a new field heals without a Jev call |
-| 16 | S4 GraphQL | Strawberry mock with introspection; a GraphQL adapter producing the same Outcome model; selection and argument fixes | M1, M2 and M3 equivalents heal over GraphQL |
-| 17 | S5 gRPC (unary) | grpcio mock with reflection and rich error details; an adapter producing the same Outcome model | M1 and M2 equivalents heal over gRPC |
-| 18 | S8 injection resistance (M10) | Mock M10: M1's rename with injected instructions in the `422` `msg` and in the new field's OpenAPI description (FR-12.8); an integration test and a benchmark scenario. The property itself is already enforced by the provenance rules (FR-5.4, FR-8.8); M10 only demonstrates it. | AC-26 passes: same operations as M1, correct final state, nothing derived from the injected text, same decision path as M1 |
-
----
-
 ## Phase 13+: MCP gateway, two teams on four machines
 
 **New direction (2026-10-16).** The product becomes a self-healing gateway for external MCP servers:
@@ -515,9 +498,30 @@ Two teams of one person each. Each person runs two machines, so four agents work
 | 2026-10-14 | 12E | done | Dashboard Demo view (cofounder.co style): prompt + scenario or dashboard-only `CUSTOM` drift, side-by-side replay with step trackers, per-call input / wire / output, registry view, readable patch log with `heal_ms`; refused tools are skipped and the task continues (prompt and Demo run); `python-dotenv` declared |
 | 2026-10-15 | 13 step 0 | done | Two-person tracks and ownership (`AGENTS.md`); `OperationSpec`, `SpecSource`, `FixStore` contracts with `tests/integration/test_contracts.py` |
 | 2026-10-16 | 13 re-plan | done | Direction changed to an MCP gateway that heals upstream MCP servers; work split into two teams on four machines (T1-PS1, T1-PS2, T2-PS1, T2-PS2); old P1 to P4 items mapped to new ones |
-| 2026-10-16 | 13 T1-0 (S1) | done | S1 sibling-tool candidate propagation (AC-40) |
-| 2026-10-16 | 13 T1-0 (S2) | done | S2 rule mining with rules table (AC-44) |
-| 2026-10-16 | 13 T1-0 (X4) | done | X4 fix precompute contract (AC-47, guarded) |
 
+From phase 13 on, each machine appends rows only to its own table below. Separate tables keep parallel PRs from conflicting on the last line of the file.
 
+### Progress log: T1-PS1
 
+| Date | Item | Status | Notes |
+|---|---|---|---|
+| 2026-10-16 | T1-0 (S1) | done | S1 sibling-tool candidate propagation (AC-40) |
+| 2026-10-16 | T1-0 (S8/M10) | done | S8 injection resistance scenario (M10, AC-26) |
+| 2026-10-16 | T1-0 (S2) | done | S2 rule mining with rules table (AC-44) |
+| 2026-10-16 | T1-0 (X3) | done | X3 new operations enum_map and encoding (AC-41, AC-42) |
+| 2026-10-16 | T1-0 (X4) | done | X4 fix precompute contract (AC-47, guarded) |
+
+### Progress log: T1-PS2
+
+| Date | Item | Status | Notes |
+|---|---|---|---|
+
+### Progress log: T2-PS1
+
+| Date | Item | Status | Notes |
+|---|---|---|---|
+
+### Progress log: T2-PS2
+
+| Date | Item | Status | Notes |
+|---|---|---|---|

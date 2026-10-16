@@ -396,6 +396,8 @@ Design principles:
 | `cast` | request, response | Converts a value's type | The same value, lossless only |
 | `header` | request | Sets a header | `{"ref":"config","key":...}` only |
 | `route` | request | Sets the method and/or path | A route that exists in the current spec |
+| `enum_map` | request, response | Maps enum values (1-to-1, bijective) | Target enum values declared in current spec |
+| `encoding` | request | Sets request Content-Type header for media type shift | Content-Type declared in current spec |
 
 New operations are added only through code review (see `agent.md`). No operation can write a literal value.
 
@@ -602,6 +604,10 @@ Beyond the code, the problem statement requires the items below. This section on
 - **FR-17.1** After committing an active fix for a field rename or type cast on a tool, the registry inspects other tools loaded from the same API spec. If a sibling tool shares the identical removed field name and type in its base schema, the registry pre-generates a candidate fix.
 - **FR-17.2** When a sibling tool experiences a break with a matching fingerprint, the candidate fix is verified and promoted directly at Tier-0 speed (<500 ms) without running Tier-1 diagnosis.
 
+#### X3: New Fix Operations (`enum_map`, `encoding`, lossless value transforms)
+- **FR-17.3** `enum_map`: maps enumerated values between the agent's schema and the API wire format. The mapping must be strictly bijective (1-to-1).
+- **FR-17.4** `encoding`: handles HTTP `415 Unsupported Media Type` by adjusting request headers (`Content-Type`, `Accept`) when the new media type is explicitly declared in the current OpenAPI spec.
+- **FR-17.5** Value transforms must be reversible: $f^{-1}(f(x)) == x$. Any lossy transformation is rejected by the safety gate with `UNSAFE_PATCH`.
 #### S2: Rule Mining
 - **FR-17.8** Fixes record an abstract structural signature (roles replacing concrete names). When the same abstract signature achieves 3 verified wins, a deterministic rule is stored in `rules` to bypass Jev for future matching instances.
 
@@ -613,6 +619,22 @@ Beyond the code, the problem statement requires the items below. This section on
 | ID | Criterion | Verification |
 |---|---|---|
 | AC-40 | (STRETCH, S1) Sibling propagation: a second tool hit by the same rename heals at Tier-0 speed (<500 ms) on its first occurrence | Integration |
+| AC-41 | (STRETCH, X3) `enum_map` operation heals an enum casing/alias change; non-bijective mappings abort `UNSAFE_PATCH` | Unit + Integration |
+| AC-42 | (STRETCH, X3) `encoding` operation heals a `415 Unsupported Media Type` change declared in the spec | Integration |
 | AC-44 | (STRETCH, S2) Rule mining: after 3 wins of the same pattern, subsequent ambiguous breaks heal without Jev | Integration |
 | AC-47 | (FUTURE, X4) Precomputed fix allows the first failing call after a spec change to recover at Tier-0 speed | Integration |
+
+## 18. Track T1-PS2: Mock Drift Server and Benchmark
+
+T1-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-50 to AC-54.
+
+
+## 19. Track T2-PS1: MCP Client, Loader and Front Door
+
+T2-PS1 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-30 to AC-39.
+
+
+## 20. Track T2-PS2: Watcher, Demo, Dashboard and Docs
+
+T2-PS2 writes its FR and AC here before coding (`agent.md` invariant 10). Reserved: AC-55 to AC-59.
 
