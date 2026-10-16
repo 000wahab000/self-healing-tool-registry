@@ -1,55 +1,64 @@
-# PS 01: Self-Healing Gateway, 30-Second Pitch
+# PS 01: Self-Healing Gateway, Pitch
 
-> Numbers are from `bench/report.md`: **scripted mode (no LLM), N = 3, 2026-10-14, REST mock**. Token overhead and the MCP path are not yet measured.
+> Numbers are from `bench/report.md`: **scripted mode (no LLM), N = 3, 2026-10-16**. LLM-mode numbers (token cost, the tier-2 repair agent) are not measured yet.
 
-## The pitch (about 30 seconds spoken)
+## The pitch (about 75 seconds spoken)
 
-When an API or an MCP server renames a field or adds a required argument, every agent that calls it breaks and keeps retrying the same broken call until its iteration cap. We put a self-healing gateway between the agent and its tools. It detects the drift, diffs the current schema against the original, and builds a fix from a few operations (`move`, `cast`, `header`, `route`) that cannot write a literal value. If a fix cannot be built without guessing, it refuses cleanly and the agent skips that one tool. The agent-facing schema never changes; we hot-patch the translation in memory. In our scripted REST benchmark: **100% ZTAR** across seven healable mutations, **0% False-Patch Rate**, heals in **49 ms median**, **tier-0 repeats in 4 ms median**.
+Agents call tools that were generated once from a spec. The services behind those tools keep changing: a field gets renamed, an argument becomes required, a value set shifts. The agent does not know. It sends the old call, gets an error, and tries the same call again until it hits its iteration cap.
+
+We put a self-healing gateway between the agent and its tools. The agent talks to one MCP server. Behind it sit your upstream MCP servers and web APIs: OpenAPI, Swagger 2.0, GraphQL. When a call breaks, the gateway compares the schema the tool was built from with the schema the service has now, and builds a fix out of a few operations: move a value, convert it losslessly, add a configured header, follow a renamed route. None of those operations can write a value of its own. The gateway tries the fix once, checks the answer, and writes one audit row. If a fix would need a value nobody supplied, it refuses and says so, and the agent skips that one tool.
+
+When the code cannot explain a break, an optional LLM repair agent can propose operations. It cannot supply values, and its proposal goes through the same gate and live check.
+
+Measured, in scripted mode with three runs per scenario: on the REST mock the healing agent completed **21 of 21** healable runs against 3 of 21 for the baseline; on the MCP drift server **12 of 12** against 0 of 12. No healed run ended with wrong data, and the 6 of 6 unsafe runs on each side were refused.
 
 ## Judge Q&A
 
 ### What is safety by construction?
 
-Fixes are lists of operations in which literal values cannot be expressed. `move` copies an existing value; `cast` converts it losslessly (`"123"` to `123`, round-tripped to confirm); `header` references a config key, never the secret; `route` names a path that exists in the current spec. When a required field has no source (M8's `priority`), the system returns `NO_SAFE_VALUE` and `retry: false`. It does not guess `"medium"`.
+Fixes are lists of operations in which a literal value cannot be expressed. `move` copies an existing value, `cast` converts it losslessly, `header` names a config key and never the secret, `route` names a path in the current spec. When a required field has no source (M8's `priority`), the result is `NO_SAFE_VALUE` with `retry: false`; the gateway does not guess.
 
-**Measured:** Safe-Refusal Rate 100% (6/6, M8 and M6-N); False-Patch Rate 0% (0/24 healed runs).
+**Measured** (scripted, n=3): Safe-Refusal Rate 100% (6/6) on REST (M6-N, M8) and 100% (6/6) on MCP (T-REQUIRED, M8); False-Patch Rate 0% (0/24) on REST and 0% (0/12) on MCP.
 
-### How does in-memory hot-patching work?
+### Does the agent still see errors?
 
-Each tool keeps a frozen `agent_schema` (the v1 shape the agent sees) and a `wire_schema` (what the upstream accepts now). On commit the registry sets `wire_schema` to the current schema and bumps `version`, in memory, with no restart. The next call applies the stored operations before sending. The agent sees the same tool signatures throughout. (Token effect: not yet measured.)
+Sometimes, by design. A refusal returns a structured error with `retry: false` so the agent can skip that tool. We do not claim the agent never sees an error.
+
+### What does the LLM do, and what can it break?
+
+Tier 2 runs only with `--repair`, after Jev triage when Jev is configured. The model (gpt-oss-20b on NVIDIA NIM) sees argument types, not values, and proposes operations from the same small language plus a target operation. Unknown operations and enum values missing from the new schema are rejected; the rest passes the safety gate and live verification. A missing-value refusal never goes to the model. **Not measured yet:** the LLM-mode benchmark has not been run, so there is no tier-2 success rate and no token figure.
 
 ### What are your numbers?
 
-| Metric | Value |
-|---|---|
-| ZTAR (M1 to M5, M7, M9) | **100% (21/21)** healing; 14% (3/21) baseline |
-| M6-D (tie-breaker) | **100% (3/3)** healing; 0% baseline |
-| M6-N (Jev disabled) | 0% healing by design; refused safely |
-| Safe-Refusal Rate (M8 + M6-N) | **100% (6/6)** |
-| False-Patch Rate | **0% (0/24)** |
-| Tier-1 MTTR (mean / p50 / p95) | **50.7 / 49 / 66 ms** over 24 heals |
-| Tier-0 MTTR (mean / p50 / p95) | **4.7 / 4 / 8 ms** over 15 heals |
-| Token Overhead | Not measured: scripted mode records 0 LLM tokens |
-| Baseline failure mode | Hit the 10-call cap on M1, M2, M4, M5, M6-D, M6-N, M8, M9, C2, C3 |
+| Metric (scripted, n=3 per scenario) | REST mock | MCP drift server |
+|---|---|---|
+| Healable ZTAR, healing | 100% (21/21) | 100% (12/12) |
+| Healable ZTAR, baseline | 14% (3/21) | 0% (0/12) |
+| Safe-Refusal Rate | 100% (6/6) | 100% (6/6) |
+| False-Patch Rate | 0% (0/24) | 0% (0/12) |
+| Tier-1 heal time, mean / p50 / p95 | 32 / 25.5 / 63 ms (n=24) | mean 6.33333 to 7 ms per mutation (n=3 each) |
+| Tier-0 (stored fix) heal time, mean / p50 / p95 | 4.33333 / 4 / 9 ms (n=15) | not measured |
+| Healthy-call overhead, p50 | not measured | 0.112 ms (n=250 per side, in-memory) |
+| Token overhead | not measured | not measured |
 
-Timings are wall-clock on a laptop. Per-mutation tier-1 MTTR p50 / p95 (ms): M1 47/48, M2 45/66, M3 47/49, M4 52/53, M5 57/69, M6-D 47/51, M7 52/53, M9 50/58.
+Timings are in-process wall-clock on one machine and exclude network time on the MCP side.
 
 ### What if Jev is unavailable?
 
-Jev is optional. Order: deterministic tie-breaker, then Jev (only for 2 or more candidates with no unique winner), then abort. M1 to M5, M7, M9 and M6-D heal without a Jev call in the benchmark. M6-N aborts `LOW_CONFIDENCE` before sending anything. The demo does not depend on Jev.
+Jev is optional. Order: deterministic tie-breaker, then Jev (only when two or more candidates remain tied), then abort. In the benchmark Jev was not available: M6-N aborted `LOW_CONFIDENCE` in 3/3 runs, which counts as a safe refusal.
 
 ### How do you avoid "fixing" errors that are not drift?
 
-A value error on an unchanged spec (C3, an invalid email) is reclassified `BUSINESS` / `NOT_DRIFT` and returned unchanged: no fix, no replay. A `404` for a record whose route still exists in the spec (C2) is `BUSINESS`. Both passed through correctly in 3/3 runs.
+A value error on an unchanged spec (C3) is reclassified `NOT_DRIFT` and returned unchanged, with no fix and no replay. A 404 for a record whose route still exists (C2) is handled the same way. Both passed through in 3/3 runs.
 
-### Does it work for MCP servers?
+### How do I add my own services?
 
-That is the product direction: the gateway fronts upstream MCP servers and REST APIs with one healing core. The front door is built; the upstream MCP client, MCP drift benchmark and MCP overhead numbers are in progress (`plan.md`, Phase 13+) and are not in the figures above.
+List them in `config/mcp_servers.json` or use the dashboard's Connections page, which takes a URL and the name of an environment variable holding a token; token values are never stored. Claude Desktop, Cursor and Windsurf connect to the front door as described in `docs/mcp-clients.md`. Real-client UI checks have not been done yet.
 
 ### Limitations
 
-- Fixes are limited to what the operations express; value transforms (splitting a field, unit conversion) abort cleanly and count against ZTAR.
-- Silent drift (M7) needs a declarative postcheck in `config/tools.json`.
-- Write-tool ambiguity (M6-N) refuses when the tie-breaker cannot decide and Jev is absent or below threshold.
-- Without the spec (error-clue mode), nested or combined changes abort (M5, M9; M1 to M4 still heal).
-- Token Overhead is not yet measured in LLM mode.
+- Fixes are limited to what the operations express; value transforms (splitting a field, unit conversion) abort unless tier 2 finds an operation-only fix.
+- Silent drift needs a declarative postcheck for the tool.
+- Write-tool ambiguity refuses when the tie-breaker cannot decide and Jev is absent.
+- Without the spec (error-clue mode), nested or combined changes abort (M5, M7, M9; M1 to M4 still heal).
+- gRPC and Postgres are deferred; GraphQL is not benchmarked; streaming responses are not covered.
