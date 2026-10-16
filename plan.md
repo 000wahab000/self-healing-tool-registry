@@ -16,7 +16,7 @@
 ## Remaining
 
 - [ ] **Real-LLM benchmark (T1-10).** `python -m bench.run --agent llm --n 10` has not been run: no token overhead, no tier-2 or T-MOVE figures, AC-16 open. Regenerate `bench/report.md` from it.
-- [ ] **Valid Jev key.** Jev through OpenRouter returns 401, so Jev-assisted M6-N and Jev triage are untested live.
+- [ ] **Jev.** Jev through OpenRouter returns 401. An opt-in free route through OpenCode (Jev 1.13 Free, AC-48) now works: live M6-N reached tier-2 repair. Follow-up: the dashboard's M6-N correctness check still assumes a refusal.
 - [ ] **Postgres store.** `store_pg.py` lacks the newer `FixStore` methods; deferred.
 - [ ] **GraphQL and gRPC.** GraphQL M3 is a strict xfail; GraphQL is not benchmarked; gRPC is deferred.
 - [ ] **Streaming** and long-running tool responses are not covered.
