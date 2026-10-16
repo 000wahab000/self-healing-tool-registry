@@ -35,7 +35,7 @@ from dashboard.explorer import (
 from healer import metrics
 from healer.gateway import load_apis, load_config
 from healer.jev import from_env
-from healer.models import AuditEvent
+from healer.models import AuditEvent, ErrorClass, HealOutcome
 from healer.registry import Registry
 from healer.repair import from_env as repair_from_env
 from healer.store import Store
@@ -45,6 +45,12 @@ from mock_api.app import create_app as create_mock
 LEAD_IN_STEPS = 3  # scripted agents wait this many steps before their first call
 HERE = Path(__file__).parent
 ROOT = HERE.parent
+# A tool-calling turn re-sends the whole conversation to the model and adds a
+# completion. Live LLM mode measures the real token figures (AC-16); a scripted
+# run makes no model call, so the Metrics tab only *estimates* saved tokens from
+# the turns the registry avoided and this clearly-labelled per-turn assumption.
+# The estimate is never mixed into a measured figure: `tokens_measured` says which.
+EST_TOKENS_PER_TURN = 600
 IDLE = {
     "status": "idle",
     "final_text": "",
@@ -103,6 +109,10 @@ class Dashboard:
         events = self.store.call_events()
         self.base_event = events[-1]["event_id"] if events else 0
         self.base_heal = 0
+        self.base_call = self.base_event  # Metrics counts calls since the last Reset or restart
+        # The measured LLM token pair (baseline, healing) stays for the session, so a
+        # later scripted run does not erase a figure an earlier LLM run measured.
+        self._llm_tokens: tuple[int, int] | None = None
         self.drifts: list[tuple[int, str | None]] = []  # (ms, mutation) as it went live
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
@@ -240,6 +250,7 @@ class Dashboard:
                 self.mocks[agent].state(), mut
             )[0]
             self.runs[agent] = {"status": "done", **run}
+            self._record_llm_savings()
         # A crashed run is shown on the page as the run's error, not swallowed.
         except Exception as exc:  # noqa: BLE001
             self.runs[agent] = {
@@ -247,6 +258,15 @@ class Dashboard:
                 "status": "error",
                 "error": f"{type(exc).__name__}: {exc}",
             }
+
+    def _record_llm_savings(self) -> None:
+        """Once both agents finish an LLM run, remember the measured token pair."""
+        if any(r["status"] != "done" for r in self.runs.values()):
+            return
+        base = int(self.runs["baseline"].get("llm_tokens") or 0)
+        heal = int(self.runs["healing"].get("llm_tokens") or 0)
+        if base or heal:
+            self._llm_tokens = (base, heal)
 
     async def mutate(self, mid: str | None) -> None:
         if mid is not None and mid not in MUTATIONS and mid not in ALIASES:
@@ -265,6 +285,9 @@ class Dashboard:
             self._clear()
             # Only Reset empties the patch log; Start, scenarios and drifts keep adding to it.
             self.base_heal = len(self.store.audit_events())
+            calls = self.store.call_events()
+            self.base_call = calls[-1]["event_id"] if calls else 0
+            self._llm_tokens = None
 
     async def explore(
         self,
@@ -382,6 +405,7 @@ class Dashboard:
                     str(int(t)): v for t, v in metrics.mttr_summary(audit).items()
                 },
                 "outcomes": metrics.outcome_counts(audit),
+                "impact": self._impact(audit),
             },
             "mocks": {
                 a: {"mutation": m.mutation, "data": m.state()}
@@ -421,6 +445,65 @@ class Dashboard:
             "fix": {"request_ops": fix.request_ops, "response_ops": fix.response_ops}
             if fix
             else None,
+        }
+
+    def _impact(self, audit: list[AuditEvent]) -> dict:
+        """What the registry kept away from the agents, since the last Reset.
+
+        Counted from the call log (both agents) and the audit log, so every number
+        is measured in this session. The token figure is the one exception: a
+        scripted run makes no model call, so it falls back to an explicitly
+        labelled estimate (`tokens_measured` is false) until an LLM run measures it.
+        """
+        calls = [e for e in self.store.call_events() if e["event_id"] > self.base_call]
+        total = {"healing": 0, "baseline": 0}
+        errors = {"healing": 0, "baseline": 0}
+        retries = {"healing": 0, "baseline": 0}
+        last: dict[str, tuple | None] = {"healing": None, "baseline": None}
+        last_failed = {"healing": False, "baseline": False}
+        for e in calls:
+            agent = e["agent"]
+            if agent not in total:
+                continue
+            total[agent] += 1
+            failed = e["class"] != ErrorClass.OK.value
+            if failed:
+                errors[agent] += 1
+            # A re-send of the same tool right after a failure is a blind retry.
+            key = (e["run_id"], e["tool"])
+            if key == last[agent] and last_failed[agent]:
+                retries[agent] += 1
+            last[agent], last_failed[agent] = key, failed
+
+        turns_saved = max(0, total["baseline"] - total["healing"])
+        healer_jev = sum(e.jev_tokens for e in audit)
+        healer_llm = sum(e.llm_tokens for e in audit)
+        measured = self._llm_tokens  # (baseline, healing) from the last LLM run
+        if measured is not None:
+            base_tokens, heal_tokens = measured
+        else:  # scripted session: no model call, so both bars are an estimate
+            base_tokens = total["baseline"] * EST_TOKENS_PER_TURN
+            heal_tokens = total["healing"] * EST_TOKENS_PER_TURN
+        return {
+            "heals": sum(
+                1 for e in audit if e.outcome == HealOutcome.RECOVERED
+            ),
+            "refusals": sum(1 for e in audit if e.outcome == HealOutcome.ABORTED),
+            "healing_calls": total["healing"],
+            "baseline_calls": total["baseline"],
+            "turns_saved": turns_saved,
+            "healing_errors": errors["healing"],
+            "baseline_errors": errors["baseline"],
+            "errors_kept_out": max(0, errors["baseline"] - errors["healing"]),
+            "baseline_retries": retries["baseline"],
+            "healer_jev_tokens": healer_jev,
+            "healer_llm_tokens": healer_llm,
+            "healer_tokens": healer_jev + healer_llm,
+            "baseline_tokens": base_tokens,
+            "healing_tokens": heal_tokens,
+            "tokens_saved": max(0, base_tokens - heal_tokens),
+            "tokens_measured": measured is not None,
+            "tokens_per_turn": EST_TOKENS_PER_TURN,
         }
 
 
