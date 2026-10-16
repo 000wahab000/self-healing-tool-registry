@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 
-from healer.canonical import sha256
+from healer.canonical import dumps, sha256
 from healer.models import Side
 
 _TYPES = {
@@ -135,6 +135,36 @@ def diff(old_op: dict, new_op: dict) -> list[dict]:
 
 def diff_signature(entries: list[dict]) -> str:
     return sha256([{k: v for k, v in e.items() if k != "description"} for e in entries])
+
+
+def abstract_signature(ops: list[dict], entries: list[dict]) -> str:
+    """FR-17.8: abstract structural signature with roles replacing concrete names."""
+    removed = [tuple(e["path"]) for e in entries if e.get("change") == "removed"]
+    added = [tuple(e["path"]) for e in entries if e.get("change") == "added"]
+
+    from_roles = {p: f"$from_{i}" for i, p in enumerate(removed)}
+    to_roles = {p: f"$to_{i}" for i, p in enumerate(added)}
+
+    def abstract_path(path: list, roles: dict[tuple, str]) -> list:
+        tp = tuple(path)
+        if tp in roles:
+            return [*path[:-1], roles[tp]]
+        return path
+
+    abstract_ops = []
+    for op in ops:
+        ab = dict(op)
+        if "from" in ab:
+            ab["from"] = abstract_path(ab["from"], from_roles)
+        if "to" in ab:
+            ab["to"] = abstract_path(ab["to"], to_roles)
+        if "path" in ab:
+            tp = tuple(ab["path"])
+            roles = from_roles if tp in from_roles else to_roles
+            ab["path"] = abstract_path(ab["path"], roles)
+        abstract_ops.append(ab)
+
+    return dumps(abstract_ops)
 
 
 def route_exists(ops: dict[str, dict], method: str, path: str) -> bool:

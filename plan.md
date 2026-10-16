@@ -430,7 +430,7 @@ The MCP server is the top priority. It turns the registry into a drop-in proxy: 
 | P2-2 | S1 sibling propagation | Candidate fixes for tools with the same removed field; used only on a fingerprint match, always verified | [x] AC-40 passes: a second tool hit by the same rename heals at tier 0 speed on first occurrence |
 | P2-3 | X3 new operations | `enum_map`, `encoding` (for `415`), lossless value transforms with a round-trip check; schema, `ops.py`, candidates, safety gate, mock mutations | Each new operation heals its mutation; a lossy transform is refused |
 | P2-4 | S3 tier-2 repair agent | Operations JSON out, validated; same gate and verification; 30 s budget; `proposals` table and its `FixStore` methods | A scenario tier 1 cannot build is healed or yields a proposal; no code is executed |
-| P2-5 | S2 rule mining | Abstract signature per fix; after 3 wins a `rules` row that skips Jev; its `FixStore` methods | A repeated ambiguous pattern heals without a Jev call |
+| P2-5 | S2 rule mining | Abstract signature per fix; after 3 wins a `rules` row that skips Jev; its `FixStore` methods | [x] AC-44 passes: repeated ambiguous pattern heals without a Jev call |
 | P2-6 | X2 `E3` healing | Re-send with a defined operation set when the new content type is declared in the spec | A declared content-type change heals; anything else still refuses |
 | P2-7 | X5 Jev drift-vs-business without a spec | Jev yes/no check when the spec is off or unavailable; abort when Jev is absent | A business error is never healed |
 | P2-8 | X4 fix precomputation (heal side) | `Healer.precompute(old, new)`: build and dry-run candidates from the diff, store as `candidate`, send nothing | After P4's watcher sees a change, the first failing call heals at tier 0 speed |
@@ -491,4 +491,6 @@ Antigravity's built-in browser agent suits the visual checks. Keep to one featur
 | 2026-10-14 | 12E | done | Dashboard Demo view (cofounder.co style): prompt + scenario or dashboard-only `CUSTOM` drift, side-by-side replay with step trackers, per-call input / wire / output, registry view, readable patch log with `heal_ms`; refused tools are skipped and the task continues (prompt and Demo run); `python-dotenv` declared |
 | 2026-10-15 | 13 step 0 | done | Two-person tracks and ownership (`AGENTS.md`); `OperationSpec`, `SpecSource`, `FixStore` contracts with `tests/integration/test_contracts.py` |
 | 2026-10-15 | 13 P2-2 | done | S1 sibling-tool candidate propagation (AC-40) |
+| 2026-10-15 | 13 P2-5 | done | S2 rule mining with rules table (AC-44) |
+
 

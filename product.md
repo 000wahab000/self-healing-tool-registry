@@ -602,9 +602,13 @@ Beyond the code, the problem statement requires the items below. This section on
 - **FR-17.1** After committing an active fix for a field rename or type cast on a tool, the registry inspects other tools loaded from the same API spec. If a sibling tool shares the identical removed field name and type in its base schema, the registry pre-generates a candidate fix.
 - **FR-17.2** When a sibling tool experiences a break with a matching fingerprint, the candidate fix is verified and promoted directly at Tier-0 speed (<500 ms) without running Tier-1 diagnosis.
 
+#### S2: Rule Mining
+- **FR-17.8** Fixes record an abstract structural signature (roles replacing concrete names). When the same abstract signature achieves 3 verified wins, a deterministic rule is stored in `rules` to bypass Jev for future matching instances.
+
 ### Acceptance Criteria (P2 Reserved: AC-40 to AC-49)
 
 | ID | Criterion | Verification |
 |---|---|---|
 | AC-40 | (STRETCH, S1) Sibling propagation: a second tool hit by the same rename heals at Tier-0 speed (<500 ms) on its first occurrence | Integration |
+| AC-44 | (STRETCH, S2) Rule mining: after 3 wins of the same pattern, subsequent ambiguous breaks heal without Jev | Integration |
 
