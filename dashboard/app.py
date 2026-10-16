@@ -98,7 +98,10 @@ class Dashboard:
         self.epoch = 0
         self.mutation: str | None = None
         self.run_scenario: str | None = None
-        self.base_event = 0  # the view starts after the last start / reset
+        # The live view starts empty on a fresh server: calls kept in the db from an earlier
+        # process have no recorded traces, so they could not open as call cards.
+        events = self.store.call_events()
+        self.base_event = events[-1]["event_id"] if events else 0
         self.base_heal = 0
         self.drifts: list[tuple[int, str | None]] = []  # (ms, mutation) as it went live
         self.runs = {a: dict(IDLE) for a in self.mocks}
