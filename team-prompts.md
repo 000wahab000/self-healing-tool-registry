@@ -1,6 +1,6 @@
 # Team kickoff prompts
 
-Two teams, four machines. Paste a machine's prompt into its agent as the first message of a new session. Each prompt starts that machine's first item. For each later item, start a new session, paste the same prompt and change the item ID in the "Start with" line. Ownership and contracts: `AGENTS.md` ("Two teams, four machines"). Work items: `plan.md` ("Phase 13+: MCP gateway, two teams on four machines").
+Paste a machine's prompt into its agent as the first message of a new session. For each later item, start a new session, paste the same prompt and change the item ID in the "Start with" line. Ownership and contracts: `AGENTS.md`. Work items: `plan.md` ("Phase 13+: MCP gateway, two teams on four machines").
 
 | Machine | Person | First item | Then |
 |---|---|---|---|
@@ -9,29 +9,15 @@ Two teams, four machines. Paste a machine's prompt into its agent as the first m
 | Team 2, PS1 | Teammate | T2-1 upstream MCP client adapter | T2-2 to T2-6 |
 | Team 2, PS2 | Teammate | T2-7 spec watcher | T2-8 to T2-11 |
 
-Step 0 in `plan.md` comes first on every machine: merge the open branches into `main`. The `mcp` optional group exists only after P1's branch `p1/p1-1-mcp-stdio` merges.
+Before choosing an item, check your machine's progress-log table in `plan.md` for what is already done.
 
-Common setup on every machine (once, in its own clone of the repo):
+Setup on every machine (once, in its own clone), then the gate before every PR (no CI exists):
 
 ```bash
 git pull origin main
-```
-
-```bash
 python -m venv .venv
-```
-
-```bash
 pip install -e ".[dev,agents,mcp]"
-```
-
-Checks before every PR (no CI exists, so these are the gate):
-
-```bash
 python -m pytest -q
-```
-
-```bash
 ruff check .
 ```
 
