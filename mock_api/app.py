@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
-# C1 to C3 are controls: they switch the mock but leave the spec unchanged (product.md §7).
+# C1 to C3 are controls: they switch the mock but leave the spec unchanged (AGENTS.md product requirements §7).
 MUTATIONS = (
     "M1",
     "M2",
@@ -53,7 +53,7 @@ EXPECTED_CANONICAL = {
     "M9": {"method": "PATCH", "path": "/users/email", "body": {"payload": {"user_id": "123", "email": "ada.new@example.com"}}, "query": {}, "headers": {}},
     "M10": {"method": "POST", "path": "/users/lookup", "body": {"customer_id": "123"}, "query": {}, "headers": {}},
     "M11": {"method": "POST", "path": "/customers/lookup", "body": {"customer_id": "123"}, "query": {}, "headers": {}},
-    "W1": {"method": "PATCH", "path": "/users/email", "body": {"user_id": "123", "email": "ada.new@example.com"}, "query": {}, "headers": {}},
+    "W1": {"method": "PATCH", "path": "/users/email", "body": {"user_id": "123", "email_address": "ada.new@example.com"}, "query": {}, "headers": {}},
     "U1": {"method": "POST", "path": "/payments", "body": {"amount_cents": 1250}, "query": {}, "headers": {}},
     "D1": {"method": "POST", "path": "/tickets", "body": {"user_id": "123", "title": "Email changed"}, "query": {}, "headers": {}},
     "C1": {"method": "POST", "path": "/users/lookup", "body": {"user_id": "123"}, "query": {}, "headers": {}},
@@ -303,6 +303,7 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
     email_in = {
         "M2": UpdateEmailIntId,
         "M7": UpdateEmailAddress,
+        "W1": UpdateEmailAddress,
         "M9": UpdateEmailWrapped,
         "S1": UpdateEmailCustomer,
     }.get(mid, UpdateEmail)
@@ -366,10 +367,10 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
             body = body.payload
         uid = str(body.user_id)
         user = api.user(uid)
-        new = body.email_address if mid == "M7" else body.email
+        new = body.email_address if mid in ("M7", "W1") else body.email
         if new is not None and mid != "W1":
             user["email"] = new
-        return {"id": uid, "email": new if mid == "W1" else user["email"]}
+        return {"id": uid, "email": new if mid == "W1" and new is not None else user["email"]}
 
     def manager_ids(body) -> tuple[str, str]:  # 404 checks shared with the dry run
         uid, manager = (

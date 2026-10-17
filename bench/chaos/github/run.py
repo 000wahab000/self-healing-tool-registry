@@ -31,6 +31,7 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+REPORT_MARKER = "<!-- supplementary-evidence -->"
 
 import profiles as P
 import yaml
@@ -80,6 +81,50 @@ def port_open(port: int) -> bool:
     with socket.socket() as s:
         s.settimeout(0.3)
         return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def supplementary_chaos_report(
+    summary: str,
+    *,
+    mode: str,
+    generated_at: str,
+    profile_count: int,
+    row_count: int,
+    claude_calls: int,
+) -> str:
+    """Render this run's provenance and summary for the supplementary report section."""
+    return (
+        "\n\n## GitHub MCP chaos run\n\n"
+        + f"Mode: {mode}; generated: {generated_at}; profiles: {profile_count}; rows: {row_count}.\n\n"
+        + summary
+        + f"\n\nclaude calls used: {claude_calls}\n"
+    )
+
+
+def append_chaos_report(
+    report_path: Path,
+    summary: str,
+    *,
+    mode: str,
+    generated_at: str,
+    profile_count: int,
+    row_count: int,
+    claude_calls: int,
+) -> None:
+    previous = report_path.read_text(encoding="utf-8") if report_path.is_file() else ""
+    with report_path.open("a", encoding="utf-8") as report_file:
+        if REPORT_MARKER not in previous:
+            report_file.write("\n\n" + REPORT_MARKER + "\n")
+        report_file.write(
+            supplementary_chaos_report(
+                summary,
+                mode=mode,
+                generated_at=generated_at,
+                profile_count=profile_count,
+                row_count=row_count,
+                claude_calls=claude_calls,
+            )
+        )
 
 
 def wait_port(port: int, p: subprocess.Popen, timeout: float = 40) -> None:
@@ -488,7 +533,15 @@ def main() -> None:
                 f.flush()
                 all_rows += rows
         summary = summarize(all_rows)
-        (OUT / "summary.md").write_text(summary + f"\n\nclaude calls used: {budget['used']}\n", encoding="utf-8")
+        append_chaos_report(
+            HERE.parents[2] / "REPORT.md",
+            summary,
+            mode="live" if args.live else "offline",
+            generated_at=time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime()),
+            profile_count=len(cases),
+            row_count=len(all_rows),
+            claude_calls=budget["used"],
+        )
         print(summary)
         print("claude calls used:", budget["used"])
     finally:

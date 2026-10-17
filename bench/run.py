@@ -1,4 +1,4 @@
-"""Benchmark runner and report (plan.md phase 10, metrics per phase 12D / FR-15).
+"""Benchmark runner and report (PLAN.md phase 10, metrics per phase 12D / FR-15).
 
 Every run is in-process and isolated: a fresh mock API, store and registry. Specs are
 loaded from the clean API, then the mutation is switched on and the agent runs the task.
@@ -46,6 +46,21 @@ from mock_api.mcp_drift_server import SEED as MCP_SEED
 from mock_api.mcp_drift_server import create_drift_server
 
 TOOLS_JSON = Path(__file__).parents[1] / "config" / "tools.json"
+REPORT_MARKER = "<!-- supplementary-evidence -->"
+
+
+def report_path(output_dir: Path | None) -> Path:
+    if output_dir is not None:
+        return output_dir / "REPORT.md"
+    return Path(__file__).parents[1] / "REPORT.md"
+
+
+def preserve_supplementary(report_text: str, previous: str) -> str:
+    if REPORT_MARKER in previous:
+        return report_text + "\n\n" + REPORT_MARKER + previous.split(REPORT_MARKER, 1)[1]
+    return report_text
+
+
 DEFAULT_SCENARIOS = "CLEAN,M1,M2,M3,M4,M5,M6-D,M6-N,M7,M8,M9,C1,C2,C3"
 ABLATION_SCENARIOS = ("M1", "M2", "M3", "M4", "M5", "M6-D", "M6-N", "M7", "M8", "M9")
 TIER0_SCENARIOS = ("M1", "M2", "M3", "M4", "M5")
@@ -198,7 +213,7 @@ async def _pass(
         invented = False
         if (check := INVENTED_CHECK.get(scenario)) is not None:
             # A request carrying an invented value is one whose body is not an argument the
-            # agent itself passed (agent.md invariant 1); the first, failing request is.
+            # agent itself passed (AGENTS.md coding invariant 1); the first, failing request is.
             tool, path = check
             asked = [args for name, args in steps_for(scenario) if name == tool]
             invented = any(
@@ -831,15 +846,18 @@ async def _amain(args: argparse.Namespace) -> None:
         repair = repair_from_env() if args.agent == "llm" else None
         mcp_rows = await mcp_bench(args.n, repair)
         mcp_overhead = await overhead.measure_mcp()
-    args.out.mkdir(parents=True, exist_ok=True)
+    output_dir = args.out or Path(__file__).parent
+    output_dir.mkdir(parents=True, exist_ok=True)
     if mcp_rows:
-        (args.out / "results_mcp.jsonl").write_text(
+        (output_dir / "results_mcp.jsonl").write_text(
             "".join(json.dumps(r) + "\n" for r in mcp_rows), encoding="utf-8"
         )
-    results, md = args.out / "results.jsonl", args.out / "report.md"
+    results = output_dir / "results.jsonl"
+    md = report_path(args.out)
     results.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    previous = md.read_text(encoding="utf-8") if md.is_file() else ""
     md.write_text(
-        report(
+        preserve_supplementary(report(
             rows,
             mode=args.agent,
             model=llm.model_name if llm else None,
@@ -847,7 +865,7 @@ async def _amain(args: argparse.Namespace) -> None:
             jev_configured=jev is not None,
             mcp_rows=mcp_rows,
             mcp_overhead=mcp_overhead,
-        ),
+        ), previous),
         encoding="utf-8",
     )
     print(f"wrote {results} and {md}")
@@ -859,7 +877,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--n", type=int, default=10)
     parser.add_argument("--scenarios", default=DEFAULT_SCENARIOS)
     parser.add_argument("--no-mcp", dest="mcp", action="store_false", help="skip the MCP section")
-    parser.add_argument("--out", type=Path, default=Path(__file__).parent)
+    parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     if args.agent == "llm" and not os.environ.get("NVIDIA_API_KEY"):
         raise SystemExit("--agent llm needs NVIDIA_API_KEY in the environment")

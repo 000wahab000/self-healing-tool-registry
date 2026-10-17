@@ -1,6 +1,6 @@
 """Jev Client (FR-8): one Choice call that selects a candidate index.
 
-Jev never produces operations or values (agent.md invariant 2); it only picks one of ours.
+Jev never produces operations or values (AGENTS.md § Coding rules); it only picks one of ours.
 """
 
 from __future__ import annotations

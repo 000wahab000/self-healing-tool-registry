@@ -675,7 +675,7 @@ def create_app(
     @app.get("/api/report")
     async def report() -> dict:
         try:
-            text = (ROOT / "bench" / "report.md").read_text(encoding="utf-8")
+            text = (ROOT / "REPORT.md").read_text(encoding="utf-8")
         except FileNotFoundError:
             text = None
         return {"report": text}

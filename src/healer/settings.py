@@ -1,4 +1,4 @@
-"""Thresholds and timeouts (product.md). Seconds unless the name says otherwise."""
+"""Thresholds and timeouts (AGENTS.md product requirements). Seconds unless the name says otherwise."""
 
 HEAL_DEADLINE_S = 3.5
 JEV_TIMEOUT_S = 1.5

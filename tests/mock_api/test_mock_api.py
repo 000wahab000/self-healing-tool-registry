@@ -473,6 +473,13 @@ async def test_w1_successful_email_write_does_not_persist_even_after_readback(cl
     )
     assert (response.status_code, response.json()) == (
         200,
+        {"id": "123", "email": "ada@example.com"},
+    )
+    response = await client.patch(
+        EMAIL, json={"user_id": "123", "email_address": "ada.new@example.com"}
+    )
+    assert (response.status_code, response.json()) == (
+        200,
         {"id": "123", "email": "ada.new@example.com"},
     )
     readback = await client.post(LOOKUP, json={"user_id": "123"})

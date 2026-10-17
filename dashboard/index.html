@@ -429,7 +429,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
 
   <!-- REPORT -->
   <div id="view-report" hidden>
-    <div class="head"><div><p class="eyebrow">bench/report.md</p><h2>Benchmark report</h2></div></div>
+    <div class="head"><div><p class="eyebrow">REPORT.md</p><h2>Benchmark report</h2></div></div>
     <section class="card pad"><p id="report-empty" class="muted">No benchmark report is available yet. Run <code>python -m bench.run --agent scripted --n 3</code> to generate one.</p><div id="report"></div></section>
   </div>
 
@@ -529,10 +529,10 @@ const Demo = (() => {
     C3: ["update_email", "BUSINESS", 422, null, [], "NOT_DRIFT"],
   };
   const SEQ = ["get_user", "update_email", "set_manager", "create_ticket"];
-  const SAMPLE_REPORT = "Demo mode: simulated data, no backend connected.\n\nRun `python -m bench.run --agent scripted --n 3` to generate bench/report.md and it will appear here.";
+  const SAMPLE_REPORT = "Demo mode: simulated data, no backend connected.\n\nRun `python -m bench.run --agent scripted --n 3` to generate REPORT.md and it will appear here.";
   const DEMO_SCORECARD = {
     available: true,
-    source: "bench/report.md (demo)",
+    source: "REPORT.md (demo)",
     generated_at: new Date().toISOString(),
     ztar: { healing: { adapted: 21, runs: 21 }, baseline: { adapted: 3, runs: 21 } },
     false_patch: { false_patches: 0, healed: 24 },
@@ -1786,7 +1786,7 @@ function renderMcpCalls(u) {
   });
   if (!u.total_calls) {
     const tr = el("tr");
-    tr.append(el("td", "No MCP calls yet. Point an MCP client at /mcp (see docs/mcp-clients.md).", { colspan: "7", class: "empty" }));
+    tr.append(el("td", "No MCP calls yet. Point an MCP client at /mcp (see README.md § MCP client setup).", { colspan: "7", class: "empty" }));
     rows.push(tr);
   }
   body.replaceChildren(...rows);
@@ -1795,7 +1795,7 @@ function loadMcpCalls() {
   call("/api/mcp/calls").then(renderMcpCalls).catch(() => {});
 }
 setInterval(() => { if (!$("view-mcp").hidden) loadMcpCalls(); }, 3000);
-// bench/report.md -> headings, lists, tables and paragraphs (text only, never innerHTML).
+// REPORT.md -> headings, lists, tables and paragraphs (text only, never innerHTML).
 function renderMarkdown(md) {
   const inline = (text) => {
     const out = [];

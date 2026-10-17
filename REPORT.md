@@ -139,3 +139,69 @@ Healthy-call overhead over MCP (`users__get_user`, n=250 per side, in-memory; ga
 | gateway | 0.895 | 2.381 | 1.227 |
 | direct | 0.795 | 3.354 | 1.129 |
 | overhead | 0.112 | 0.802 | 0.098 |
+
+<!-- supplementary-evidence -->
+
+## Supplementary empirical evidence (separate runs; not part of the REST scorecard)
+
+The sections below preserve evidence produced after the scorecard above. They use different harnesses, dates, samples, and environments; do not combine their counts with the dated REST/MCP benchmark tables or treat them as a rerun of that benchmark.
+
+### Tier-2 stress test and MCP client (2026-10-17)
+
+Source label: pre-consolidation `bench/stress-summary.md` (2026-10-17), available in repository history. The source named a separate `stress-test` worktree's `bench/stress/tier2/REPORT.md` and `tier2/results.json`; those stress raw files are not retained in this checkout, and the referenced Prism harness had no results. These figures are preserved from the source summary, not independently reproducible from the current tree.
+
+The live repair-agent test used `openai/gpt-oss-20b` on NVIDIA NIM. Jev returned 401, so a stub Jev answered only the tier-2 triage question in the main arms.
+
+| Measure | Result |
+|---|---|
+| Scenario invocations | 44 (28 at the shipped 30 s deadline, 16 at 100 s) |
+| Model answered in time | 6 of 44 (14%) |
+| Healed | 5 of 44 (2 of 28 at 30 s, 3 of 16 at 100 s) |
+| Answered proposals that were correct | 6 of 6 |
+| False patches | 0 of 92 rows and 0 of 12 direct calls |
+| Safe refusals (M8, new required field) | 4 of 4, all at tier 1 with no LLM call |
+| Latency of answered calls | p50 30.9 s, p95 49.7 s (n=6) |
+| Tokens per answered heal | 822 to 972 (mean 876) |
+| Stored fix reused at tier 0 | 3 of 3 checked |
+| M11 with tier 2 off vs on | 0/1 vs 3/14 |
+| M6-N with tier 2 off vs on | safe refusal vs 2/9 |
+
+The source summary states the 11% heal rate mostly measures endpoint timeouts, not model quality; N is small and comes from one day on one degraded endpoint. In a separate Claude Code run (`claude -p`, Haiku) using only healer tools over `http://127.0.0.1:8097/mcp` with M1 drift, it looked up user 123 and changed the email successfully; `get_user` healed at tier 1 (spec diff), and the MCP tab logged both calls. The Prism external-API harness was stopped before results.
+
+The source also records failure cases: a write tool without `preverify` cannot recover through tier 2; readback after a `user_id` rename can report `VERIFY_FAILED` despite a landed write; many repair calls missed even the 100 s deadline; without Jev only `NO_CANDIDATE` reaches tier 2; model over-refusal; same-typed field renames invisible to detection; a potential negative-cache path on repair HTTP error (not observed); a benchmark task-completion check that ignores `get_user`; Windows stdio startup trouble with the default config; and the two Jev routes returning 401. These are source observations, not verified current defects.
+
+### GitHub MCP chaos (2026-10-17)
+
+Source label: pre-consolidation `bench/chaos/github/REPORT.md` (2026-10-17), available in repository history. The experiment froze a false MCP `inputSchema`, switched the shim to passthrough, and compared calls accepted by a strict offline fake or live GitHub MCP against intended arguments. The live target was an empty sandbox repository; only read tools were exposed. Expected outcomes were fixed in `bench/chaos/github/cases.yaml` before the run (sha256 prefix `c5e549dd73a34ca7`). Harness/source files remain at `bench/chaos/github/run.py`, `shim.py`, `profiles.py`, `common.py`, and `fake_upstream.py`.
+
+**Final runs after the fix:** offline controls used six calls per profile and the agent ran two tasks per profile. Offline reported **0 false patches and 0 crashes**; misses were limited to `rename_owner_repo` (4 control, 2 agent) and three partial `wrap_args` controls, all safe refusals. Live GitHub reported **0 real false patches** and one successful live heal (`nest_repo`, agent). Two scorer `FALSE_PATCH` rows were `enum_case` cases where GitHub accepted lowercase `open` as well as `OPEN`, so no heal ran; the report labels these a scoring artifact. Several live “misses” were because the empty repository lacked issue #1, `README.md`, and commits.
+
+Offline profile outcomes (source table; counts, not rates):
+
+| Profile | Control (6 calls) | Agent |
+|---|---|---|
+| identity | 6 pass-through | not run |
+| rename_owner_repo | 2 pass-through, 4 refused | 2 refused |
+| rename_issue_number | 1 healed, 5 pass-through | 1 healed, 1 pass-through |
+| int_to_string | 2 healed, 4 pass-through | 1 healed, 1 pass-through |
+| wrap_args | 2 healed, 1 pass-through, 3 refused | 1 healed, 1 refused |
+| nest_repo | 4 healed, 2 pass-through | 2 healed |
+| enum_case | 1 healed, 5 pass-through | 1 healed, 1 pass-through |
+| enum_synonym | 1 refused (expected), 5 pass-through | 1 refused, 2 pass-through, 1 agent arg error |
+| merge_owner_repo | 4 refused (expected), 2 pass-through | 2 refused (expected) |
+| decoy_unused | 6 pass-through | not run |
+| decoy_used | 6 refused (expected) | not run |
+
+Before/after comparison from the same chaos report:
+
+| | Before (live) | After (live) | After (offline) |
+|---|---|---|---|
+| Real false patches | 1 (`wrap_args`: `state` filter silently dropped) | 0 | 0 |
+| `nest_repo` heals | 0 (leftover `"repository": {}`) | 1 | 6 of 6 |
+| `wrap_args` heals | 0 | 0 | 3 |
+
+The before/after report records one real false patch before the fix (`wrap_args`: the `state` filter was silently dropped), versus zero after; offline `nest_repo` healed 6/6. The described fix added MCP `inputSchema` request validation at L2 and made `move` remove wrappers it empties, so partial unwrap fails verification and is refused. The live post-fix summary still includes one `enum_case` scorer row; do not reinterpret it as an actual wrong request.
+
+This is one run per profile per mode, so counts are not rates. The offline fake approximates GitHub's schema; live checks are ground truth but the empty sandbox caused business errors. The Oct 17, 2026 source report lists remaining limits at that time: live healing often exceeded the 3.5 s deadline; two simultaneous same-typed field renames were refused; a live GitHub `E1 -32001` was treated as transient; partial wrapper mappings were safely refused; and the scorer mislabelled a valid case-insensitive enum. Its provider-coverage statement was also specific to that run date and is not a claim about current coverage. Regression tests for the fix are `tests/integration/test_verify_layers.py::test_mcp_partial_unwrap_fails_request_schema`, `tests/integration/test_verify_layers.py::test_mcp_full_unwrap_drops_the_empty_wrapper_and_passes`, and `tests/unit/test_ops.py::test_move_removes_wrappers_it_empties_only`.
+
+Retained raw proof files: [`bench/chaos/github/proof/offline/results.jsonl`](bench/chaos/github/proof/offline/results.jsonl), [`bench/chaos/github/proof/offline/shim_calls.jsonl`](bench/chaos/github/proof/offline/shim_calls.jsonl), [`bench/chaos/github/proof/offline/upstream_calls.jsonl`](bench/chaos/github/proof/offline/upstream_calls.jsonl), [`bench/chaos/github/proof/live/results.jsonl`](bench/chaos/github/proof/live/results.jsonl), and [`bench/chaos/github/proof/live/shim_calls.jsonl`](bench/chaos/github/proof/live/shim_calls.jsonl). Run logs and agent transcripts remain alongside these JSONL files. The source report and summary Markdown are in repository history, not required to interpret the preserved tables above.

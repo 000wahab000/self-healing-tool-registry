@@ -100,7 +100,7 @@ class PostgresStore:
 
     def save_fix_and_audit(self, fix: Fix, event: AuditEvent) -> int:
         raise NotImplementedError(
-            "PostgresStore: save_fix_and_audit not implemented yet, see plan.md (deferred)"
+            "PostgresStore: save_fix_and_audit not implemented yet, see PLAN.md (deferred)"
         )
 
     def save_fix(self, fix: Fix) -> int:
@@ -183,7 +183,7 @@ class PostgresStore:
 
     def audit_events_since(self, after_event_id: int) -> list[tuple[int, AuditEvent]]:
         raise NotImplementedError(
-            "PostgresStore: audit_events_since not implemented yet, see plan.md (deferred)"
+            "PostgresStore: audit_events_since not implemented yet, see PLAN.md (deferred)"
         )
 
     def is_negative(self, fp: str) -> bool:
@@ -235,27 +235,27 @@ class PostgresStore:
 
     def get_candidate(self, fp: str) -> Fix | None:
         raise NotImplementedError(
-            "PostgresStore: get_candidate not implemented yet, see plan.md (deferred)"
+            "PostgresStore: get_candidate not implemented yet, see PLAN.md (deferred)"
         )
 
     def promote(self, fix_id: int) -> None:
         raise NotImplementedError(
-            "PostgresStore: promote not implemented yet, see plan.md (deferred)"
+            "PostgresStore: promote not implemented yet, see PLAN.md (deferred)"
         )
 
     def record_rule_win(self, pattern: str) -> int:
         raise NotImplementedError(
-            "PostgresStore: record_rule_win not implemented yet, see plan.md (deferred)"
+            "PostgresStore: record_rule_win not implemented yet, see PLAN.md (deferred)"
         )
 
     def is_rule(self, pattern: str) -> bool:
         raise NotImplementedError(
-            "PostgresStore: is_rule not implemented yet, see plan.md (deferred)"
+            "PostgresStore: is_rule not implemented yet, see PLAN.md (deferred)"
         )
 
     def get_rules(self) -> list[str]:
         raise NotImplementedError(
-            "PostgresStore: get_rules not implemented yet, see plan.md (deferred)"
+            "PostgresStore: get_rules not implemented yet, see PLAN.md (deferred)"
         )
 
     def close(self) -> None:
