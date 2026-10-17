@@ -33,7 +33,13 @@ from dashboard.explorer import (
     get_explorer_info,
     run_explore,
 )
-from dashboard.metrics_view import fix_lifecycle, live_safety, mcp_tool_usage, scorecard
+from dashboard.metrics_view import (
+    call_latency,
+    fix_lifecycle,
+    live_safety,
+    mcp_tool_usage,
+    scorecard,
+)
 from healer import metrics
 from healer.gateway import Gateway, load_apis, load_config
 from healer.jev import from_env
@@ -688,6 +694,10 @@ def create_app(
     async def get_metrics_live() -> dict:
         audit = dash.store.audit_events()[dash.base_heal :]
         return live_safety(audit)
+
+    @app.get("/api/metrics/latency")
+    async def get_metrics_latency() -> dict:
+        return call_latency(dash.store.call_events(dash.base_call))
 
     @app.get("/api/metrics/lifecycle")
     async def get_metrics_lifecycle() -> dict:
