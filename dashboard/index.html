@@ -265,6 +265,15 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
 .pipeline .pass { border-color: var(--ok, #16a34a); }
 .pipeline .fail { border-color: var(--bad, #dc2626); }
 .pipeline .skip { opacity: .55; }
+.layers { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 0 0 12px; }
+.chip { display: grid; gap: 2px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: var(--fs-xs); }
+.chip b { display: flex; align-items: center; gap: 6px; }
+.chip b::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.chip.pass b::before { background: var(--ok); }
+.chip.fail { border-color: var(--bad); }
+.chip.fail b::before { background: var(--bad); }
+.chip.skip { opacity: .55; }
+.chip small { color: var(--muted); }
 #report { max-height: 72vh; overflow: auto; font-size: var(--fs-sm); color: var(--ink-2); }
 #report h1, #report h2, #report h3 { margin: 20px 0 8px; color: var(--ink); }
 #report h1:first-child, #report h2:first-child { margin-top: 0; }
@@ -1519,11 +1528,28 @@ function pipelineView(h) {
   wrap.append(step("Detect", h.class + " · " + (h.raw_code ?? "-"), "pass"),
     step("Diagnose", "tier " + h.tier + " · " + (h.path || "-"), h.tier === null || h.tier === undefined ? "skip" : "pass"),
     step("Fix", h.fix ? (h.fix.request_ops.length + h.fix.response_ops.length) + " ops" : "none", h.fix ? "pass" : "skip"));
-  for (const l of h.layers || []) wrap.append(step(l.layer + " " + l.name.replace(/_/g, " "), l.detail, l.status));
   const ok = h.outcome === "RECOVERED";
   wrap.append(step("Outcome", h.outcome + (h.reason ? " · " + h.reason : ""), ok ? "pass" : h.reason === "NOT_DRIFT" ? "skip" : "fail"));
-  return wrap;
+  if (!(h.layers || []).length) return wrap;
+  // Verify layers as chips: number + name, a dot that turns green on pass, and what the layer checks.
+  const chips = el("div", null, { class: "layers", "aria-label": "Verify layers" });
+  for (const l of h.layers) {
+    const c = el("div", null, { class: "chip " + l.status, title: l.status + ": " + l.detail });
+    c.append(el("b", l.layer + " · " + (LAYER_INFO[l.name] || [l.name])[0]), el("small", (LAYER_INFO[l.name] || ["", l.detail])[1]));
+    chips.append(c);
+  }
+  const both = el("div"); both.append(wrap, chips);
+  return both;
 }
+const LAYER_INFO = {
+  safety: ["Safety", "Only allowed ops; no invented values"],
+  request_schema: ["Request", "Healed call matches the current schema"],
+  response_schema: ["Response", "Answer has the expected shape"],
+  postchecks: ["Echo", "API echoed back what was sent"],
+  readback: ["Read-back", "Write really saved"],
+  invariants: ["Invariants", "Business rules hold (units, ranges)"],
+  replay_safety: ["Replay", "Safe to resend; no duplicate write"],
+};
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
   $("recovery-count").textContent = String(heals.length);
@@ -1851,6 +1877,7 @@ setInterval(poll, 500);
 <script src="/panels/scorecard.js" defer></script>
 <script src="/panels/live_safety.js" defer></script>
 <script src="/panels/lifecycle.js" defer></script>
+<script src="/panels/latency.js" defer></script>
 <script src="/ui.js" defer></script>
 <script src="/guide.js" defer></script>
 </body>

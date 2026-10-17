@@ -320,3 +320,20 @@ def mcp_tool_usage(
         )
     rows.sort(key=lambda r: (-r["calls"], r["name"]))
     return {"tools": rows, "total_calls": len(mcp)}
+
+
+def call_latency(calls: list[dict]) -> dict[str, Any]:
+    """Per (agent, tool) call latency from the call log: n, errors, p50 and p95 in ms (AC-113)."""
+    from healer.metrics import percentiles
+
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for c in calls:
+        groups.setdefault((c["agent"], c["tool"]), []).append(c)
+    rows = []
+    for (agent, tool), cs in sorted(groups.items()):
+        p = percentiles(c["latency_ms"] for c in cs)
+        rows.append({"agent": agent, "tool": tool, "n": p["n"],
+                     "errors": sum(c["class"] != "OK" for c in cs),
+                     "p50_ms": p["p50"], "p95_ms": p["p95"]})
+    overall = percentiles(c["latency_ms"] for c in calls)
+    return {"rows": rows, "total": overall["n"], "p50_ms": overall["p50"], "p95_ms": overall["p95"]}

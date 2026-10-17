@@ -10,7 +10,7 @@ This document is agent-facing. Read the relevant section before changing code. H
 - **Requirements and acceptance traceability:** [Product requirements](#product-requirements). FR/AC IDs are preserved as written; do not renumber.
 - **External connection safety and limitations:** [External connections](#external-connections).
 - **Current state:** `PLAN.md`; human entry point: `README.md`; current measurements: `REPORT.md`.
-- **Ownership and numbering:** Wahab is the single maintainer; former team/machine assignments are history. New AC IDs continue after AC-112; AC-83–AC-98 remain reserved for Z0–Z15.
+- **Ownership and numbering:** Wahab is the single maintainer; former team/machine assignments are history. New AC IDs continue after AC-113; AC-83–AC-98 remain reserved for Z0–Z15.
 
 ## Coding rules
 
@@ -1023,6 +1023,7 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 | AC-110 | Raw/derived credentials stay out of errors, repair prompts, logs, probes and store. | Secret-echo tests |
 | AC-111 | Frozen schemas, no invented values/model code, one replay/audit row and cleanup remain intact. | Existing and new integration tests |
 | AC-112 | The dashboard exposes each MCP call that actually applies non-empty request/response fix operations, including active-fix reuse, with final outcome and operations; ordinary calls do not create heal events, and call metadata persists across restart without storing request/response data. | MCP call-log, store migration/round-trip and dashboard baseline tests |
+| AC-113 | `GET /api/metrics/latency` returns call latency (count, errors, p50, p95) per agent and tool from the live call log since the last reset, and the Metrics tab shows it as a table | Unit (`tests/dashboard/test_ac_113_call_latency.py`) |
 
 
 AC-83 to AC-98 are reserved for Z0–Z15; consult `PLAN.md` for preserved gap notes.
