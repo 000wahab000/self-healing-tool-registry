@@ -44,6 +44,7 @@ def create_app(args: argparse.Namespace) -> FastAPI:
                 bearer_token=token,
                 allowed_hosts=args.allowed_host,
                 allowed_origins=args.allowed_origin,
+                store=getattr(registry, "log_store", None),
             )
             await stack.enter_async_context(mcp_app.router.lifespan_context(mcp_app))
             mount = Mount("/", app=mcp_app)

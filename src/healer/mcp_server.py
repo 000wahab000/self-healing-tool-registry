@@ -9,8 +9,10 @@ import json
 import logging
 import os
 import sys
+import time
+import uuid
 from collections.abc import AsyncIterator
-from contextlib import AsyncExitStack, asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,7 @@ from starlette.responses import Response
 
 from healer import canonical, jev, repair
 from healer.gateway import Gateway, connect_upstreams
+from healer.models import ErrorClass
 from healer.openapi_loader import openapi_source
 from healer.registry import Registry
 from healer.settings import REQUEST_TIMEOUT_S
@@ -35,8 +38,22 @@ from healer.spec_watcher import SpecWatcher
 from healer.store import Store
 
 
-def create_server(registry: Registry) -> Server:
-    """Expose registry tools and calls without adding healing behavior."""
+def _call_class(result: Any) -> ErrorClass:
+    """OK without an "error" key; else the result's own class if valid, else BUSINESS."""
+    if not (isinstance(result, dict) and "error" in result):
+        return ErrorClass.OK
+    try:
+        return ErrorClass(result.get("class"))
+    except ValueError:
+        return ErrorClass.BUSINESS
+
+
+def create_server(registry: Registry, *, store: Store | None = None) -> Server:
+    """Expose registry tools and calls without adding healing behavior.
+
+    With a store, each tools/call is logged as one call_events row (logging only).
+    """
+    run_id = uuid.uuid4().hex[:8]
 
     async def list_tools(_context: Any, _params: Any) -> ListToolsResult:
         try:
@@ -54,10 +71,20 @@ def create_server(registry: Registry) -> Server:
             raise MCPError(code=-32603, message="MCP_LIST_ERROR") from None
 
     async def call_tool(_context: Any, params: Any) -> CallToolResult:
+        t0 = time.monotonic()
         try:
             result = await registry.call(params.name, params.arguments or {})
         except Exception:  # noqa: BLE001 - do not expose registry exceptions through MCP
             result = {"error": "MCP_TOOL_ERROR", "retry": False}
+        if store is not None:
+            with suppress(Exception):  # logging must never break a call
+                store.log_call(
+                    "mcp",
+                    run_id,
+                    params.name,
+                    _call_class(result),
+                    int((time.monotonic() - t0) * 1000),
+                )
         is_error = isinstance(result, dict) and "error" in result
         return CallToolResult(
             content=[TextContent(text=canonical.dumps(result))],
@@ -80,6 +107,7 @@ def create_http_app(
     bearer_token: str | None = None,
     allowed_hosts: list[str] | None = None,
     allowed_origins: list[str] | None = None,
+    store: Store | None = None,
 ) -> Starlette:
     local = host in ("127.0.0.1", "localhost", "::1")
     if bearer_token is not None and not bearer_token:
@@ -121,7 +149,7 @@ def create_http_app(
             "allowed hosts must name request hosts, not wildcard bind addresses"
         )
 
-    app = create_server(registry).streamable_http_app(
+    app = create_server(registry, store=store).streamable_http_app(
         json_response=True,
         host=host,
         transport_security=TransportSecuritySettings(
@@ -241,6 +269,8 @@ async def registry_context(args: argparse.Namespace) -> AsyncIterator[Registry |
                 registry = (
                     registries[0] if len(registries) == 1 else Gateway(registries)
                 )
+                # The same store backs the call log; callers read it to log MCP calls.
+                registry.log_store = store
                 yield registry
         finally:
             store.close()
@@ -265,6 +295,7 @@ async def _serve(args: argparse.Namespace) -> None:
                 bearer_token=token,
                 allowed_hosts=getattr(args, "allowed_host", None),
                 allowed_origins=getattr(args, "allowed_origin", None),
+                store=getattr(registry, "log_store", None),
             )
             config = uvicorn.Config(
                 app,

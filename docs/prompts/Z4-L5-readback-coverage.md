@@ -11,8 +11,8 @@ L5 read-back works for `update_email` only, so W1 (a 200 response that saved not
 - `config/tools.json`: `readback` entries only
 - `src/healer/layers/l5_readback.py`: only if a new shape is needed (for example "read back a created resource by the id returned in the response")
 - `mock_api/app.py`: only the W1 variants needed for the new tools, plus a read endpoint if a tool has none. Follow the existing W1 pattern; add no new mutation framework.
-- `tests/integration/test_ac_85_readback_writes.py` (new)
-- `product.md`: AC-85
+- `tests/integration/test_ac_87_readback_writes.py` (new)
+- `product.md`: AC-87
 
 ## Build
 
@@ -21,7 +21,7 @@ L5 read-back works for `update_email` only, so W1 (a 200 response that saved not
 3. `create_ticket`: the key comes from the **response** (`ticket_id`), not the request. If `key_from` only supports request paths, add `key_from_response` in L5 (support exactly one of the two; it is an error if both are set). Read the ticket back and compare `title` and `user_id`. If the mock has no ticket read endpoint, add a minimal `GET /tickets/{id}`.
 4. Read-back runs **only for healed writes**. A failed read-back aborts and never commits.
 
-## Tests (`test_ac_85_*`)
+## Tests (`test_ac_87_*`)
 
 For each of `set_manager` and `create_ticket`:
 - a healed write that persisted: L5 passes and the fix commits

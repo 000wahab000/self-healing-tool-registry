@@ -9,8 +9,8 @@ When a response no longer matches the frozen agent-facing output schema (E5), th
 ## Owns
 
 - `src/healer/layers/l3_output.py`
-- `tests/unit/test_ac_84_l3_move_only.py` (new)
-- `product.md`: AC-84
+- `tests/unit/test_ac_86_l3_move_only.py` (new)
+- `product.md`: AC-86
 
 If the cast is generated upstream of L3 (in `candidates.py` or `diagnose.py`), **do not edit those files**. L3 rejects the candidate, and the PR lists where the cast candidate is produced as a follow-up.
 
@@ -21,7 +21,7 @@ If the cast is generated upstream of L3 (in `candidates.py` or `diagnose.py`), *
 3. Provenance: every source path of a response op must exist in the actual response body. Otherwise `fail`, `detail="response_source_missing:<path>"`.
 4. Then the existing check: the remapped output validates against the frozen agent schema.
 
-## Tests (`test_ac_84_*`)
+## Tests (`test_ac_86_*`)
 
 - unwrap `{data:{...}}` to `{...}`: pass (the M3 nesting path stays green)
 - move/rename a response field: pass

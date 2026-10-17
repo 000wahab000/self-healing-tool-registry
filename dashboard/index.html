@@ -163,6 +163,14 @@ div.calls-live .empty { display: block; color: var(--muted); text-align: center;
 .prompt-box label { font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .prompt-box textarea { width: 100%; min-height: 56px; resize: vertical; }
 .prompt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fake-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.fake-grid > div { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.fake-grid label { font: 500 var(--fs-xs) var(--sans); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.fake-grid pre, .fake-grid textarea { min-height: 190px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--soft); color: var(--ink); font: var(--fs-xs)/1.6 var(--mono); }
+.fake-grid textarea { width: 100%; resize: vertical; background: var(--panel); }
+.fake-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.fake-row input, .fake-row select { padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel); color: var(--ink); font: var(--fs-sm) var(--sans); }
+@media (max-width: 720px) { .fake-grid { grid-template-columns: 1fr; } }
 /* where it broke: a failing call shakes red; a healed one turns red -> green */
 .call.broke { animation: call-shake .45s ease-in-out 2, call-red 1.6s ease-out forwards; }
 .call.healed { animation: call-heal 2.2s ease-out forwards; }
@@ -251,7 +259,18 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
 .metric .s { color: var(--ink-2); font-size: var(--fs-xs); }
 .reasons { margin-top: 16px; padding: 16px; }
 .reasons .ops { margin-top: 8px; }
-#report { max-height: 72vh; }
+.pipeline { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.pipeline .step { display: grid; gap: 2px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: var(--fs-xs); min-width: 92px; }
+.pipeline .step small { color: var(--muted); }
+.pipeline .pass { border-color: var(--ok, #16a34a); }
+.pipeline .fail { border-color: var(--bad, #dc2626); }
+.pipeline .skip { opacity: .55; }
+#report { max-height: 72vh; overflow: auto; font-size: var(--fs-sm); color: var(--ink-2); }
+#report h1, #report h2, #report h3 { margin: 20px 0 8px; color: var(--ink); }
+#report h1:first-child, #report h2:first-child { margin-top: 0; }
+#report p, #report ul { margin: 0 0 10px; line-height: 1.6; }
+#report .scroll { overflow-x: auto; margin: 0 0 14px; }
+#report table.log td { white-space: normal; }
 .spinner { display: inline-block; width: 11px; height: 11px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -294,11 +313,11 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
         <p class="eyebrow">Run a scenario on both agents</p>
         <div class="acts" id="acts"></div>
         <div class="prompt-box">
-          <label for="prompt">Prompt sent to both agents</label>
+          <label for="prompt" id="prompt-label">Prompt (read by the Live LLM only)</label>
           <textarea id="prompt" rows="2" spellcheck="false"></textarea>
           <div class="prompt-row">
-            <button class="btn primary small" id="send-prompt" type="button">Send prompt</button>
-            <span class="hint muted" id="prompt-hint">Uses the break that is active now; nothing else changes.</span>
+            <button class="btn primary small" id="send-prompt" type="button">Run fixed script</button>
+            <span class="hint muted" id="prompt-hint">Scripted agents ignore the prompt and run the fixed task.</span>
           </div>
         </div>
         <div class="composer-foot">
@@ -322,6 +341,25 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
       </div>
       <div id="note" role="status"></div>
       <p class="run-note" id="scenario-note" role="status" aria-live="polite"></p>
+    </section>
+    <section class="card pad" id="fake-card">
+      <p class="eyebrow">Fake a tool's schema</p>
+      <p class="hint muted">Edit the schema the API now expects. Only the mock is changed; the registry has to notice the break and heal it on its own.</p>
+      <div class="fake-grid">
+        <div><label>Actual schema (what the agent was given)</label><pre id="fake-actual" tabindex="0"></pre></div>
+        <div><label for="fake-edit">Fake schema (what the API now expects)</label><textarea id="fake-edit" rows="10" spellcheck="false"></textarea></div>
+      </div>
+      <div class="fake-row">
+        <select id="fake-tool" aria-label="Tool"></select>
+        <input id="fake-header" type="text" placeholder="Required header (optional)" aria-label="Required header" maxlength="40">
+        <button class="btn primary small" id="fake-apply" type="button">Apply fake schema</button>
+        <button class="btn ghost small" id="fake-reset" type="button">Reset to actual</button>
+        <span class="hint muted" id="fake-ex-label">Examples:</span>
+        <button class="btn small" type="button" data-ex="rename">Rename user_id</button>
+        <button class="btn small" type="button" data-ex="int">user_id to integer</button>
+        <button class="btn small" type="button" data-ex="wrap">Wrap in payload</button>
+      </div>
+      <p class="hint muted" id="fake-status" role="status" aria-live="polite" style="margin-top:8px">Pick a tool, edit the right-hand schema, then apply.</p>
     </section>
     <div id="live-banner"></div>
     <div class="cols section">
@@ -372,11 +410,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
     <p class="cost-note" id="impact-note"></p>
     <section class="card pad cost" id="impact-cost" aria-labelledby="impact-cost-h">
       <div class="cost-head"><h3 id="impact-cost-h">Baseline agent vs self-healing agent</h3><span class="cost-hero" id="impact-hero"></span><span class="muted" id="impact-sub">Run a scenario to compare both agents.</span></div>
-<<<<<<< HEAD
-      <div class="legend" aria-hidden="true"><span><i style="background:#c2410c"></i>Baseline agent</span><span><i style="background:#1d4ed8"></i>Self-healing agent</span></div>
-=======
       <div class="legend" aria-hidden="true"><span><i style="background:var(--series-baseline)"></i>Baseline agent</span><span><i style="background:var(--series-healing)"></i>Self-healing agent</span></div>
->>>>>>> c56e4c177f6348b6c3d415ba79b00fb0f7c21ae4
       <div class="cost-grid" id="impact-chart"></div>
       <p class="cost-note" id="impact-chart-note"></p>
     </section>
@@ -384,16 +418,13 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
       <h3>Refusal reasons</h3>
       <div class="ops" id="reasons-list"></div>
     </section>
-<<<<<<< HEAD
-=======
     <div id="panels-container"></div>
->>>>>>> c56e4c177f6348b6c3d415ba79b00fb0f7c21ae4
   </div>
 
   <!-- REPORT -->
   <div id="view-report" hidden>
     <div class="head"><div><p class="eyebrow">bench/report.md</p><h2>Benchmark report</h2></div></div>
-    <section class="card pad"><p id="report-empty" class="muted">No benchmark report is available yet. Run <code>python -m bench.run --agent scripted --n 3</code> to generate one.</p><pre id="report"></pre></section>
+    <section class="card pad"><p id="report-empty" class="muted">No benchmark report is available yet. Run <code>python -m bench.run --agent scripted --n 3</code> to generate one.</p><div id="report"></div></section>
   </div>
 
   <!-- MCP FRONT DOOR -->
@@ -404,6 +435,15 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
       <table class="log">
         <thead><tr><th>Tool</th><th>Description</th><th>Input schema</th></tr></thead>
         <tbody id="mcp-tools"></tbody>
+      </table>
+    </section>
+    <section class="card pad">
+      <h3>Tool calls through MCP <span class="dim">· Heals counts every source, not only MCP</span></h3>
+    </section>
+    <section class="card scroll">
+      <table class="log">
+        <thead><tr><th>Tool</th><th>Calls</th><th>OK</th><th>Errors</th><th>Heals</th><th>p50</th><th>Last call</th></tr></thead>
+        <tbody id="mcp-calls"></tbody>
       </table>
     </section>
     <section class="card pad">
@@ -754,6 +794,7 @@ const Demo = (() => {
     if (path === "/api/metrics/live") return Promise.resolve(DEMO_LIVE_METRICS);
     if (path === "/api/metrics/lifecycle") return Promise.resolve(DEMO_LIFECYCLE);
     if (path === "/api/mcp") return Promise.resolve(DEMO_MCP);
+    if (path === "/api/mcp/calls") return Promise.resolve({ tools: [], total_calls: 0 });
     if (path === "/api/explorer/info") return fetch("/api/explorer/info").then(r => r.json()).catch(() => ({ predefined_queries: [], error_classes: [], mock_info: { tools: {} } }));
     if (path === "/api/explore") {
       // The simulator cannot call an LLM; saying so beats inventing a result.
@@ -793,6 +834,7 @@ async function act(path, body) {
 function showTab(name) {
   for (const b of document.querySelectorAll("nav.tabs button[data-tab]")) b.setAttribute("aria-pressed", String(b.dataset.tab === name));
   for (const v of ["live", "heals", "metrics", "mcp", "report"]) $("view-" + v).hidden = v !== name;
+  if (name === "mcp" && typeof loadMcpCalls === "function") loadMcpCalls();
 }
 for (const b of document.querySelectorAll("nav.tabs button")) b.onclick = () => showTab(b.dataset.tab);
 // The landing page links to /live#heals etc.
@@ -968,7 +1010,17 @@ function renderSteps(box, tools, traces, o) {
 }
 
 /* Drift banner: title, before → after, what the healer should do. */
+let customSpec = null;
+function describeCustom(c) {
+  const parts = Object.entries(c.rename || {}).map(([a, b]) => a + " → " + b);
+  if (c.to_int) parts.push(c.to_int + ": integer");
+  if (c.wrap) parts.push("wrapped in " + c.wrap);
+  if (c.require) parts.push("+ required " + c.require);
+  if (c.header) parts.push("+ header " + c.header);
+  return parts.join(", ");
+}
 function bannerData(id) {
+  if (id === "CUSTOM" && customSpec) return { id, title: "Custom schema", tool: customSpec.tool, before: "The v1 schema the agent was given", after: describeCustom(customSpec), expect: "The registry detects the break and rewrites the call, or refuses when a value would have to be invented." };
   const p = presets[id];
   return p && { id, title: p.title, tool: p.tool_affected, before: p.before, after: p.after, expect: p.expect };
 }
@@ -1023,31 +1075,39 @@ async function initPresets() {
   }
   for (const p of expInfo.predefined_queries) presets[p.mutation || "CLEAN"] = p;
   if (!$("prompt").value && presets.CLEAN) $("prompt").value = presets.CLEAN.query;
-  $("prompt-hint").textContent = expInfo.llm_available
-    ? "Sent to the live LLM (" + expInfo.llm_model + ") with the break that is active now; nothing else changes."
-    : "No NVIDIA_API_KEY: scripted agents follow a fixed script and ignore the prompt.";
   if (expInfo.llm_available) $("llm-status").textContent = "LLM: " + expInfo.llm_model;
   else {
     document.querySelector("input[name=mode][value=llm]").disabled = true;
     $("llm-label").title = "Set NVIDIA_API_KEY to enable the live LLM";
     $("llm-status").textContent = "No NVIDIA_API_KEY: scripted agents only";
   }
+  syncPromptMode();
   if (lastLiveMut !== undefined) renderBanner($("live-banner"), lastLiveMut || "CLEAN");
 }
+// The prompt only reaches a Live LLM; scripted agents run their fixed task whatever it says.
+const modeNow = () => document.querySelector("input[name=mode]:checked").value;
+function syncPromptMode() {
+  const llm = modeNow() === "llm";
+  $("send-prompt").textContent = llm ? "Send prompt" : "Run fixed script";
+  $("prompt-label").textContent = llm ? "Prompt sent to both agents" : "Prompt (read by the Live LLM only)";
+  $("prompt-hint").textContent = llm
+    ? "Sent to the live LLM" + (expInfo && expInfo.llm_model ? " (" + expInfo.llm_model + ")" : "") + " with the break that is active now; nothing else changes."
+    : "Scripted agents ignore the prompt and run the fixed task (look up, update email, set manager, open ticket)." + (expInfo && !expInfo.llm_available ? " Set NVIDIA_API_KEY to use Live LLM." : "");
+}
+for (const r of document.querySelectorAll("input[name=mode]")) r.onchange = syncPromptMode;
 
 async function runPreset(id) {
   if (presetBusy || !presets[id]) return;
   selectPreset(id);
-  await runExplore(presets[id].query, id === "CLEAN" ? null : id, document.querySelector("input[name=mode]:checked").value);
+  await runExplore(presets[id].query, id === "CLEAN" ? null : id, modeNow());
 }
 // Send the box's prompt as is, against the break that is live now (or none).
 $("send-prompt").onclick = () => {
   const q = $("prompt").value.trim();
   if (!q) { note("Write a prompt first."); return; }
-  const agent = expInfo && expInfo.llm_available ? "llm" : "scripted";
-  runExplore(q, lastLiveMut || null, agent);
+  runExplore(q, lastLiveMut || null, modeNow(), lastLiveMut === "CUSTOM" ? customSpec : undefined);
 };
-async function runExplore(query, mutation, agent) {
+async function runExplore(query, mutation, agent, custom) {
   if (presetBusy) return;
   presetBusy = true;
   note("");
@@ -1055,7 +1115,7 @@ async function runExplore(query, mutation, agent) {
   status.className = "pill warn";
   status.replaceChildren(el("span", null, { class: "spinner" }), " Running both agents");
   try {
-    const res = await call("/api/explore", { query, mutation, agent });
+    const res = await call("/api/explore", { query, mutation, agent, custom });
     status.className = "pill plain";
     status.textContent = "Replaying " + ((res.healing.traces || []).length + (res.baseline.traces || []).length) + " tool calls";
     replay(res);
@@ -1244,8 +1304,9 @@ function finish(res, steps) {
   const bs = b.status === "error" ? ["bad", "LLM error"] : b.hit_limit ? ["bad", "Iteration cap · " + MAX_CALLS + "/" + MAX_CALLS] : b.data_correct ? ["good", "Task complete"] : ["bad", "Task incomplete · correctness check failed"];
   $("status-baseline").className = "pill " + bs[0];
   $("status-baseline").textContent = bs[1];
-  $("preset-status").className = "pill good";
-  $("preset-status").textContent = "Done";
+  const failed = h.status === "error" || b.status === "error";
+  $("preset-status").className = "pill " + (failed ? "bad" : "good");
+  $("preset-status").textContent = failed ? "LLM error: " + (h.error || b.error || "see the columns below") : "Done";
   renderCost(res);
 }
 const SERIES = [["baseline", "Baseline agent", "var(--series-baseline)"], ["healing", "Self-healing agent", "var(--series-healing)"]];
@@ -1316,6 +1377,48 @@ for (const [title, hint, items] of GROUPS) {
   }
   g.append(label, grid);
   $("mutations").appendChild(g);
+}
+/* ---------- fake a tool's schema (Live tab) ---------- */
+let fakeSchemas = {};
+const fakeStatus = (text, bad) => { $("fake-status").textContent = text; $("fake-status").className = "hint " + (bad ? "bad" : "muted"); };
+const fakeActual = () => fakeSchemas[$("fake-tool").value] || { type: "object", properties: {} };
+function fakeLoad() {
+  $("fake-actual").textContent = formatJson(fakeActual());
+  $("fake-edit").value = formatJson(fakeActual());
+}
+const FAKE_EXAMPLES = {
+  rename: (s) => { const p = {}; for (const [k, v] of Object.entries(s.properties)) p[k === "user_id" ? "account" : k] = v; return { ...s, properties: p, required: s.required.map((k) => k === "user_id" ? "account" : k) }; },
+  int: (s) => ({ ...s, properties: { ...s.properties, user_id: { type: "integer" } } }),
+  wrap: (s) => ({ type: "object", properties: { payload: s }, required: ["payload"] }),
+};
+for (const b of document.querySelectorAll("[data-ex]")) b.onclick = () => {
+  if (!$("fake-tool").value) return;
+  $("fake-edit").value = formatJson(FAKE_EXAMPLES[b.dataset.ex](JSON.parse(JSON.stringify(fakeActual()))));
+  fakeStatus("Example loaded: edit it if you like, then apply.");
+};
+$("fake-tool").onchange = fakeLoad;
+$("fake-reset").onclick = () => { fakeLoad(); $("fake-header").value = ""; fakeStatus("Reset to the actual schema."); };
+$("fake-apply").onclick = async () => {
+  let fake;
+  try { fake = JSON.parse($("fake-edit").value); } catch (err) { fakeStatus("Fake schema is not valid JSON: " + err.message, true); return; }
+  const tool = $("fake-tool").value;
+  const header = $("fake-header").value.trim() || null;
+  clearPreset();
+  try {
+    await call("/api/mutation", { id: "CUSTOM", custom: { tool }, fake_schema: fake, header });
+    fakeStatus("Applied to " + tool + ". Watch the run and the patch log: the registry has to heal it on its own.");
+  } catch (err) { fakeStatus(err.message, true); }
+  poll();
+};
+async function initFake() {
+  try {
+    fakeSchemas = (await call("/api/drift-editor/schemas")).tools;
+  } catch (err) {
+    fakeStatus("Schema editor unavailable: " + err.message, true);
+    return;
+  }
+  $("fake-tool").replaceChildren(...Object.keys(fakeSchemas).map((t) => el("option", t, { value: t })));
+  fakeLoad();
 }
 $("clear-mut").onclick = () => act("/api/mutation", { id: null });
 $("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_delay: 1.0 });
@@ -1403,6 +1506,18 @@ function renderRun(agent, s) {
   }
 }
 const shownReply = {};
+// One heal as its steps: detect, diagnose, fix, then the verify layers it ran (audit `layers`).
+function pipelineView(h) {
+  const wrap = el("div", null, { class: "pipeline", "aria-label": "Heal steps" });
+  const step = (label, value, status) => { const d = el("div", null, { class: "step " + status }); d.append(el("small", label), el("b", value)); return d; };
+  wrap.append(step("Detect", h.class + " · " + (h.raw_code ?? "-"), "pass"),
+    step("Diagnose", "tier " + h.tier + " · " + (h.path || "-"), h.tier === null || h.tier === undefined ? "skip" : "pass"),
+    step("Fix", h.fix ? (h.fix.request_ops.length + h.fix.response_ops.length) + " ops" : "none", h.fix ? "pass" : "skip"));
+  for (const l of h.layers || []) wrap.append(step(l.layer + " " + l.name.replace(/_/g, " "), l.detail, l.status));
+  const ok = h.outcome === "RECOVERED";
+  wrap.append(step("Outcome", h.outcome + (h.reason ? " · " + h.reason : ""), ok ? "pass" : h.reason === "NOT_DRIFT" ? "skip" : "fail"));
+  return wrap;
+}
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
   const sig = heals.length + ":" + (heals.length ? heals[heals.length - 1].ts_ms : 0);
@@ -1438,12 +1553,12 @@ function renderHeals(heals) {
     const dd = el("td", null, { colspan: "9" });
     const grid = el("div", null, { class: "detail-grid" });
     const item = (key, v) => { const d = el("div"); d.append(el("small", key), el("code", v)); return d; };
-    grid.append(item("Fingerprint", h.fingerprint || "-"), item("Raw code", String(h.raw_code ?? "-")), item("Fix id", String(h.fix_id ?? "-")), item("Jev tokens", String(h.jev_tokens ?? 0)));
-    dd.append(storyView(h), changeView(h), grid); dt.appendChild(dd);
+    grid.append(item("Fingerprint", h.fingerprint || "-"), item("Raw code", String(h.raw_code ?? "-")), item("Fix id", String(h.fix_id ?? "-")), item("Jev tokens", String(h.jev_tokens ?? 0)), item("Repair LLM tokens", String(h.llm_tokens ?? 0)));
+    dd.append(pipelineView(h), storyView(h), changeView(h), grid); dt.appendChild(dd);
     const setOpen = (open) => { dt.hidden = !open; tr.classList.toggle("open", open); tr.setAttribute("aria-expanded", String(open)); };
     const toggle = () => {
       const open = dt.hidden;
-      if (open) { openHeals.add(key); dd.children[1].replaceWith(changeView(h)); } else openHeals.delete(key);
+      if (open) { openHeals.add(key); dd.children[2].replaceWith(changeView(h)); } else openHeals.delete(key);
       setOpen(open);
     };
     if (openHeals.has(key)) setOpen(true);
@@ -1557,7 +1672,8 @@ function render(s) {
   chip.textContent = s.active_mutation ? "Live mutation " + s.active_mutation : "No mutation";
   chip.className = "pill " + (s.active_mutation ? "bad" : "plain");
   for (const [id, b] of Object.entries(mutationButtons)) b.setAttribute("aria-pressed", String(id === s.active_mutation));
-  if (s.active_mutation !== lastLiveMut) { lastLiveMut = s.active_mutation; renderBanner($("live-banner"), lastLiveMut || "CLEAN"); }
+  const sig = JSON.stringify(s.active_custom || null);
+  if (s.active_mutation !== lastLiveMut || sig !== JSON.stringify(customSpec)) { lastLiveMut = s.active_mutation; customSpec = s.active_custom || null; renderBanner($("live-banner"), lastLiveMut || "CLEAN"); }
   syncTraces(s.traces);
   for (const e of s.events) { addCall(e); after = e.event_id; }
   for (const a of AGENTS) renderRun(a, s);
@@ -1614,15 +1730,82 @@ function renderMcp(info) {
 }
 function loadMcp() {
   call("/api/mcp").then(renderMcp).catch(() => {});
+  loadMcpCalls();
+}
+function renderMcpCalls(u) {
+  const body = $("mcp-calls");
+  const tools = u.tools || [];
+  const max = Math.max(1, ...tools.map((t) => t.calls));
+  const rows = tools.map((t) => {
+    const tr = el("tr");
+    const calls = el("td");
+    const bar = el("span", null, { style: "display:inline-block;height:6px;border-radius:3px;background:var(--accent);margin-left:8px;vertical-align:middle;width:" + Math.round((t.calls / max) * 60) + "px" });
+    calls.append(String(t.calls), bar);
+    tr.append(el("td", t.name, { class: "mono" }), calls, el("td", String(t.ok)), el("td", String(t.errors)), el("td", String(t.heals)),
+      el("td", t.p50_ms === null ? "—" : t.p50_ms + " ms"), el("td", t.last_ms ? clock(t.last_ms) : "—"));
+    return tr;
+  });
+  if (!u.total_calls) {
+    const tr = el("tr");
+    tr.append(el("td", "No MCP calls yet. Point an MCP client at /mcp (see docs/mcp-clients.md).", { colspan: "7", class: "empty" }));
+    rows.push(tr);
+  }
+  body.replaceChildren(...rows);
+}
+function loadMcpCalls() {
+  call("/api/mcp/calls").then(renderMcpCalls).catch(() => {});
+}
+setInterval(() => { if (!$("view-mcp").hidden) loadMcpCalls(); }, 3000);
+// bench/report.md -> headings, lists, tables and paragraphs (text only, never innerHTML).
+function renderMarkdown(md) {
+  const inline = (text) => {
+    const out = [];
+    for (const part of text.split(/(`[^`]+`|\*\*[^*]+\*\*)/)) {
+      if (!part) continue;
+      if (part.startsWith("`") && part.endsWith("`")) out.push(el("code", part.slice(1, -1)));
+      else if (part.startsWith("**") && part.endsWith("**")) out.push(el("b", part.slice(2, -2)));
+      else out.push(document.createTextNode(part));
+    }
+    return out;
+  };
+  const cells = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  const nodes = [], lines = md.split(/\r?\n/);
+  for (let i = 0; i < lines.length;) {
+    const line = lines[i];
+    const h = line.match(/^(#{1,3})\s+(.*)/);
+    if (h) { const n = el("h" + h[1].length); n.append(...inline(h[2])); nodes.push(n); i++; continue; }
+    if (line.trim().startsWith("|") && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1] || "")) {
+      const table = el("table", null, { class: "log" }), head = el("tr");
+      for (const c of cells(line)) { const th = el("th"); th.append(...inline(c)); head.append(th); }
+      const body = el("tbody");
+      for (i += 2; i < lines.length && lines[i].trim().startsWith("|"); i++) {
+        const tr = el("tr");
+        for (const c of cells(lines[i])) { const td = el("td"); td.append(...inline(c)); tr.append(td); }
+        body.append(tr);
+      }
+      table.append(el("thead"), body); table.firstChild.append(head);
+      const wrap = el("div", null, { class: "scroll" }); wrap.append(table); nodes.push(wrap); continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) {
+      const ul = el("ul");
+      for (; i < lines.length && /^\s*[-*]\s+/.test(lines[i]); i++) { const li = el("li"); li.append(...inline(lines[i].replace(/^\s*[-*]\s+/, ""))); ul.append(li); }
+      nodes.push(ul); continue;
+    }
+    if (!line.trim()) { i++; continue; }
+    const para = [];
+    for (; i < lines.length && lines[i].trim() && !/^(#{1,3}\s|\s*[-*]\s|\s*\|)/.test(lines[i]); i++) para.push(lines[i].trim());
+    const p = el("p"); p.append(...inline(para.join(" "))); nodes.push(p);
+  }
+  return nodes;
 }
 function loadReport() {
   call("/api/report").then((r) => {
-    $("report").textContent = r.report || "";
+    $("report").replaceChildren(...renderMarkdown(r.report || ""));
     $("report-empty").hidden = Boolean(r.report);
   }).catch(() => {});
 }
 clearView();
-poll().then(() => { loadReport(); loadMcp(); initPresets(); });
+poll().then(() => { loadReport(); loadMcp(); initPresets(); initFake(); });
 setInterval(poll, 500);
 </script>
 <script src="/panels/registry.js"></script>

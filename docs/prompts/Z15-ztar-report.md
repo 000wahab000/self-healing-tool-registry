@@ -6,8 +6,8 @@
 
 - `bench/run.py`: the report-building functions only
 - `bench/report.md`: regenerated, never hand-edited
-- `tests/bench/test_ac_96_report.py` (new)
-- `product.md`: AC-96
+- `tests/bench/test_ac_98_report.py` (new)
+- `product.md`: AC-98
 - `README.md` / pitch copy: update numbers **only** from the regenerated report (AGENTS.md claims rule)
 
 ## Build
@@ -22,7 +22,7 @@ Add these sections to the generated report, keeping the existing ones:
 6. **MTTR p50/p95** by tier (already computed; just make sure it is present).
 7. A header line with the exact commands and seeds used, the N per mutation, and the git commit.
 
-## Tests (`test_ac_96_*`)
+## Tests (`test_ac_98_*`)
 
 - build the report from a small fixture result set: every section heading is present; the CI text matches `wilson()` output
 - with no fuzz file present: "fuzz not run" appears, with no exception
