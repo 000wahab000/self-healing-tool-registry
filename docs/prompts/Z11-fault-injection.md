@@ -7,8 +7,8 @@ Transient and business errors must never produce a patch. `detect.py` `_retry_af
 ## Owns
 
 - `src/healer/detect.py`: `Retry-After` parsing only
-- `tests/integration/test_ac_92_fault_matrix.py` (new)
-- `product.md`: AC-92
+- `tests/integration/test_ac_94_fault_matrix.py` (new)
+- `product.md`: AC-94
 
 ## Build
 

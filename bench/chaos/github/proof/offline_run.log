@@ -1,0 +1,41 @@
+[identity] control
+[rename_owner_repo] control
+[rename_owner_repo] agent
+[rename_issue_number] control
+[rename_issue_number] agent
+[int_to_string] control
+[int_to_string] agent
+[wrap_args] control
+[wrap_args] agent
+[nest_repo] control
+[nest_repo] agent
+[enum_case] control
+[enum_case] agent
+[enum_synonym] control
+[enum_synonym] agent
+[merge_owner_repo] control
+[merge_owner_repo] agent
+[decoy_unused] control
+[decoy_used] control
+| profile | kind | calls | verdicts | observed |
+|---|---|---|---|---|
+| identity | control | 6 | {'PASS': 6} | {'pass_through': 6} |
+| rename_owner_repo | control | 6 | {'PASS': 2, 'REFUSED': 4} | {'pass_through': 2, 'refused': 4} |
+| rename_owner_repo | agent | 2 | {'REFUSED': 2} | {'refused': 2} |
+| rename_issue_number | control | 6 | {'PASS': 6} | {'pass_through': 5, 'heal_correct': 1} |
+| rename_issue_number | agent | 2 | {'PASS': 2} | {'pass_through': 1, 'heal_correct': 1} |
+| int_to_string | control | 6 | {'PASS': 6} | {'pass_through': 4, 'heal_correct': 2} |
+| int_to_string | agent | 2 | {'PASS': 2} | {'pass_through': 1, 'heal_correct': 1} |
+| wrap_args | control | 6 | {'PASS': 3, 'REFUSED': 3} | {'pass_through': 1, 'heal_correct': 2, 'refused': 3} |
+| wrap_args | agent | 2 | {'REFUSED': 1, 'PASS': 1} | {'refused': 1, 'heal_correct': 1} |
+| nest_repo | control | 6 | {'PASS': 6} | {'pass_through': 2, 'heal_correct': 4} |
+| nest_repo | agent | 2 | {'PASS': 2} | {'heal_correct': 2} |
+| enum_case | control | 6 | {'PASS': 6} | {'pass_through': 5, 'heal_correct': 1} |
+| enum_case | agent | 2 | {'PASS': 2} | {'heal_correct': 1, 'pass_through': 1} |
+| enum_synonym | control | 6 | {'PASS': 6} | {'pass_through': 5, 'refused': 1} |
+| enum_synonym | agent | 4 | {'PASS': 2, 'PASS_THROUGH': 1, 'AGENT_ERR': 1} | {'refused': 1, 'pass_through': 2, 'agent_arg_error': 1} |
+| merge_owner_repo | control | 6 | {'PASS': 6} | {'pass_through': 2, 'refused': 4} |
+| merge_owner_repo | agent | 2 | {'PASS': 2} | {'refused': 2} |
+| decoy_unused | control | 6 | {'PASS': 6} | {'pass_through': 6} |
+| decoy_used | control | 6 | {'PASS': 6} | {'refused': 6} |
+claude calls used: 16

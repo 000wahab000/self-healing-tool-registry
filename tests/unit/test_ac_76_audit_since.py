@@ -113,6 +113,7 @@ async def test_ac_76_scripted_state_matches_legacy_render_and_live_reset_counts(
         legacy = {
             "epoch": dash.epoch,
             "active_mutation": dash.mutation,
+            "active_custom": dash.custom,
             "run_scenario": dash.run_scenario,
             "runs": dash.runs,
             "traces": {

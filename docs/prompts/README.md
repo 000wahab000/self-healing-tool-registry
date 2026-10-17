@@ -50,22 +50,22 @@ Skipped as already on `main`: Phase 0 audit (its result is the status table in `
 
 | ID | Title | Owns (may edit) | Depends on | AC |
 |---|---|---|---|---|
-| Z0 | Split `verify.py` into one module per layer | `src/healer/layers/` (new), `verify.py` | none | AC-81 |
-| Z1 | L1: enum targets checked against the current spec | `layers/l1_provenance.py` | Z0 | AC-82 |
-| Z2 | L2: unknown headers; MCP/GraphQL/gRPC requests | `layers/l2_request.py` | Z0 | AC-83 |
-| Z3 | L3: E5 move/unwrap only; response-source provenance | `layers/l3_output.py` | Z0 | AC-84 |
-| Z4 | L5: read-back for `set_manager` and `create_ticket` | `layers/l5_readback.py`, `config/tools.json` (readback), mock W1 variants | Z0 | AC-85 |
-| Z5 | L6: U1 wrong units through the frozen registry | `layers/l6_invariants.py`, `config/tools.json` (invariants) | Z0 | AC-86 |
-| Z6 | L7: MCP replay guard | `layers/l7_replay.py` | Z0 | AC-87 |
-| Z7 | One mutation catalog; honest denominator | `mock_api/catalog.py` (new), constants in bench/mock | none | AC-88 |
-| Z8 | Evidence ranking; refuse on a tie | `candidates.py` | none | AC-89 |
-| Z9 | Verify-before-commit proof matrix (tests only) | `tests/integration/test_ac_90_*` | best after Z1-Z6 | AC-90 |
-| Z10 | Seeded fuzz generator | `bench/fuzz.py` (new), mock hook | Z7 | AC-91 |
-| Z11 | Fault-injection matrix; `Retry-After` date | `detect.py` | none | AC-92 |
-| Z12 | Wilson CIs; N=30 | `metrics.py`, `bench/run.py` `--n` | none (Z7 optional) | AC-93 |
-| Z13 | `INTERNAL_ERROR` typing; bounded `_first_seen` | `heal.py` (two spots), `models.py` | none | AC-94 |
-| Z14 | Cyclic `$ref`, MCP pagination, retry jitter | `openapi_loader.py`, `mcp_upstream.py`, retry tests | none | AC-95 |
-| Z15 | Report: layers, CIs, fuzz | `bench/run.py` report functions, `bench/report.md` | Z7, Z9, Z10, Z12 | AC-96 |
+| Z0 | Split `verify.py` into one module per layer | `src/healer/layers/` (new), `verify.py` | none | AC-83 |
+| Z1 | L1: enum targets checked against the current spec | `layers/l1_provenance.py` | Z0 | AC-84 |
+| Z2 | L2: unknown headers; MCP/GraphQL/gRPC requests | `layers/l2_request.py` | Z0 | AC-85 |
+| Z3 | L3: E5 move/unwrap only; response-source provenance | `layers/l3_output.py` | Z0 | AC-86 |
+| Z4 | L5: read-back for `set_manager` and `create_ticket` | `layers/l5_readback.py`, `config/tools.json` (readback), mock W1 variants | Z0 | AC-87 |
+| Z5 | L6: U1 wrong units through the frozen registry | `layers/l6_invariants.py`, `config/tools.json` (invariants) | Z0 | AC-88 |
+| Z6 | L7: MCP replay guard | `layers/l7_replay.py` | Z0 | AC-89 |
+| Z7 | One mutation catalog; honest denominator | `mock_api/catalog.py` (new), constants in bench/mock | none | AC-90 |
+| Z8 | Evidence ranking; refuse on a tie | `candidates.py` | none | AC-91 |
+| Z9 | Verify-before-commit proof matrix (tests only) | `tests/integration/test_ac_92_*` | best after Z1-Z6 | AC-92 |
+| Z10 | Seeded fuzz generator | `bench/fuzz.py` (new), mock hook | Z7 | AC-93 |
+| Z11 | Fault-injection matrix; `Retry-After` date | `detect.py` | none | AC-94 |
+| Z12 | Wilson CIs; N=30 | `metrics.py`, `bench/run.py` `--n` | none (Z7 optional) | AC-95 |
+| Z13 | `INTERNAL_ERROR` typing; bounded `_first_seen` | `heal.py` (two spots), `models.py` | none | AC-96 |
+| Z14 | Cyclic `$ref`, MCP pagination, retry jitter | `openapi_loader.py`, `mcp_upstream.py`, retry tests | none | AC-97 |
+| Z15 | Report: layers, CIs, fuzz | `bench/run.py` report functions, `bench/report.md` | Z7, Z9, Z10, Z12 | AC-98 |
 
 ## ZTAR lanes
 

@@ -1,6 +1,6 @@
 ## Read first
 
-`agent.md`: coding rules and invariants. `FLOW.md`: how the system works end to end. `plan.md`: status and next steps. `product.md`: requirements (FR/AC ids). Single maintainer (Wahab); the earlier machine and team split is history. Reserved AC ranges are historical: new ACs continue from the highest number used in `product.md` (AC-69).
+`agent.md`: coding rules and invariants. `FLOW.md`: how the system works end to end. `plan.md`: status and next steps. `product.md`: requirements (FR/AC ids). Single maintainer (Wahab); the earlier machine and team split is history. Reserved AC ranges are historical: new ACs continue from the highest number used in `product.md` (AC-111; AC-83 to AC-98 are reserved for Z0 to Z15).
 
 ## Contracts between modules
 

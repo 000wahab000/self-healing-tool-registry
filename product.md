@@ -685,3 +685,16 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 | AC-109 | CRUD/test and pending-restart/removal warnings work; stdio remains file-only. | Dashboard tests/browser checks |
 | AC-110 | Raw/derived credentials stay out of errors, repair prompts, logs, probes and store. | Secret-echo tests |
 | AC-111 | Frozen schemas, no invented values/model code, one replay/audit row and cleanup remain intact. | Existing and new integration tests |
+
+
+AC-83 to AC-98 are reserved for the remaining Z tasks (`docs/prompts/Z0`–`Z15`).
+
+## 26. Dashboard demo and MCP usage
+
+### Acceptance criteria
+
+| ID | Criterion | Verification |
+|---|---|---|
+| AC-99 | Every `tools/call` through the MCP front door logs one call row (agent `mcp`, tool, error class, latency) when a store is attached, without changing the call result; `GET /api/mcp/calls` returns per-tool calls, OK, errors, heals, p50 latency and last call for every frozen tool, and the MCP tab shows them as a table | Unit (`tests/dashboard/test_ac_99_mcp_tool_usage.py`) |
+| AC-100 | The Live tab can fake a tool's input schema: the edited schema is diffed against the actual v1 schema into a validated `CUSTOM` drift (rename, string to integer, wrap, new required field, header) applied only to the mock API; unsupported edits return 400; the registry then detects and heals the drift on its own and the heal appears in the patch log | Unit (`tests/dashboard/test_ac_100_drift_editor.py`) |
+| AC-101 | Scenario and prompt runs (`POST /api/explore`) log their tool calls for both agents, so the Metrics tab's agent and token impact counts them since the last Reset; a live LLM run's measured token pair replaces the estimate | Unit (`tests/dashboard/test_ac_101_explore_metrics.py`) |

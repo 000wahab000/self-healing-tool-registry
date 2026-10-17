@@ -356,12 +356,19 @@ class Healer:
                 move = next(op for op in fix.request_ops
                     if op.get("op") == "move" and op.get("from") == source)
                 read_key = canonical.get(doc, move["to"])
-            lookup = {**doc, "body": {key_name: read_key}, "query": {}, "header": {}}
             timeout = min(0.1, max(0.001, (h.deadline.when() if h.deadline else
                 asyncio.get_running_loop().time() + 0.1) - asyncio.get_running_loop().time()))
-            lookup["route"] = {"method": config["method"], "path": config["route"]}
-            response, error = await rest.send(self._client, lookup, timeout)
-            return detect.classify(response, error)
+            # The read route may not share the write's drift: try its original key name
+            # first, the write's renamed one only if the read route rejects the shape.
+            names = [key_path[-1]] + ([key_name] if key_name != key_path[-1] else [])
+            for name in names:
+                lookup = {**doc, "body": {name: read_key}, "query": {}, "header": {}}
+                lookup["route"] = {"method": config["method"], "path": config["route"]}
+                response, error = await rest.send(self._client, lookup, timeout)
+                outcome = detect.classify(response, error)
+                if outcome.cls is not ErrorClass.E2:
+                    break
+            return outcome
 
         return read
 

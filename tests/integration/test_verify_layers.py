@@ -111,3 +111,32 @@ def test_l6_invariant_and_l7_unsafe_write_fail_independently():
     rows, unsafe = asyncio.run(run())
     assert rows[5]["status"] == "fail"
     assert unsafe[6]["status"] == "fail"
+
+
+# Live GitHub MCP finding: a partial unwrap left {"args": {"state": ...}} behind; GitHub ignores
+# unknown keys, so the call "worked" and the filter was silently dropped.
+_LIST_ISSUES = {"method": "MCP", "path": "list_issues", "params": [], "body_schema": {
+    "type": "object",
+    "properties": {"owner": {"type": "string"}, "repo": {"type": "string"}, "state": {"type": "string"}},
+    "required": ["owner", "repo"],
+}}
+
+
+def _l2(base_body: dict, ops: list[dict]) -> dict:
+    return Verifier().preflight(
+        base_doc={"body": base_body}, current_spec=_LIST_ISSUES,
+        fix={"request_ops": ops, "response_ops": []}, original_failure=ErrorClass.E2,
+        cfg={}, tool_cfg={}, original_status="-32602", no_side_effect=True,
+    )[1]
+
+
+def test_mcp_partial_unwrap_fails_request_schema():
+    wrapped = {"args": {"owner": "o", "repo": "r", "state": "OPEN"}}
+    partial = [{"op": "move", "from": ["body", "args", k], "to": ["body", k]} for k in ("owner", "repo")]
+    assert _l2(wrapped, partial) == {"layer": "L2", "name": "request_schema", "status": "fail", "detail": "schema_invalid"}
+
+
+def test_mcp_full_unwrap_drops_the_empty_wrapper_and_passes():
+    wrapped = {"args": {"owner": "o", "repo": "r", "state": "OPEN"}}
+    full = [{"op": "move", "from": ["body", "args", k], "to": ["body", k]} for k in ("owner", "repo", "state")]
+    assert _l2(wrapped, full)["status"] == "pass"

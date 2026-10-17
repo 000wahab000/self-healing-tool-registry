@@ -9,8 +9,8 @@ Mutation labels are scattered. `bench/run.py` has `HEALABLE_MUTATIONS`, `M6_SCEN
 - `mock_api/catalog.py` (new): the single source of truth
 - `bench/run.py`, `bench/oracle.py`, `mock_api/app.py`: replace the local constants with imports from the catalog; no logic change
 - `src/healer/metrics.py`: add `correct_handling_rate()` only
-- `tests/bench/test_ac_88_catalog.py` (new)
-- `product.md`: AC-88
+- `tests/bench/test_ac_90_catalog.py` (new)
+- `product.md`: AC-90
 
 ## Build
 
@@ -35,7 +35,7 @@ Mutation labels are scattered. `bench/run.py` has `HEALABLE_MUTATIONS`, `M6_SCEN
 
 Z10's fuzz cases register as `Mutation` objects with `protocol="rest"` and `id="FZ-<seed>-<i>"`. New protocols add rows here, not new constants.
 
-## Tests (`test_ac_88_*`)
+## Tests (`test_ac_90_*`)
 
 - every id is used by the mock or the bench (no dead rows), and every mutation the mock implements is in the catalog
 - the healable and must_refuse sets are disjoint

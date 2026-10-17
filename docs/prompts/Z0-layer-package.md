@@ -9,8 +9,8 @@
 - `src/healer/layers/__init__.py` (new): the ordered layer list
 - `src/healer/layers/l1_provenance.py` ... `l7_replay.py` (new, seven files)
 - `src/healer/verify.py`: becomes a thin orchestrator
-- `tests/unit/test_ac_81_layer_package.py` (new)
-- `product.md`: one AC row (AC-81)
+- `tests/unit/test_ac_83_layer_package.py` (new)
+- `product.md`: one AC row (AC-83)
 
 ## Build
 
@@ -29,7 +29,7 @@
 
 A future L8 = one new file + one entry in `layers.ORDERED`. Z1-Z6 each edit only their own file.
 
-## Tests (`test_ac_81_*`)
+## Tests (`test_ac_83_*`)
 
 - `layers.ORDERED` has 7 entries with layers 1..7 in order and the same names `verify.py` used before.
 - Golden test: for a handful of existing fixtures (take them from `tests/unit/` verify tests or build minimal ones), the per-layer rows from the new `verify()` equal the rows from the old one. Capture the old output in the test as literal expected data before refactoring.

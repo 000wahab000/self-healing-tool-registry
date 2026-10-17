@@ -1,0 +1,17 @@
+{
+  "servers": [
+    {
+      "name": "github",
+      "transport": "http",
+      "url": "http://127.0.0.1:8099/mcp",
+      "selected_operations": [
+        "get_me",
+        "search_repositories",
+        "list_issues",
+        "get_issue",
+        "get_file_contents",
+        "list_commits"
+      ]
+    }
+  ]
+}

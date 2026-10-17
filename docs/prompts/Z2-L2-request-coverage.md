@@ -11,8 +11,8 @@ L2 validates the REST body and query of the patched request against the freshly 
 ## Owns
 
 - `src/healer/layers/l2_request.py`
-- `tests/unit/test_ac_83_l2_request.py` (new)
-- `product.md`: AC-83
+- `tests/unit/test_ac_85_l2_request.py` (new)
+- `product.md`: AC-85
 
 Do not edit the adapters or loaders. L2 reads the `OperationSpec` they already produce (contract 1). If an adapter does not put enough into `OperationSpec` (for example a GraphQL variables schema), stop for that protocol, keep `skip` with a precise detail, and list it in the PR.
 
@@ -22,7 +22,7 @@ Do not edit the adapters or loaders. L2 reads the `OperationSpec` they already p
 2. **MCP upstream:** `OperationSpec` keyed `<server>__<tool>` is built from `inputSchema` (contract 7). Validate the patched arguments with the same strict-schema helper (`_strict`) used for REST bodies.
 3. **GraphQL / gRPC:** do the same if their `OperationSpec.body_schema` is populated; otherwise keep `skip` with `detail="protocol_schema:<protocol>:no_schema"`.
 
-## Tests (`test_ac_83_*`)
+## Tests (`test_ac_85_*`)
 
 - REST: a declared header passes; an undeclared `X-Debug` fails with `unknown_header:x-debug`, and the value never appears in the row.
 - `X-Tenant-Id` from `header_sources` passes (the M5 path).

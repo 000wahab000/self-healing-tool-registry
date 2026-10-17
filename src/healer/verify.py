@@ -99,7 +99,7 @@ class Verifier:
             return [first, *_skip_from(2)]
         if current_spec is None:
             second = _row(2, "request_schema", "skip", "spec_unavailable")
-        elif str(current_spec.get("method", "")).upper() in {"MCP", "GRAPHQL", "GRPC"}:
+        elif str(current_spec.get("method", "")).upper() in {"GRAPHQL", "GRPC"}:  # MCP: body_schema is the inputSchema, checked below
             second = _row(2, "request_schema", "skip", "protocol_schema")
         else:
             patched = apply_ops(fix.get("request_ops", []), base_doc, cfg)

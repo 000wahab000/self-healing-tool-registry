@@ -911,12 +911,14 @@ async def run_explore(
             execute_healing = healing_agent.executor(healing_reg)
 
             steps = CONTROL_STEPS.get(mutation, scripted.STEPS)
+            run_id = uuid.uuid4().hex[:8]  # one id per run, as agents/scripted.py does
             for call_step, (name, args) in enumerate(steps, start=1):
                 t0 = time.perf_counter()
                 prev_heals = len(store.audit_events())
                 sent = len(healing_mock.requests)
                 text, cls = await execute_healing(name, dict(args))
                 elapsed_ms = round((time.perf_counter() - t0) * 1000)
+                store.log_call("healing", run_id, name, cls, elapsed_ms)
 
                 current_heals = store.audit_events()
                 heal_info = None
@@ -978,6 +980,7 @@ async def run_explore(
                     sent = len(baseline_mock.requests)
                     text, cls = await execute_baseline(name, dict(args))
                     elapsed_ms = round((time.perf_counter() - t0) * 1000)
+                    store.log_call("baseline", run_id, name, cls, elapsed_ms)
 
                     try:
                         if text.startswith("HTTP "):

@@ -34,7 +34,7 @@ def test_move_nest_creates_intermediates_and_unnest() -> None:
     unnest = [
         {"op": "move", "from": ["body", "target", "id"], "to": ["body", "user_id"]}
     ]
-    assert apply_ops(unnest, nested, CFG) == {"body": {"target": {}, "user_id": "7"}}
+    assert apply_ops(unnest, nested, CFG) == {"body": {"user_id": "7"}}  # emptied wrapper removed
 
 
 def test_move_on_response_body_root() -> None:
@@ -266,3 +266,11 @@ def test_ac_42_encoding_sets_content_type() -> None:
 
 
 
+
+
+def test_move_removes_wrappers_it_empties_only():
+    doc = {"body": {"repository": {"owner": "o", "repo": "r"}, "state": "OPEN"}}
+    out = apply_ops([{"op": "move", "from": ["body", "repository", k], "to": ["body", k]} for k in ("owner", "repo")], doc, {})
+    assert out == {"body": {"state": "OPEN", "owner": "o", "repo": "r"}}
+    partial = apply_ops([{"op": "move", "from": ["body", "repository", "owner"], "to": ["body", "owner"]}], doc, {})
+    assert partial["body"]["repository"] == {"repo": "r"}

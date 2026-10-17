@@ -10,8 +10,8 @@ M1-M11 are hand-written, so the healer could be tuned to them. A seeded generato
 
 - `bench/fuzz.py` (new): generator + runner, CLI `python -m bench.fuzz --seed 7 --n 50`
 - `mock_api/app.py`: one hook that lets the mock serve a generated mutation spec. Keep it small; prefer passing a mutation description object over adding per-case branches.
-- `tests/bench/test_ac_91_fuzz.py` (new)
-- `product.md`: AC-91
+- `tests/bench/test_ac_93_fuzz.py` (new)
+- `product.md`: AC-93
 
 Do **not** edit `bench/run.py` or the report. Z14 wires fuzz results into the report.
 
@@ -26,7 +26,7 @@ Do **not** edit `bench/run.py` or the report. Z14 wires fuzz results into the re
 4. Each case registers as a catalog `Mutation` (`id="FZ-<seed>-<i>"`) in a run-local catalog extension. Do not write to the static `CATALOG`.
 5. The runner executes each case through the scripted healing agent with the oracle and prints: the seed, n, fuzz ZTAR (healable only), Safe-Refusal (must_refuse only), False-Patch, and the failures listed by case id + primitives. It writes `bench/results/fuzz-<seed>.json` (gitignored).
 
-## Tests (`test_ac_91_*`)
+## Tests (`test_ac_93_*`)
 
 - the same seed gives identical cases; a different seed gives different cases
 - labelling: rename-only is healable; a new required field with no source is must_refuse

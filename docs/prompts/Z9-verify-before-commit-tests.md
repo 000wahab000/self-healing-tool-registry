@@ -6,8 +6,8 @@ The invariant: a failed layer leaves the registry untouched and writes exactly o
 
 ## Owns
 
-- `tests/integration/test_ac_90_verify_before_commit.py` (new)
-- `product.md`: AC-90
+- `tests/integration/test_ac_92_verify_before_commit.py` (new)
+- `product.md`: AC-92
 
 ## Build
 

@@ -11,8 +11,8 @@ L6 supports invariant kinds (check which of `id_equals_request`, `non_empty`, `l
 - `src/healer/layers/l6_invariants.py`: add only missing invariant kinds from the list above
 - `config/tools.json`: `invariants` entries
 - `mock_api/app.py`: only if U1 needs a field on one of the four existing tools
-- `tests/integration/test_ac_86_u1_units.py` (new)
-- `product.md`: AC-86
+- `tests/integration/test_ac_88_u1_units.py` (new)
+- `product.md`: AC-88
 
 ## Build
 
@@ -21,7 +21,7 @@ L6 supports invariant kinds (check which of `id_equals_request`, `non_empty`, `l
 3. If it is **not** reachable: do **not** add a fifth tool (that changes the frozen tool set, contract 4). Instead attach U1 to an existing tool's existing numeric field, if one exists. If none exists, stop and report "U1 not provable through the frozen registry", with the reason.
 4. Add any missing invariant kinds from the list, each pure and deterministic, with a unit test.
 
-## Tests (`test_ac_86_*`)
+## Tests (`test_ac_88_*`)
 
 - Unit, one per invariant kind: a pass case and a fail case.
 - Integration (if reachable): U1 heals the shape but L6 fails on the value; registry unchanged; one audit row; `retry: false`; the oracle reports no WRONG_ACCEPTED.

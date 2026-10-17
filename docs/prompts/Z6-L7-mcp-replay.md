@@ -9,9 +9,9 @@ For REST, a non-idempotent write is replayed after a heal only if the original f
 ## Owns
 
 - `src/healer/layers/l7_replay.py`
-- `tests/unit/test_ac_87_l7_mcp_replay.py` (new)
+- `tests/unit/test_ac_89_l7_mcp_replay.py` (new)
 - `tests/mcp/`: one integration test file if the drift server supports a side-effect mutation (contract 8: use its documented mutation API, do not modify it)
-- `product.md`: AC-87
+- `product.md`: AC-89
 
 ## Build
 
@@ -20,7 +20,7 @@ For REST, a non-idempotent write is replayed after a heal only if the original f
 3. Idempotent unless proven otherwise? **No.** An MCP tool is non-idempotent unless its config says `"idempotent": true` or the upstream tool annotations say `idempotentHint: true` / `readOnlyHint: true` (read them only if the adapter already keeps them; if not, list it as a follow-up).
 4. Non-idempotent MCP tool without a qualifying rejection: refuse with `retry: false`.
 
-## Tests (`test_ac_87_*`)
+## Tests (`test_ac_89_*`)
 
 - MCP non-idempotent tool, `-32602`: replay allowed
 - MCP non-idempotent tool, `-32603` / internal or timeout: refused, no replay sent (spy on the adapter)
