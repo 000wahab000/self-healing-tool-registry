@@ -92,6 +92,11 @@ def _cast_value(value: Any, to: str) -> Any:
 
 def _move(op: dict, doc: dict, cfg: Mapping[str, str]) -> None:
     put(doc, op["to"], pop(doc, op["from"]))
+    # An unwrap must not leave the emptied wrapper behind: strict L2 would reject it.
+    parent = list(op["from"][:-1])
+    while len(parent) > 1 and get(doc, parent) == {}:
+        pop(doc, parent)
+        parent.pop()
 
 
 def _cast(op: dict, doc: dict, cfg: Mapping[str, str]) -> None:

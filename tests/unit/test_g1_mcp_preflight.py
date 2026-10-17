@@ -27,8 +27,8 @@ def test_mcp_invalid_params_allows_replay():
         no_side_effect=True,
     )
     assert rows[1]["layer"] == "L2"
-    assert rows[1]["status"] == "skip"
-    assert rows[1]["detail"] == "protocol_schema"
+    assert rows[1]["status"] == "pass"  # MCP body_schema is the tool's inputSchema
+    assert rows[1]["detail"] == "ok"
     assert rows[6]["layer"] == "L7"
     assert rows[6]["status"] == "pass"
     assert rows[6]["detail"] == "ok"
@@ -101,8 +101,8 @@ def test_mcp_idempotent_hint_allows_replay():
     assert rows[6]["detail"] == "ok"
 
 
-def test_mcp_protocol_schema_skips_l2():
-    """L2 skips for protocol schema tools rather than validating against HTTP OpenAPI schemas."""
+def test_mcp_l2_checks_the_input_schema():
+    """L2 validates MCP calls against the tool's inputSchema (a lenient upstream may ignore unknown keys)."""
     verifier = Verifier()
     spec = {
         "operation_id": "fetch",
@@ -122,5 +122,5 @@ def test_mcp_protocol_schema_skips_l2():
         no_side_effect=True,
     )
     assert rows[1]["layer"] == "L2"
-    assert rows[1]["status"] == "skip"
-    assert rows[1]["detail"] == "protocol_schema"
+    assert rows[1]["status"] == "pass"  # MCP body_schema is the tool's inputSchema
+    assert rows[1]["detail"] == "ok"

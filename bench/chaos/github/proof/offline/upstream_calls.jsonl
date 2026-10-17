@@ -1,0 +1,101 @@
+{"ts_ms": 1792194660676, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194660736, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194660796, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN"}, "accepted": true}
+{"ts_ms": 1792194660841, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194660887, "tool": "get_file_contents", "args": {"owner": "octocat", "repo": "hello-world", "path": "README.md"}, "accepted": true}
+{"ts_ms": 1792194660933, "tool": "list_commits", "args": {"owner": "octocat", "repo": "hello-world", "perPage": 2}, "accepted": true}
+{"ts_ms": 1792194664282, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194664329, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194664385, "tool": "list_issues", "args": {"repo_owner": "octocat", "repository": "hello-world", "state": "OPEN"}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_owner, repository"}
+{"ts_ms": 1792194664473, "tool": "get_issue", "args": {"repo_owner": "octocat", "repository": "hello-world", "issue_number": 1}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_owner, repository"}
+{"ts_ms": 1792194664549, "tool": "get_file_contents", "args": {"repo_owner": "octocat", "repository": "hello-world", "path": "README.md"}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_owner, repository"}
+{"ts_ms": 1792194664632, "tool": "list_commits", "args": {"repo_owner": "octocat", "repository": "hello-world", "perPage": 2}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_owner, repository"}
+{"ts_ms": 1792194674011, "tool": "list_issues", "args": {"repo_owner": "octocat", "repository": "hello-world", "state": "OPEN", "perPage": 100}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_owner, repository"}
+{"ts_ms": 1792194688784, "tool": "get_issue", "args": {"repo_owner": "octocat", "repository": "hello-world", "issue_number": 1}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_owner, repository"}
+{"ts_ms": 1792194698144, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194698202, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194698264, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN"}, "accepted": true}
+{"ts_ms": 1792194698306, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "number": 1}, "accepted": false, "code": -32602, "message": "missing required parameter(s): issue_number; unexpected additional properties: number"}
+{"ts_ms": 1792194698334, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194698420, "tool": "get_file_contents", "args": {"owner": "octocat", "repo": "hello-world", "path": "README.md"}, "accepted": true}
+{"ts_ms": 1792194698465, "tool": "list_commits", "args": {"owner": "octocat", "repo": "hello-world", "perPage": 2}, "accepted": true}
+{"ts_ms": 1792194707067, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN", "perPage": 100}, "accepted": true}
+{"ts_ms": 1792194716682, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "number": 1}, "accepted": false, "code": -32602, "message": "missing required parameter(s): issue_number; unexpected additional properties: number"}
+{"ts_ms": 1792194716713, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194723298, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194723356, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194723415, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN"}, "accepted": true}
+{"ts_ms": 1792194723463, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": "1"}, "accepted": false, "code": -32602, "message": "parameter issue_number must be of type integer, got string"}
+{"ts_ms": 1792194723499, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194723590, "tool": "get_file_contents", "args": {"owner": "octocat", "repo": "hello-world", "path": "README.md"}, "accepted": true}
+{"ts_ms": 1792194723646, "tool": "list_commits", "args": {"owner": "octocat", "repo": "hello-world", "perPage": "2"}, "accepted": false, "code": -32602, "message": "parameter perPage must be of type integer, got string"}
+{"ts_ms": 1792194723667, "tool": "list_commits", "args": {"owner": "octocat", "repo": "hello-world", "perPage": 2}, "accepted": true}
+{"ts_ms": 1792194732765, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN"}, "accepted": true}
+{"ts_ms": 1792194741477, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": "1"}, "accepted": false, "code": -32602, "message": "parameter issue_number must be of type integer, got string"}
+{"ts_ms": 1792194741516, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194749253, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194749307, "tool": "search_repositories", "args": {"args": {"query": "hello"}}, "accepted": false, "code": -32602, "message": "missing required parameter(s): query; unexpected additional properties: args"}
+{"ts_ms": 1792194749334, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194749418, "tool": "list_issues", "args": {"args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN"}}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: args"}
+{"ts_ms": 1792194749508, "tool": "get_issue", "args": {"args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo, issue_number; unexpected additional properties: args"}
+{"ts_ms": 1792194749530, "tool": "get_issue", "args": {"issue_number": 1, "owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194749646, "tool": "get_file_contents", "args": {"args": {"owner": "octocat", "repo": "hello-world", "path": "README.md"}}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: args"}
+{"ts_ms": 1792194749656, "tool": "get_file_contents", "args": {"args": {"path": "README.md"}, "owner": "octocat", "repo": "hello-world"}, "accepted": false, "code": -32602, "message": "unexpected additional properties: args"}
+{"ts_ms": 1792194749833, "tool": "list_commits", "args": {"args": {"owner": "octocat", "repo": "hello-world", "perPage": 2}}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: args"}
+{"ts_ms": 1792194749846, "tool": "list_commits", "args": {"args": {"perPage": 2}, "owner": "octocat", "repo": "hello-world"}, "accepted": false, "code": -32602, "message": "unexpected additional properties: args"}
+{"ts_ms": 1792194758843, "tool": "list_issues", "args": {"args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN", "perPage": 100}}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: args"}
+{"ts_ms": 1792194771726, "tool": "get_issue", "args": {"args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo, issue_number; unexpected additional properties: args"}
+{"ts_ms": 1792194771751, "tool": "get_issue", "args": {"issue_number": 1, "owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194779490, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194779546, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194779602, "tool": "list_issues", "args": {"repository": {"owner": "octocat", "repo": "hello-world"}, "state": "OPEN"}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repository"}
+{"ts_ms": 1792194779629, "tool": "list_issues", "args": {"state": "OPEN", "owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194779746, "tool": "get_issue", "args": {"repository": {"owner": "octocat", "repo": "hello-world"}, "issue_number": 1}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repository"}
+{"ts_ms": 1792194779757, "tool": "get_issue", "args": {"issue_number": 1, "owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194779839, "tool": "get_file_contents", "args": {"repository": {"owner": "octocat", "repo": "hello-world"}, "path": "README.md"}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repository"}
+{"ts_ms": 1792194779848, "tool": "get_file_contents", "args": {"path": "README.md", "owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194779939, "tool": "list_commits", "args": {"repository": {"owner": "octocat", "repo": "hello-world"}, "perPage": 2}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repository"}
+{"ts_ms": 1792194779950, "tool": "list_commits", "args": {"perPage": 2, "owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194788271, "tool": "list_issues", "args": {"repository": {"owner": "octocat", "repo": "hello-world"}, "state": "OPEN"}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repository"}
+{"ts_ms": 1792194788300, "tool": "list_issues", "args": {"state": "OPEN", "owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194798044, "tool": "get_issue", "args": {"repository": {"owner": "octocat", "repo": "hello-world"}, "issue_number": 1}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repository"}
+{"ts_ms": 1792194798055, "tool": "get_issue", "args": {"issue_number": 1, "owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194804769, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194804818, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194804874, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "open"}, "accepted": false, "code": -32602, "message": "parameter state: 'open' is not one of ['OPEN', 'CLOSED']"}
+{"ts_ms": 1792194804901, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN"}, "accepted": true}
+{"ts_ms": 1792194804987, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194805033, "tool": "get_file_contents", "args": {"owner": "octocat", "repo": "hello-world", "path": "README.md"}, "accepted": true}
+{"ts_ms": 1792194805086, "tool": "list_commits", "args": {"owner": "octocat", "repo": "hello-world", "perPage": 2}, "accepted": true}
+{"ts_ms": 1792194813488, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "open", "perPage": 100}, "accepted": false, "code": -32602, "message": "parameter state: 'open' is not one of ['OPEN', 'CLOSED']"}
+{"ts_ms": 1792194813519, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN", "perPage": 100}, "accepted": true}
+{"ts_ms": 1792194822022, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194829119, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194829171, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194829227, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "opened"}, "accepted": false, "code": -32602, "message": "parameter state: 'opened' is not one of ['OPEN', 'CLOSED']"}
+{"ts_ms": 1792194829313, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194829357, "tool": "get_file_contents", "args": {"owner": "octocat", "repo": "hello-world", "path": "README.md"}, "accepted": true}
+{"ts_ms": 1792194829416, "tool": "list_commits", "args": {"owner": "octocat", "repo": "hello-world", "perPage": 2}, "accepted": true}
+{"ts_ms": 1792194838948, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "opened", "perPage": 100}, "accepted": false, "code": -32602, "message": "parameter state: 'opened' is not one of ['OPEN', 'CLOSED']"}
+{"ts_ms": 1792194841314, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world"}, "accepted": true}
+{"ts_ms": 1792194853925, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194863107, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194863199, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194863253, "tool": "list_issues", "args": {"repo_full_name": "octocat/hello-world", "state": "OPEN"}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_full_name"}
+{"ts_ms": 1792194863353, "tool": "get_issue", "args": {"repo_full_name": "octocat/hello-world", "issue_number": 1}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_full_name"}
+{"ts_ms": 1792194863439, "tool": "get_file_contents", "args": {"repo_full_name": "octocat/hello-world", "path": "README.md"}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_full_name"}
+{"ts_ms": 1792194863518, "tool": "list_commits", "args": {"repo_full_name": "octocat/hello-world", "perPage": 2}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_full_name"}
+{"ts_ms": 1792194872866, "tool": "list_issues", "args": {"repo_full_name": "octocat/hello-world", "state": "OPEN", "perPage": 100}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_full_name"}
+{"ts_ms": 1792194884396, "tool": "get_issue", "args": {"repo_full_name": "octocat/hello-world", "issue_number": 1}, "accepted": false, "code": -32602, "message": "missing required parameter(s): owner, repo; unexpected additional properties: repo_full_name"}
+{"ts_ms": 1792194893956, "tool": "get_me", "args": {}, "accepted": true}
+{"ts_ms": 1792194894017, "tool": "search_repositories", "args": {"query": "hello"}, "accepted": true}
+{"ts_ms": 1792194894081, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN"}, "accepted": true}
+{"ts_ms": 1792194894131, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1}, "accepted": true}
+{"ts_ms": 1792194894224, "tool": "get_file_contents", "args": {"owner": "octocat", "repo": "hello-world", "path": "README.md"}, "accepted": true}
+{"ts_ms": 1792194894288, "tool": "list_commits", "args": {"owner": "octocat", "repo": "hello-world", "perPage": 2}, "accepted": true}
+{"ts_ms": 1792194898176, "tool": "get_me", "args": {"include_details": true}, "accepted": false, "code": -32602, "message": "unexpected additional properties: include_details"}
+{"ts_ms": 1792194898270, "tool": "search_repositories", "args": {"query": "hello", "include_details": true}, "accepted": false, "code": -32602, "message": "unexpected additional properties: include_details"}
+{"ts_ms": 1792194898349, "tool": "list_issues", "args": {"owner": "octocat", "repo": "hello-world", "state": "OPEN", "include_details": true}, "accepted": false, "code": -32602, "message": "unexpected additional properties: include_details"}
+{"ts_ms": 1792194898424, "tool": "get_issue", "args": {"owner": "octocat", "repo": "hello-world", "issue_number": 1, "include_details": true}, "accepted": false, "code": -32602, "message": "unexpected additional properties: include_details"}
+{"ts_ms": 1792194898506, "tool": "get_file_contents", "args": {"owner": "octocat", "repo": "hello-world", "path": "README.md", "include_details": true}, "accepted": false, "code": -32602, "message": "unexpected additional properties: include_details"}
+{"ts_ms": 1792194898692, "tool": "list_commits", "args": {"owner": "octocat", "repo": "hello-world", "perPage": 2, "include_details": true}, "accepted": false, "code": -32602, "message": "unexpected additional properties: include_details"}
