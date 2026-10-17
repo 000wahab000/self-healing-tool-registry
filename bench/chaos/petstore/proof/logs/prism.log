@@ -1,0 +1,1146 @@
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D1_body_rename.drift.json
+[6:03:38 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:03:38 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:03:38 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:03:38 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:03:38 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=tamisium&tags=eum&tags=spiculum
+[6:03:38 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/4134541117952873
+[6:03:38 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/6726733291014703?name=deripio&status=verus
+[6:03:38 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-7129122679260737
+[6:03:38 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-4899575646937881/uploadImage
+[6:03:38 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:03:38 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:03:38 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-3155953845541439
+[6:03:38 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-4536776728264199
+[6:03:38 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:03:38 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:03:38 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:03:38 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:03:38 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/tempora
+[6:03:38 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/ipsa
+[6:03:38 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/tribuo
+[6:03:38 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:03:40 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:03:40 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:03:40 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:03:40 AM] »     [VALIDATOR] ×  error     Request body must have required property 'petName'
+[6:03:40 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:03:40 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:03:40 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:03:40 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'petName'
+[6:03:40 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:03:40 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:03:40 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:03:40 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:03:40 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:03:40 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:03:41 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:03:41 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:03:41 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:03:41 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:03:41 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:03:41 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D2_query_rename.drift.json
+[6:03:48 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:03:48 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:03:48 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:03:48 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?state=sold
+[6:03:48 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=suspendo&tags=tamen
+[6:03:48 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/6888943839658037
+[6:03:48 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/7881272588579641?name=conculco&status=cursim
+[6:03:48 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-3584411346144245
+[6:03:48 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/5825622923553989/uploadImage
+[6:03:48 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:03:48 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:03:48 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/1315614437457145
+[6:03:48 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-5980895934562151
+[6:03:48 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:03:48 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:03:48 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:03:48 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:03:48 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/adsum
+[6:03:48 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/vorax
+[6:03:48 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/cunctatio
+[6:03:48 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:03:50 AM] » [HTTP SERVER] get /pet/findByStatus i  info      Request received
+[6:03:50 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:03:50 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:03:50 AM] »     [VALIDATOR] ×  error     Request query must have required property 'state'
+[6:03:50 AM] »     [NEGOTIATOR] √  success   Found response 400. I'll try with it.
+[6:03:50 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 400
+[6:03:50 AM] »     [NEGOTIATOR] i  info      > Responding with "400"
+[6:03:50 AM] »     [VALIDATOR] ×  error     Violation: request.query Request query must have required property 'state'
+[6:03:50 AM] » [HTTP SERVER] get /pet/findByStatus i  info      Request received
+[6:03:50 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:03:50 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:03:50 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:03:50 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:03:50 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:03:51 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:03:51 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:03:51 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:03:51 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:03:51 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:03:51 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D3_path_param_rename.drift.json
+[6:03:58 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:03:59 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:03:59 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:03:59 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=available
+[6:03:59 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=aegre&tags=coepi&tags=caveo&tags=delinquo
+[6:03:59 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-5522308344011389/uploadImage
+[6:03:59 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:03:59 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:03:59 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/3170863872916433
+[6:03:59 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/4260022455726767
+[6:03:59 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:03:59 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:03:59 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:03:59 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:03:59 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/error
+[6:03:59 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/vobis
+[6:03:59 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/cursim
+[6:03:59 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/8720106051985955
+[6:03:59 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-821735584450553?name=adfectus&status=vitium
+[6:03:59 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/8114705708938801
+[6:03:59 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:04:01 AM] » [HTTP SERVER] get /pet/7 i  info      Request received
+[6:04:01 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:01 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:01 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:01 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:01 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:04:01 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:04:01 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:01 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:01 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:01 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:01 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D4_route_move.drift.json
+[6:04:08 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:04:08 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:04:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:04:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:04:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=doloremque&tags=expedita
+[6:04:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-1991592821018061/uploadImage
+[6:04:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:04:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:04:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/1569878247732675
+[6:04:08 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-1314214388872561
+[6:04:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:04:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:04:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:04:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:04:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/vulgus
+[6:04:08 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/voluptatibus
+[6:04:08 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/deleo
+[6:04:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/v2/pet/-5611883769310401
+[6:04:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/v2/pet/-7389181692317015?name=vomito&status=ventus
+[6:04:08 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/v2/pet/-459608492312549
+[6:04:08 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:04:11 AM] » [HTTP SERVER] get /pet/7 i  info      Request received
+[6:04:11 AM] » [HTTP SERVER] get /pet/7 ×  error     Request terminated with error: https://stoplight.io/prism/errors#NO_PATH_MATCHED_ERROR: Route not resolved, no path matched
+[6:04:11 AM] » [HTTP SERVER] get /v2/pet/7 i  info      Request received
+[6:04:11 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:11 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:11 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:11 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:11 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:04:11 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:04:11 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:11 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:11 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:11 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:11 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D5_str_to_int.drift.json
+[6:04:18 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:04:19 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:04:19 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:04:19 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:04:19 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags
+[6:04:19 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-7774776045983533
+[6:04:19 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-3386545034439503?name=cibo&status=iusto
+[6:04:19 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-8848243392703183
+[6:04:19 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-3796064745441963/uploadImage
+[6:04:19 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:04:19 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:04:19 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/2922415772291735
+[6:04:19 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-2807536053825551
+[6:04:19 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:04:19 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:04:19 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:04:19 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:04:19 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/aiunt
+[6:04:19 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/demulceo
+[6:04:19 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/teres
+[6:04:19 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:04:21 AM] » [HTTP SERVER] post /user i  info      Request received
+[6:04:21 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:21 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:04:21 AM] »     [VALIDATOR] ×  error     Request body property phone must be integer
+[6:04:21 AM] »     [NEGOTIATOR] √  success   Created a 422 from a default response
+[6:04:21 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:04:21 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:04:21 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:04:21 AM] »     [VALIDATOR] ×  error     Violation: request.body.phone Request body property phone must be integer
+[6:04:21 AM] » [HTTP SERVER] post /user i  info      Request received
+[6:04:21 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:21 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:21 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:21 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:21 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:04:21 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:04:21 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:21 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:21 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:21 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:21 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D6_str_to_int_nonnum.drift.json
+[6:04:29 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:04:29 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:04:29 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:04:29 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:04:29 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=amaritudo&tags=audeo
+[6:04:29 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-409757232580599
+[6:04:29 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/6693277311852887?name=atrocitas&status=tollo
+[6:04:29 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-1575359063142999
+[6:04:29 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-4947576954603379/uploadImage
+[6:04:29 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:04:29 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:04:29 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-4437614459077909
+[6:04:29 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-3286886350572679
+[6:04:29 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:04:29 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:04:29 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:04:29 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:04:29 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/correptius
+[6:04:29 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/delectus
+[6:04:29 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/acidus
+[6:04:29 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:04:32 AM] » [HTTP SERVER] post /user i  info      Request received
+[6:04:32 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:32 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:04:32 AM] »     [VALIDATOR] ×  error     Request body property phone must be integer
+[6:04:32 AM] »     [NEGOTIATOR] √  success   Created a 422 from a default response
+[6:04:32 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:04:32 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:04:32 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:04:32 AM] »     [VALIDATOR] ×  error     Violation: request.body.phone Request body property phone must be integer
+[6:04:32 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:04:33 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:33 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:33 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:33 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:33 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D6b_str_to_int_leadzero.drift.json
+[6:04:41 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:04:41 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:04:41 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:04:41 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:04:41 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=necessitatibus&tags=cunae&tags=coruscus&tags=vulgo&tags=crux
+[6:04:41 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/3919158291505797
+[6:04:41 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/4861880831611439?name=argentum&status=decimus
+[6:04:41 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/1804809214082671
+[6:04:41 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-4985045939881115/uploadImage
+[6:04:41 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:04:41 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:04:41 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-4248866181512475
+[6:04:41 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-3312310298177221
+[6:04:41 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:04:41 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:04:41 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:04:41 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:04:41 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/tener
+[6:04:41 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/adopto
+[6:04:41 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/ater
+[6:04:41 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:04:43 AM] » [HTTP SERVER] post /user i  info      Request received
+[6:04:43 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:43 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:04:43 AM] »     [VALIDATOR] ×  error     Request body property phone must be integer
+[6:04:43 AM] »     [NEGOTIATOR] √  success   Created a 422 from a default response
+[6:04:43 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:04:43 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:04:43 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:04:43 AM] »     [VALIDATOR] ×  error     Violation: request.body.phone Request body property phone must be integer
+[6:04:43 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:04:43 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:43 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:43 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:43 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:43 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D7_wrap.drift.json
+[6:04:53 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:04:53 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:04:53 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:04:53 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:04:53 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=tantillus&tags=spiritus&tags=solutio&tags=delectus&tags=vestrum
+[6:04:53 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-3621540550727741
+[6:04:53 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/7457987365671405?name=cumque&status=sapiente
+[6:04:53 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/2458590987986531
+[6:04:53 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/2749419765780043/uploadImage
+[6:04:53 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:04:53 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:04:53 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/3194217832438577
+[6:04:53 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/3285466183666373
+[6:04:53 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:04:53 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:04:53 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:04:53 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:04:53 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/optio
+[6:04:53 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/audentia
+[6:04:53 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/alter
+[6:04:53 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:04:55 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:04:55 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:55 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:04:55 AM] »     [VALIDATOR] ×  error     Request body must have required property 'pet'
+[6:04:55 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:04:55 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:04:55 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:04:55 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'pet'
+[6:04:55 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:04:55 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:04:55 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:04:55 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:04:55 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:04:55 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D8_unwrap.drift.json
+[6:05:03 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:05:03 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:05:03 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:05:03 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=available
+[6:05:03 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=suscipit&tags=sub
+[6:05:03 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-1068465438102061
+[6:05:03 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-6354623562622049?name=aestas&status=ducimus
+[6:05:03 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/2898387346658301
+[6:05:03 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/7042025880897251/uploadImage
+[6:05:03 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:05:03 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:05:03 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-3494915612559923
+[6:05:03 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/4604677282032803
+[6:05:03 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:05:03 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:05:03 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:05:03 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:05:03 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/catena
+[6:05:03 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/cetera
+[6:05:03 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/adamo
+[6:05:03 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:05:05 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:05:05 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:05 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:05:05 AM] »     [VALIDATOR] ×  error     Request body must have required property 'name'
+[6:05:05 AM] »     [VALIDATOR] ×  error     Request body must have required property 'photoUrls'
+[6:05:05 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:05:05 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:05:05 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:05:05 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'name'
+[6:05:05 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'photoUrls'
+[6:05:05 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:05:05 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:05 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:05:05 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:05:05 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:05:05 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D9a_enum_case.drift.json
+[6:05:13 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:05:13 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:05:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:05:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=available
+[6:05:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags
+[6:05:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-5865544371658047
+[6:05:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-6774687829223481?name=canto&status=peccatus
+[6:05:13 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-1559164294077797
+[6:05:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/8165864038974887/uploadImage
+[6:05:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:05:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:05:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/4339411708548555
+[6:05:13 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-4728405446085681
+[6:05:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:05:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:05:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:05:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:05:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/venia
+[6:05:13 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/praesentium
+[6:05:13 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/impedit
+[6:05:13 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:05:15 AM] » [HTTP SERVER] post /store/order i  info      Request received
+[6:05:15 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:15 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:05:15 AM] »     [VALIDATOR] ×  error     Request body property status must be equal to one of the allowed values: PLACED, APPROVED, DELIVERED
+[6:05:15 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:05:15 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:05:15 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:05:15 AM] »     [VALIDATOR] ×  error     Violation: request.body.status Request body property status must be equal to one of the allowed values: PLACED, APPROVED, DELIVERED
+[6:05:16 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:05:16 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:16 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:05:16 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:05:16 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:05:16 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D9b_enum_synonym.drift.json
+[6:05:24 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:05:24 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:05:24 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:05:24 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:05:24 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=viscus&tags=thesaurus
+[6:05:24 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-7581196211716415
+[6:05:24 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/1516264089958033?name=curiositas&status=ulterius
+[6:05:24 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-3789595254708753
+[6:05:24 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/3334636465605869/uploadImage
+[6:05:24 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:05:24 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:05:24 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/2016902677363099
+[6:05:24 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/8311091460933361
+[6:05:24 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:05:24 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:05:24 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:05:24 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:05:24 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/cogo
+[6:05:24 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/audio
+[6:05:24 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/debilito
+[6:05:24 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:05:26 AM] » [HTTP SERVER] post /store/order i  info      Request received
+[6:05:26 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:26 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:05:26 AM] »     [VALIDATOR] ×  error     Request body property status must be equal to one of the allowed values: ordered, approved, delivered
+[6:05:26 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:05:26 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:05:26 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:05:26 AM] »     [VALIDATOR] ×  error     Violation: request.body.status Request body property status must be equal to one of the allowed values: ordered, approved, delivered
+[6:05:27 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:05:27 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:27 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:05:27 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:05:27 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:05:27 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D10_required_default.drift.json
+[6:05:33 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:05:33 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:05:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:05:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:05:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=uter&tags=tempore&tags=umquam&tags=tergum
+[6:05:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/1679424650572605
+[6:05:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/1522019534326139?name=communis&status=quis
+[6:05:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/1774050719387069
+[6:05:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/865787946142455/uploadImage
+[6:05:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:05:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:05:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/3387006065547545
+[6:05:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-7317645494498163
+[6:05:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:05:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:05:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:05:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:05:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/volva
+[6:05:33 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/capillus
+[6:05:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/turba
+[6:05:33 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:05:36 AM] » [HTTP SERVER] post /store/order i  info      Request received
+[6:05:36 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:36 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:05:36 AM] »     [VALIDATOR] ×  error     Request body must have required property 'channel'
+[6:05:36 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:05:36 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:05:36 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:05:36 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'channel'
+[6:05:36 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:05:36 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:36 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:05:36 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:05:36 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:05:36 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D11_required_nodefault.drift.json
+[6:05:43 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:05:44 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:05:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:05:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:05:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=coniecto
+[6:05:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-2865703118786409
+[6:05:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-955959236319687?name=solutio&status=corpus
+[6:05:44 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-8604177292751095
+[6:05:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/5341286300905747/uploadImage
+[6:05:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:05:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:05:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/3868794076436449
+[6:05:44 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-3757280660578529
+[6:05:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:05:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:05:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:05:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:05:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/avaritia
+[6:05:44 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/valde
+[6:05:44 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/censura
+[6:05:44 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:05:47 AM] » [HTTP SERVER] post /store/order i  info      Request received
+[6:05:47 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:47 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:05:47 AM] »     [VALIDATOR] ×  error     Request body must have required property 'channel'
+[6:05:47 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:05:47 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:05:47 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:05:47 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'channel'
+[6:05:48 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:05:48 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:05:48 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:05:48 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:05:48 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:05:48 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D12_header_rename.drift.json
+[6:05:56 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:05:56 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:05:56 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:05:56 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:05:56 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=vero
+[6:05:56 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-5238690415832873
+[6:05:56 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/1395806409893609?name=trucido&status=celebrer
+[6:05:56 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-5811819529710795
+[6:05:56 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/1930768272655489/uploadImage
+[6:05:56 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:05:56 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:05:56 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-5337689219567837
+[6:05:56 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/697172523336237
+[6:05:56 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:05:56 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:05:56 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:05:56 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:05:56 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/abduco
+[6:05:56 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/supplanto
+[6:05:56 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/altus
+[6:05:56 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:06:00 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:06:00 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:00 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:00 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:00 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:00 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D13_method_change.drift.json
+[6:06:07 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:06:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:06:08 AM] » [CLI] i  info      PATCH      http://127.0.0.1:4010/pet
+[6:06:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=available
+[6:06:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=ullus&tags=truculenter&tags=civitas&tags=adfero&tags=vulgo
+[6:06:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-4165924994479133
+[6:06:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-1285521295606945?name=spiritus&status=sui
+[6:06:08 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-5044251520296817
+[6:06:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-3977067459885595/uploadImage
+[6:06:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:06:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:06:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/1594025844833813
+[6:06:08 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-3910805989405919
+[6:06:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:06:08 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:06:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:06:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:06:08 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/somnus
+[6:06:08 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/amor
+[6:06:08 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/suadeo
+[6:06:08 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:06:10 AM] » [HTTP SERVER] put /pet i  info      Request received
+[6:06:10 AM] » [HTTP SERVER] put /pet ×  error     Request terminated with error: https://stoplight.io/prism/errors#NO_METHOD_MATCHED_ERROR: Route resolved, but no method matched
+[6:06:11 AM] » [HTTP SERVER] patch /pet i  info      Request received
+[6:06:11 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:11 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:11 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:11 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:11 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:06:12 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:06:12 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:12 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:12 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:12 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:12 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D14_response_rename.drift.json
+[6:06:20 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:06:20 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:06:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:06:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=available
+[6:06:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=artificiose&tags=adiuvo&tags=vitae&tags=fuga&tags=copiose
+[6:06:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-2650406414065497
+[6:06:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/3644411838843491?name=succurro&status=clarus
+[6:06:20 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-5101719330250935
+[6:06:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-4252600562820765/uploadImage
+[6:06:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:06:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:06:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/5864142161438739
+[6:06:20 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-3055186514480147
+[6:06:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:06:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:06:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:06:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:06:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/celo
+[6:06:20 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/vapulus
+[6:06:20 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/audeo
+[6:06:20 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:06:23 AM] » [HTTP SERVER] get /pet/7 i  info      Request received
+[6:06:23 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:23 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:23 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:23 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:23 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:06:25 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:06:25 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:25 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:25 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:25 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:25 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D15_field_split.drift.json
+[6:06:33 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:06:33 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:06:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:06:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:06:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=iusto&tags=auctus&tags=sublime&tags=defungo
+[6:06:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/8764528118572935
+[6:06:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-3970245924784629?name=amita&status=summisse
+[6:06:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/7556590671781439
+[6:06:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-1477212868514921/uploadImage
+[6:06:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:06:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:06:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-3271135293888123
+[6:06:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-319664078270831
+[6:06:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:06:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:06:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:06:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:06:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/aegrus
+[6:06:33 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/vix
+[6:06:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/magnam
+[6:06:33 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:06:35 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:06:35 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:35 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:06:35 AM] »     [VALIDATOR] ×  error     Request body must have required property 'first_name'
+[6:06:35 AM] »     [VALIDATOR] ×  error     Request body must have required property 'last_name'
+[6:06:35 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:06:35 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:06:35 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:06:35 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'first_name'
+[6:06:35 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'last_name'
+[6:06:36 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:06:36 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:36 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:36 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:36 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:36 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D16_units_change.drift.json
+[6:06:44 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:06:44 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:06:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:06:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:06:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=administratio&tags=tamen&tags=cunctatio&tags=comburo
+[6:06:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-5831124195480435
+[6:06:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-2232550216552915?name=crustulum&status=nam
+[6:06:44 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-4857033350957367
+[6:06:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-2334841043957063/uploadImage
+[6:06:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:06:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:06:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-4507229117742497
+[6:06:44 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/7918534800924383
+[6:06:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:06:44 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:06:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:06:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:06:44 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/pecto
+[6:06:44 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/aestas
+[6:06:44 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/bellum
+[6:06:44 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:06:47 AM] » [HTTP SERVER] post /store/order i  info      Request received
+[6:06:47 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:47 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:47 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:47 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:47 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:06:48 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:06:48 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:48 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:48 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:48 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:48 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D17_swap_same_type.drift.json
+[6:06:55 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:06:55 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:06:55 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:06:55 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:06:55 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=acerbitas
+[6:06:55 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/8198221921571951
+[6:06:55 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/3952284423259019?name=tabesco&status=voluptates
+[6:06:55 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-5598129718370559
+[6:06:55 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/4794844522362221/uploadImage
+[6:06:55 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:06:55 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:06:55 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-4611958194642869
+[6:06:55 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-2681082048895979
+[6:06:55 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:06:55 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:06:55 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:06:55 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:06:55 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/solium
+[6:06:55 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/acervus
+[6:06:55 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/libero
+[6:06:55 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:06:59 AM] » [HTTP SERVER] post /store/order i  info      Request received
+[6:06:59 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:59 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:59 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:59 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:59 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:06:59 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:06:59 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:06:59 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:06:59 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:06:59 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:06:59 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D19_description_only.drift.json
+[6:07:07 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:07:07 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:07:07 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:07:07 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:07:07 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=nostrum
+[6:07:07 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-8139264430713279
+[6:07:07 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-4237542225212261?name=validus&status=thema
+[6:07:07 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-6673354759233303
+[6:07:07 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/8383220104453861/uploadImage
+[6:07:07 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:07:07 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:07:07 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/903185842485311
+[6:07:07 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/257582322008445
+[6:07:07 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:07:07 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:07:07 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:07:07 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:07:07 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/utrimque
+[6:07:07 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/armarium
+[6:07:07 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/acceptus
+[6:07:07 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:07:09 AM] » [HTTP SERVER] get /pet/7 i  info      Request received
+[6:07:09 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:09 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:07:09 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:07:09 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:07:09 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:07:10 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:07:10 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:10 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:07:10 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:07:10 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:07:10 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D20_flipflop.drift.json
+[6:07:17 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:07:17 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:07:17 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:07:17 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:07:17 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=argumentum&tags=abduco&tags=coniecto&tags=votum
+[6:07:17 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-8670230310671207
+[6:07:17 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-8044079282099371?name=admoneo&status=accusator
+[6:07:17 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/1950992384804203
+[6:07:17 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/7175457482853161/uploadImage
+[6:07:17 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:07:17 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:07:17 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-644392323386511
+[6:07:17 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-1025711663934943
+[6:07:17 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:07:17 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:07:17 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:07:17 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:07:17 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/verus
+[6:07:17 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/porro
+[6:07:17 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/tibi
+[6:07:17 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:07:20 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:07:20 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:20 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:07:20 AM] »     [VALIDATOR] ×  error     Request body must have required property 'petName'
+[6:07:20 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:07:20 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:07:20 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:07:20 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'petName'
+[6:07:20 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:07:20 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:20 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:07:20 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:07:20 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:07:20 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D20_flipflop.base.json
+[6:07:28 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:07:28 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:07:28 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:07:28 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:07:28 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=corrupti&tags=contego
+[6:07:28 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/4912631305290493
+[6:07:28 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/4940951060790149?name=solum&status=aestus
+[6:07:28 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/4619260984636453
+[6:07:28 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/3596820739765161/uploadImage
+[6:07:28 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:07:28 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:07:28 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-3787119174853269
+[6:07:28 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-6628576852118219
+[6:07:28 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:07:28 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:07:28 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:07:28 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:07:28 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/theca
+[6:07:28 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/taedium
+[6:07:28 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/causa
+[6:07:28 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:07:30 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:07:30 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:30 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:07:30 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:07:30 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:07:30 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:07:31 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:07:31 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:31 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:07:31 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:07:31 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:07:31 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D21_two_drifts.drift.json
+[6:07:40 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:07:40 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:07:40 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:07:40 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:07:40 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=addo&tags=attollo&tags=statua&tags=conitor&tags=constans
+[6:07:40 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/3050583768506353
+[6:07:40 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-4312591751122957?name=tardus&status=vulnus
+[6:07:40 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/5677625806845893
+[6:07:40 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-1323612622630713/uploadImage
+[6:07:40 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:07:40 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:07:40 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-2403707500235111
+[6:07:40 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/1200626219127505
+[6:07:40 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:07:40 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:07:40 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:07:40 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:07:40 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/excepturi
+[6:07:40 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/aptus
+[6:07:40 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/carmen
+[6:07:40 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:07:42 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:07:42 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:42 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:07:42 AM] »     [VALIDATOR] ×  error     Request body must have required property 'petName'
+[6:07:42 AM] »     [VALIDATOR] ×  error     Request body must have required property 'source'
+[6:07:42 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:07:42 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:07:42 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:07:42 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'petName'
+[6:07:42 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'source'
+[6:07:43 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:07:43 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:43 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:07:43 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:07:43 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:07:43 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D1b_body_rename_request_only.drift.json
+[6:07:50 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:07:50 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:07:50 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:07:50 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:07:50 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=cogo&tags=armarium&tags=magni&tags=aveho&tags=synagoga
+[6:07:50 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/7168563158923745
+[6:07:50 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/522099192490541?name=valens&status=desolo
+[6:07:50 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-7284184974079813
+[6:07:50 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-8272848854192427/uploadImage
+[6:07:50 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:07:50 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:07:50 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/4760994777965613
+[6:07:50 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/8213216323607921
+[6:07:50 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:07:50 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:07:50 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:07:50 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:07:50 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/summopere
+[6:07:50 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/crepusculum
+[6:07:50 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/videlicet
+[6:07:50 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:07:52 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:07:52 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:52 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:07:52 AM] »     [VALIDATOR] ×  error     Request body must have required property 'petName'
+[6:07:52 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:07:52 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:07:52 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:07:52 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'petName'
+[6:07:52 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:07:52 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:52 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:07:52 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:07:52 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:07:52 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:07:53 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:07:53 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:07:53 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:07:53 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:07:53 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:07:53 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\A1_array_root_baseline.drift.json
+[6:08:02 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:08:02 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:08:02 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:08:02 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:08:02 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=recusandae&tags=tripudio&tags=usitas
+[6:08:02 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-4113991469099337
+[6:08:02 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/7172758236181547?name=corrupti&status=adimpleo
+[6:08:02 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-1173088002795119
+[6:08:02 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/8541352847489047/uploadImage
+[6:08:02 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:08:02 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:08:02 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/4376719786486827
+[6:08:02 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/3469290605002645
+[6:08:02 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:08:02 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:08:02 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:08:02 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:08:02 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/tripudio
+[6:08:02 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/confugo
+[6:08:02 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/coerceo
+[6:08:02 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:08:05 AM] » [HTTP SERVER] get /pet/findByStatus i  info      Request received
+[6:08:05 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:08:05 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:08:05 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:08:05 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:08:05 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+[6:08:05 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:08:05 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:08:05 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:08:05 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:08:05 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:08:05 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D12b_auth_header_rename.drift.json
+[6:08:12 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:08:12 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:08:12 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:08:12 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:08:12 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=tertius
+[6:08:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-7230006816891297
+[6:08:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-713152665681903?name=commodo&status=voco
+[6:08:13 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-313117143488903
+[6:08:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/6747839358832079/uploadImage
+[6:08:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:08:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:08:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/1374968511752833
+[6:08:13 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-426298298597589
+[6:08:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:08:13 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:08:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:08:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:08:13 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/toties
+[6:08:13 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/vorax
+[6:08:13 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/canto
+[6:08:13 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:08:15 AM] » [HTTP SERVER] get /pet/7 i  info      Request received
+[6:08:15 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:08:15 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:08:15 AM] »     [VALIDATOR] ×  error     Invalid security scheme used
+[6:08:15 AM] »     [NEGOTIATOR] √  success   Created a 401 from a default response
+[6:08:15 AM] »     [NEGOTIATOR] √  success   Found response 401. I'll try with it.
+[6:08:15 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 401
+[6:08:15 AM] »     [NEGOTIATOR] i  info      > Responding with "401"
+[6:08:15 AM] »     [VALIDATOR] ×  error     Violation: request Invalid security scheme used
+[6:08:15 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:08:15 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:08:15 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:08:15 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:08:15 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:08:15 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D20b_flipflop_request_only.drift.json
+[6:08:23 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:08:23 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:08:23 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:08:23 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:08:23 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=ea&tags=thymbra
+[6:08:23 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-3284331122920295
+[6:08:23 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-6945807083382677?name=crepusculum&status=artificiose
+[6:08:23 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/6929483460013559
+[6:08:23 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-1887748189934207/uploadImage
+[6:08:23 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:08:23 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:08:23 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-1959268817041519
+[6:08:23 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-5331239527110023
+[6:08:23 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:08:23 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:08:23 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:08:23 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:08:23 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/vigilo
+[6:08:23 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/cresco
+[6:08:23 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/volaticus
+[6:08:23 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:08:26 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:08:26 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:08:26 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:08:26 AM] »     [VALIDATOR] ×  error     Request body must have required property 'petName'
+[6:08:26 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:08:26 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:08:26 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:08:26 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'petName'
+[6:08:26 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:08:26 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:08:26 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:08:26 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:08:26 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:08:26 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D20b_flipflop_request_only.base.json
+[6:08:33 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:08:33 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:08:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:08:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=available
+[6:08:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=sunt
+[6:08:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/1436613057965795
+[6:08:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/4680541832243301?name=casus&status=adeo
+[6:08:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-7336834790417393
+[6:08:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-5573385926242393/uploadImage
+[6:08:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:08:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:08:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/1245229640267463
+[6:08:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/8222419677795223
+[6:08:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:08:33 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:08:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:08:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:08:33 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/timor
+[6:08:33 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/corpus
+[6:08:33 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/tempora
+[6:08:33 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:08:35 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:08:35 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:08:35 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:08:35 AM] »     [VALIDATOR] ×  error     Request body must have required property 'name'
+[6:08:35 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:08:35 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:08:35 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:08:35 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'name'
+[6:08:36 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:08:36 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:08:36 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:08:36 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:08:36 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:08:36 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D20b_flipflop_request_only.drift.json
+[6:12:20 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:12:20 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:12:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:12:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=pending
+[6:12:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags?tags=totidem
+[6:12:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-5915836826119249
+[6:12:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/-3262506051047289?name=usque&status=ad
+[6:12:20 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/-5136708169900261
+[6:12:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/6525784888347753/uploadImage
+[6:12:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:12:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:12:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/-1838261939457601
+[6:12:20 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/-3973900020067429
+[6:12:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:12:20 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:12:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:12:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:12:20 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/decretum
+[6:12:20 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/statim
+[6:12:20 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/armarium
+[6:12:20 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:12:23 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:12:23 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:12:23 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:12:23 AM] »     [VALIDATOR] ×  error     Request body must have required property 'petName'
+[6:12:23 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:12:23 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:12:23 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:12:23 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'petName'
+[6:12:23 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:12:23 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:12:23 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:12:23 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:12:23 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:12:23 AM] »     [NEGOTIATOR] i  info      > Responding with "200"
+npm notice run npx
+npm notice run prism mock -p 4010 -h 127.0.0.1 -d D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\bench\chaos\petstore\proof\specs\D20b_flipflop_request_only.base.json
+[6:12:31 AM] » [CLI] ...  awaiting  Starting Prism…
+[6:12:31 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/pet
+[6:12:31 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet
+[6:12:31 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByStatus?status=sold
+[6:12:31 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/findByTags
+[6:12:31 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/pet/-5115041866783735
+[6:12:31 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/875289228191331?name=crur&status=alveus
+[6:12:31 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/pet/1509710264425459
+[6:12:31 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/pet/2174139888703725/uploadImage
+[6:12:31 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/inventory
+[6:12:31 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/store/order
+[6:12:31 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/store/order/2273034121840067
+[6:12:31 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/store/order/4920717049794559
+[6:12:31 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user
+[6:12:31 AM] » [CLI] i  info      POST       http://127.0.0.1:4010/user/createWithList
+[6:12:31 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/login
+[6:12:31 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/logout
+[6:12:31 AM] » [CLI] i  info      GET        http://127.0.0.1:4010/user/capitulus
+[6:12:31 AM] » [CLI] i  info      PUT        http://127.0.0.1:4010/user/debitis
+[6:12:31 AM] » [CLI] i  info      DELETE     http://127.0.0.1:4010/user/crur
+[6:12:31 AM] » [CLI] ►  start     Prism is listening on http://127.0.0.1:4010
+[6:12:32 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:12:32 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:12:32 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:12:32 AM] »     [VALIDATOR] ×  error     Request body must have required property 'name'
+[6:12:32 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:12:32 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:12:32 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:12:32 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'name'
+[6:12:34 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:12:34 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:12:34 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:12:34 AM] »     [VALIDATOR] ×  error     Request body must have required property 'name'
+[6:12:34 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:12:34 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:12:34 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:12:34 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'name'
+[6:12:34 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:12:34 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:12:34 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:12:34 AM] »     [VALIDATOR] ×  error     Request body must have required property 'name'
+[6:12:34 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:12:34 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:12:34 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:12:34 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'name'
+[6:12:35 AM] » [HTTP SERVER] post /pet i  info      Request received
+[6:12:35 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:12:35 AM] »     [VALIDATOR] ‼  warning   Request did not pass the validation rules
+[6:12:35 AM] »     [VALIDATOR] ×  error     Request body must have required property 'name'
+[6:12:35 AM] »     [NEGOTIATOR] √  success   Found response 422. I'll try with it.
+[6:12:35 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 422
+[6:12:35 AM] »     [NEGOTIATOR] i  info      > Responding with "422"
+[6:12:35 AM] »     [VALIDATOR] ×  error     Violation: request.body Request body must have required property 'name'
+[6:12:36 AM] » [HTTP SERVER] get /user/alice i  info      Request received
+[6:12:36 AM] »     [NEGOTIATOR] i  info      Request contains an accept header: */*
+[6:12:36 AM] »     [VALIDATOR] √  success   The request passed the validation rules. Looking for the best response
+[6:12:36 AM] »     [NEGOTIATOR] √  success   Found a compatible content for */*
+[6:12:36 AM] »     [NEGOTIATOR] √  success   Responding with the requested status code 200
+[6:12:36 AM] »     [NEGOTIATOR] i  info      > Responding with "200"

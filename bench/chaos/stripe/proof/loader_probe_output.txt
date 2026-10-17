@@ -1,0 +1,8 @@
+slice schemas: 580 bytes: 834793
+Timeout (0:02:50)!
+Thread 0x00003f54 (most recent call first):
+... (traceback truncated; resolve_refs still running after 170 s CPU, killed by faulthandler timeout)
+  File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\openapi_loader.py", line 39 in walk
+  File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\openapi_loader.py", line 24 in walk
+  File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\openapi_loader.py", line 29 in walk
+  File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\openapi_loader.py", line 29 in walk

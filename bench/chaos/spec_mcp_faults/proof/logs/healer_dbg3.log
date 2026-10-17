@@ -1,0 +1,361 @@
+INFO:     Started server process [25752]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8100 (Press CTRL+C to quit)
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "D:\python\Lib\asyncio\runners.py", line 196, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "D:\python\Lib\asyncio\runners.py", line 119, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "D:\python\Lib\asyncio\base_events.py", line 725, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\mcp_server.py", line 282, in _serve
+  |     async with registry_context(args) as registry:
+  |                ~~~~~~~~~~~~~~~~^^^^^^
+  |   File "D:\python\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\mcp_server.py", line 220, in registry_context
+  |     async with AsyncExitStack() as stack:
+  |                ~~~~~~~~~~~~~~^^
+  |   File "D:\python\Lib\contextlib.py", line 768, in __aexit__
+  |     raise exc
+  |   File "D:\python\Lib\contextlib.py", line 751, in __aexit__
+  |     cb_suppress = await cb(*exc_details)
+  |                   ^^^^^^^^^^^^^^^^^^^^^^
+  |   File "D:\python\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\gateway.py", line 729, in connect_upstreams
+  |     async with AsyncExitStack() as stack:
+  |                ~~~~~~~~~~~~~~^^
+  |   File "D:\python\Lib\contextlib.py", line 768, in __aexit__
+  |     raise exc
+  |   File "D:\python\Lib\contextlib.py", line 751, in __aexit__
+  |     cb_suppress = await cb(*exc_details)
+  |                   ^^^^^^^^^^^^^^^^^^^^^^
+  |   File "D:\python\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\gateway.py", line 364, in _open
+  |     async with AsyncExitStack() as stack:
+  |                ~~~~~~~~~~~~~~^^
+  |   File "D:\python\Lib\contextlib.py", line 768, in __aexit__
+  |     raise exc
+  |   File "D:\python\Lib\contextlib.py", line 751, in __aexit__
+  |     cb_suppress = await cb(*exc_details)
+  |                   ^^^^^^^^^^^^^^^^^^^^^^
+  |   File "D:\python\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\client\streamable_http.py", line 771, in streamable_http_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_transports\default.py", line 98, in map_httpcore_exceptions
+    |     yield
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_transports\default.py", line 388, in handle_async_request
+    |     resp = await self._pool.handle_async_request(req)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 242, in handle_async_request
+    |     raise exc from None
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 224, in handle_async_request
+    |     response = await connection.handle_async_request(pool_request.request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 94, in handle_async_request
+    |     raise exc
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 74, in handle_async_request
+    |     stream = await self._connect(request)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 117, in _connect
+    |     stream = await self._network_backend.connect_tcp(**kwargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_backends\auto.py", line 31, in connect_tcp
+    |     return await self._backend.connect_tcp(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ...<5 lines>...
+    |     )
+    |     ^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_backends\anyio.py", line 115, in connect_tcp
+    |     with map_exceptions(exc_map):
+    |          ~~~~~~~~~~~~~~^^^^^^^^^
+    |   File "D:\python\Lib\contextlib.py", line 162, in __exit__
+    |     self.gen.throw(value)
+    |     ~~~~~~~~~~~~~~^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_exceptions.py", line 17, in map_exceptions
+    |     raise to_exc(exc) from exc
+    | httpcore2.ConnectError: All connection attempts failed
+    | 
+    | The above exception was the direct cause of the following exception:
+    | 
+    | Traceback (most recent call last):
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\anyio\_core\_tasks.py", line 327, in _run_coro
+    |     retval = await self._coro
+    |              ^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\client\streamable_http.py", line 355, in _run_request_post
+    |     await post_fn()
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\client\streamable_http.py", line 662, in handle_request_async
+    |     await self._handle_post_request(ctx)
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\client\streamable_http.py", line 370, in _handle_post_request
+    |     async with stream_within_origin(
+    |                ~~~~~~~~~~~~~~~~~~~~^
+    |         ctx.client,
+    |         ^^^^^^^^^^^
+    |     ...<3 lines>...
+    |         headers=headers,
+    |         ^^^^^^^^^^^^^^^^
+    |     ) as response:
+    |     ^
+    |   File "D:\python\Lib\contextlib.py", line 214, in __aenter__
+    |     return await anext(self.gen)
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\shared\_httpx_utils.py", line 131, in stream_within_origin
+    |     response = await client.send(request, stream=True, follow_redirects=False)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_client.py", line 1818, in send
+    |     response = await self._send_handling_auth(
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ...<4 lines>...
+    |     )
+    |     ^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_client.py", line 1846, in _send_handling_auth
+    |     response = await self._send_handling_redirects(
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ...<3 lines>...
+    |     )
+    |     ^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_client.py", line 1881, in _send_handling_redirects
+    |     response = await self._send_single_request(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_client.py", line 1915, in _send_single_request
+    |     response = await transport.handle_async_request(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\connection_security.py", line 416, in handle_async_request
+    |     return await transport.handle_async_request(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_transports\default.py", line 387, in handle_async_request
+    |     with map_httpcore_exceptions():
+    |          ~~~~~~~~~~~~~~~~~~~~~~~^^
+    |   File "D:\python\Lib\contextlib.py", line 162, in __exit__
+    |     self.gen.throw(value)
+    |     ~~~~~~~~~~~~~~^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_transports\default.py", line 115, in map_httpcore_exceptions
+    |     raise mapped_exc(message) from exc
+    | httpx2.ConnectError: All connection attempts failed
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\uvicorn\protocols\http\h11_impl.py", line 411, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 63, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\starlette\applications.py", line 96, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\starlette\routing.py", line 676, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\starlette\routing.py", line 697, in app
+    await route.handle(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\starlette\routing.py", line 282, in handle
+    await self.app(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\server\streamable_http_manager.py", line 427, in __call__
+    await self.session_manager.asgi_app(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\server\transport_security.py", line 183, in __call__
+    await self.app(scope, replay, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\server\streamable_http_manager.py", line 204, in _handle_request
+    await self._handle_stateful_request(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\server\streamable_http_manager.py", line 282, in _handle_stateful_request
+    await transport.handle_request(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\server\streamable_http.py", line 495, in handle_request
+    await self._handle_request(scope, receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\server\streamable_http.py", line 523, in _handle_request
+    await self._handle_get_request(request, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\server\streamable_http.py", line 817, in _handle_get_request
+    await response(request.scope, request.receive, send)
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\sse_starlette\sse.py", line 510, in __call__
+    async with anyio.create_task_group() as task_group:
+               ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 851, in __aexit__
+    raise exc_val
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 820, in __aexit__
+    await self._on_completed_fut
+asyncio.exceptions.CancelledError
+ERROR:      + Exception Group Traceback (most recent call last):
+  |   File "D:\python\Lib\asyncio\runners.py", line 196, in run
+  |     return runner.run(main)
+  |            ~~~~~~~~~~^^^^^^
+  |   File "D:\python\Lib\asyncio\runners.py", line 119, in run
+  |     return self._loop.run_until_complete(task)
+  |            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  |   File "D:\python\Lib\asyncio\base_events.py", line 725, in run_until_complete
+  |     return future.result()
+  |            ~~~~~~~~~~~~~^^
+  |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\mcp_server.py", line 282, in _serve
+  |     async with registry_context(args) as registry:
+  |                ~~~~~~~~~~~~~~~~^^^^^^
+  |   File "D:\python\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\mcp_server.py", line 220, in registry_context
+  |     async with AsyncExitStack() as stack:
+  |                ~~~~~~~~~~~~~~^^
+  |   File "D:\python\Lib\contextlib.py", line 768, in __aexit__
+  |     raise exc
+  |   File "D:\python\Lib\contextlib.py", line 751, in __aexit__
+  |     cb_suppress = await cb(*exc_details)
+  |                   ^^^^^^^^^^^^^^^^^^^^^^
+  |   File "D:\python\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\gateway.py", line 729, in connect_upstreams
+  |     async with AsyncExitStack() as stack:
+  |                ~~~~~~~~~~~~~~^^
+  |   File "D:\python\Lib\contextlib.py", line 768, in __aexit__
+  |     raise exc
+  |   File "D:\python\Lib\contextlib.py", line 751, in __aexit__
+  |     cb_suppress = await cb(*exc_details)
+  |                   ^^^^^^^^^^^^^^^^^^^^^^
+  |   File "D:\python\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\gateway.py", line 364, in _open
+  |     async with AsyncExitStack() as stack:
+  |                ~~~~~~~~~~~~~~^^
+  |   File "D:\python\Lib\contextlib.py", line 768, in __aexit__
+  |     raise exc
+  |   File "D:\python\Lib\contextlib.py", line 751, in __aexit__
+  |     cb_suppress = await cb(*exc_details)
+  |                   ^^^^^^^^^^^^^^^^^^^^^^
+  |   File "D:\python\Lib\contextlib.py", line 235, in __aexit__
+  |     await self.gen.athrow(value)
+  |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\client\streamable_http.py", line 771, in streamable_http_client
+  |     anyio.create_task_group() as tg,
+  |     ~~~~~~~~~~~~~~~~~~~~~~~^^
+  |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 847, in __aexit__
+  |     raise BaseExceptionGroup(
+  |         "unhandled errors in a TaskGroup", self._exceptions
+  |     ) from None
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_transports\default.py", line 98, in map_httpcore_exceptions
+    |     yield
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_transports\default.py", line 388, in handle_async_request
+    |     resp = await self._pool.handle_async_request(req)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 242, in handle_async_request
+    |     raise exc from None
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 224, in handle_async_request
+    |     response = await connection.handle_async_request(pool_request.request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 94, in handle_async_request
+    |     raise exc
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 74, in handle_async_request
+    |     stream = await self._connect(request)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 117, in _connect
+    |     stream = await self._network_backend.connect_tcp(**kwargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_backends\auto.py", line 31, in connect_tcp
+    |     return await self._backend.connect_tcp(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ...<5 lines>...
+    |     )
+    |     ^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_backends\anyio.py", line 115, in connect_tcp
+    |     with map_exceptions(exc_map):
+    |          ~~~~~~~~~~~~~~^^^^^^^^^
+    |   File "D:\python\Lib\contextlib.py", line 162, in __exit__
+    |     self.gen.throw(value)
+    |     ~~~~~~~~~~~~~~^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpcore2\_exceptions.py", line 17, in map_exceptions
+    |     raise to_exc(exc) from exc
+    | httpcore2.ConnectError: All connection attempts failed
+    | 
+    | The above exception was the direct cause of the following exception:
+    | 
+    | Traceback (most recent call last):
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\anyio\_core\_tasks.py", line 327, in _run_coro
+    |     retval = await self._coro
+    |              ^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\client\streamable_http.py", line 355, in _run_request_post
+    |     await post_fn()
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\client\streamable_http.py", line 662, in handle_request_async
+    |     await self._handle_post_request(ctx)
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\client\streamable_http.py", line 370, in _handle_post_request
+    |     async with stream_within_origin(
+    |                ~~~~~~~~~~~~~~~~~~~~^
+    |         ctx.client,
+    |         ^^^^^^^^^^^
+    |     ...<3 lines>...
+    |         headers=headers,
+    |         ^^^^^^^^^^^^^^^^
+    |     ) as response:
+    |     ^
+    |   File "D:\python\Lib\contextlib.py", line 214, in __aenter__
+    |     return await anext(self.gen)
+    |            ^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\mcp\shared\_httpx_utils.py", line 131, in stream_within_origin
+    |     response = await client.send(request, stream=True, follow_redirects=False)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_client.py", line 1818, in send
+    |     response = await self._send_handling_auth(
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ...<4 lines>...
+    |     )
+    |     ^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_client.py", line 1846, in _send_handling_auth
+    |     response = await self._send_handling_redirects(
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |     ...<3 lines>...
+    |     )
+    |     ^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_client.py", line 1881, in _send_handling_redirects
+    |     response = await self._send_single_request(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_client.py", line 1915, in _send_single_request
+    |     response = await transport.handle_async_request(request)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.claude\worktrees\llm-prompt-metrics-review-025230\src\healer\connection_security.py", line 416, in handle_async_request
+    |     return await transport.handle_async_request(request)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_transports\default.py", line 387, in handle_async_request
+    |     with map_httpcore_exceptions():
+    |          ~~~~~~~~~~~~~~~~~~~~~~~^^
+    |   File "D:\python\Lib\contextlib.py", line 162, in __exit__
+    |     self.gen.throw(value)
+    |     ~~~~~~~~~~~~~~^^^^^^^
+    |   File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\httpx2\_transports\default.py", line 115, in map_httpcore_exceptions
+    |     raise mapped_exc(message) from exc
+    | httpx2.ConnectError: All connection attempts failed
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\starlette\routing.py", line 661, in lifespan
+    await receive()
+  File "D:\wahab stuff\wahab code\Project\.venv\Lib\site-packages\uvicorn\lifespan\on.py", line 137, in receive
+    return await self.receive_queue.get()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\python\Lib\asyncio\queues.py", line 186, in get
+    await getter
+asyncio.exceptions.CancelledError
+
+healer MCP server failed to start or stopped unexpectedly

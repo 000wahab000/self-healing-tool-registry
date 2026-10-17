@@ -1,0 +1,8 @@
+{"ts_ms": 1792196828805, "tool": "boom", "args": {"item_id": "boom"}}
+{"ts_ms": 1792196828836, "tool": "lookup", "args": {"item_id": "fine"}}
+{"ts_ms": 1792196835147, "tool": "lookup", "args": {"item_id": "missing"}}
+{"ts_ms": 1792196835185, "tool": "lookup", "args": {"item_id": "fine"}}
+{"ts_ms": 1792197112203, "tool": "lookup", "args": {"item_id": "missing"}}
+{"ts_ms": 1792197112240, "tool": "lookup", "args": {"item_id": "fine"}}
+{"ts_ms": 1792197129468, "tool": "lookup", "args": {"item_id": "missing"}}
+{"ts_ms": 1792197129506, "tool": "lookup", "args": {"item_id": "fine"}}

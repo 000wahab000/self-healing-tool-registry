@@ -437,7 +437,7 @@ async def test_deadline_aborts_and_is_not_negative_cached(
     reg = await make_registry(clock=clock)
     api.set_mutation("M1")
     wire.delay = 0.001
-    clock.step = 4.0  # every clock read now lands past the 3.5 s heal deadline
+    clock.step = 31.0  # every clock read now lands past the 30 s heal deadline
 
     unrecoverable(await reg.call("get_user", GET_USER), Reason.DEADLINE)
     assert len(calls_to(api, "/users/lookup")) == 1  # no replay was sent
