@@ -64,7 +64,7 @@ async def test_ac_78_scorecard_endpoint_with_committed_report(client):
     assert res.status_code == 200
     data = res.json()
     assert data["available"] is True
-    assert "bench" in data["source"]
+    assert data["source"].endswith("REPORT.md")
     assert "generated_at" in data
 
     # Assert ZTAR

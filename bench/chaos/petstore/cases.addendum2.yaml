@@ -1,0 +1,12 @@
+# ADDENDUM 2, written AFTER the first full run of cases.yaml (+ addendum 1) was analysed.
+# cases.yaml sha256 prefix 4b7c267f754d94d9 and cases.addendum.yaml 0d6ff67284e9f3a8 are unchanged.
+# Reasons: D12 as registered was ill-posed (header params are not agent-visible tool args: AGENT_ARG_ERROR before
+# any upstream contact); D20 used mutation D1 which cannot heal (verify fails when response is renamed too), so
+# the flip-flop never exercised a stored fix; D2 exposed a front-door error on array-root responses, so a plain
+# no-drift baseline for an array-returning endpoint is added. Expectations written before these ran.
+version: 1
+suite: petstore
+cases:
+  - {id: A1_array_root_baseline, mut: NONE, tool: findPetsByStatus, args: {status: available}, expected: pass_through, why: "no drift. GET /pet/findByStatus returns a JSON array at the root; the agent should get the list"}
+  - {id: D12b_auth_header_rename, mut: D12b, base: B12, auth: apikey, tool: getPetById, args: {petId: 7}, expected: heal, why: "configured apiKey auth: base spec security scheme header api_key, drifted to X-Pet-Key; Prism returns 401 without it; header op takes the value from the config ref (API_PET_KEY, a fake test value)"}
+  - {id: D20b_flipflop_request_only, mut: D1b, flipflop: true, tool: addPet, args: {id: 7, name: rex, photoUrls: ["http://x/1.png"], status: available}, expected: heal, why: "request-only rename (heals, see D1b) -> revert spec and Prism to base -> same call must succeed with `name` on the wire; verdict applies to call 2 (no stale fix), call 1 must have healed"}

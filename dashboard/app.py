@@ -26,13 +26,14 @@ from pydantic import BaseModel, Field
 from agents import baseline_agent, common, healing_agent, scripted
 from bench.run import CONTROL_STEPS, CONTROL_TASK
 from dashboard.connections import router as connections_router
+from dashboard.drift_editor import custom_from_schema
 from dashboard.explorer import (
     _recording_executor,
     check_data_correctness,
     get_explorer_info,
     run_explore,
 )
-from dashboard.metrics_view import fix_lifecycle, live_safety, scorecard
+from dashboard.metrics_view import fix_lifecycle, live_safety, mcp_tool_usage, scorecard
 from healer import metrics
 from healer.gateway import Gateway, load_apis, load_config
 from healer.jev import from_env
@@ -40,7 +41,7 @@ from healer.models import AuditEvent, ErrorClass, HealOutcome
 from healer.registry import Registry
 from healer.repair import from_env as repair_from_env
 from healer.store import Store
-from mock_api.app import ALIASES, CUSTOM, MUTATIONS
+from mock_api.app import ALIASES, CUSTOM, MUTATIONS, V1_REQUEST
 from mock_api.app import create_app as create_mock
 
 LEAD_IN_STEPS = 3  # scripted agents wait this many steps before their first call
@@ -69,6 +70,9 @@ class StartIn(BaseModel):
 
 class MutationIn(BaseModel):
     id: str | None
+    custom: dict | None = None  # CUSTOM only: a ready drift spec, or just {"tool": ...}
+    fake_schema: dict | None = None  # CUSTOM only: edited input schema, diffed into a spec
+    header: str | None = None  # CUSTOM only: extra required header
 
 
 class ExploreIn(BaseModel):
@@ -110,6 +114,7 @@ class Dashboard:
         self.clients: list[httpx.AsyncClient] = []
         self.epoch = 0
         self.mutation: str | None = None
+        self.custom: dict | None = None  # the spec behind a CUSTOM mutation
         self.run_scenario: str | None = None
         # The live view starts empty on a fresh server: calls kept in the db from an earlier
         # process have no recorded traces, so they could not open as call cards.
@@ -124,9 +129,11 @@ class Dashboard:
         # later scripted run does not erase a figure an earlier LLM run measured.
         self._llm_tokens: tuple[int, int] | None = None
         self.drifts: list[tuple[int, str | None]] = []  # (ms, mutation) as it went live
+        
         self.runs = {a: dict(IDLE) for a in self.mocks}
         self.traces: dict[str, list[dict]] = {a: [] for a in self.mocks}
         self._mcp_info: dict | None = None
+        self._v1_schemas: dict | None = None
         self.gateway = gateway
         self.mcp_port = mcp_port
         self.upstream_config_path = upstream_config_path
@@ -146,6 +153,7 @@ class Dashboard:
         async with self.lock:
             await self._stop()
             mutation = self.mutation  # a drift picked before Start applies to this run
+            custom = self.custom
             scenario = mutation if mutation in CONTROL_STEPS else None
             self._clear()
             http = {
@@ -164,8 +172,9 @@ class Dashboard:
             # Registries freeze the clean v1 spec first, then the drift goes live.
             if mutation is not None:
                 for mock in self.mocks.values():
-                    mock.set_mutation(mutation)
+                    mock.set_mutation(mutation, custom)
                 self.mutation = mutation
+                self.custom = custom
                 self._drift(mutation)
             run_id = uuid.uuid4().hex[:8]
             if kind == "scripted":
@@ -281,15 +290,32 @@ class Dashboard:
         if base or heal:
             self._llm_tokens = (base, heal)
 
-    async def mutate(self, mid: str | None) -> None:
-        if mid is not None and mid not in MUTATIONS and mid not in ALIASES:
+    async def mutate(self, mid: str | None, custom: dict | None = None) -> None:
+        if mid is not None and mid not in MUTATIONS and mid not in ALIASES and mid != CUSTOM:
             raise ValueError(f"unknown mutation {mid!r}")
         self._not_busy()
         async with self.lock:
             for mock in self.mocks.values():
-                mock.set_mutation(mid)
+                mock.set_mutation(mid, custom)
             self.mutation = mid
+            self.custom = self.mocks["healing"].custom
             self._drift(mid)
+
+    async def drift_schemas(self) -> dict:
+        """Each tool's clean v1 input schema, exactly what the agent is given."""
+        if self._v1_schemas is None:
+            token = self.cfg["OAUTH_BEARER"].removeprefix("Bearer ")
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=create_mock(token)), base_url="http://mock"
+            ) as client:
+                registry = Registry(client, self.tools, self.cfg, self.store)
+                await registry.load()
+                self._v1_schemas = {
+                    t["name"]: t["parameters"]
+                    for t in registry.tools()
+                    if t["name"] in V1_REQUEST
+                }
+        return self._v1_schemas
 
     async def reset(self) -> None:
         self._not_busy()
@@ -320,7 +346,7 @@ class Dashboard:
             await self._stop()
             self._clear()
             self._drift(mutation)
-            return await run_explore(
+            result = await run_explore(
                 self.mocks["healing"],
                 self.mocks["baseline"],
                 self.store,
@@ -332,6 +358,13 @@ class Dashboard:
                 agent,
                 custom,
             )
+            # Like a Live run: keep the measured pair for the Metrics tab (calls
+            # already reached the call log), never an estimate.
+            base = int(result.get("baseline", {}).get("llm_tokens") or 0)
+            heal = int(result.get("healing", {}).get("llm_tokens") or 0)
+            if agent == "llm" and (base or heal):
+                self._llm_tokens = (base, heal)
+            return result
 
     async def mcp_info(self) -> dict:
         """What the MCP front door exposes, read from the same `Registry.tools()`."""
@@ -398,6 +431,7 @@ class Dashboard:
         self.clients = []
 
     def _clear(self) -> None:
+        self.custom = None
         for mock in self.mocks.values():
             mock.reset()
         self.mutation = None
@@ -410,9 +444,20 @@ class Dashboard:
     def state(self, after: int = 0) -> dict:
         self._refresh_audit()
         audit = self._audit
+        calls_since_reset = self.store.call_events(self.base_event)
+        calls = [event for event in calls_since_reset if event["event_id"] > after]
+        patch_calls = [
+            {
+                key: event[key]
+                for key in ("event_id", "ts_ms", "agent", "tool", "class", "latency_ms", "patches")
+            }
+            for event in calls_since_reset
+            if event["agent"] == "mcp" and event.get("patches")
+        ]
         return {
             "epoch": self.epoch,
             "active_mutation": self.mutation,
+            "active_custom": self.custom,
             "run_scenario": self.run_scenario,
             "runs": self.runs,
             # Both agents share one audit log; only the healing side can heal.
@@ -420,7 +465,8 @@ class Dashboard:
                 "healing": self.traces["healing"],
                 "baseline": [{**t, "heal_event": None} for t in self.traces["baseline"]],
             },
-            "events": self.store.call_events(max(after, self.base_event)),
+            "events": calls,
+            "patch_calls": patch_calls,
             "heals": self._heal_summaries.copy(),
             "metrics": {
                 "mttr": {
@@ -469,6 +515,8 @@ class Dashboard:
             "mttr_ms": e.mttr_ms,
             "heal_ms": e.heal_ms,
             "jev_tokens": e.jev_tokens,
+            "llm_tokens": e.llm_tokens,
+            "layers": e.layers,
             "fingerprint": e.fingerprint,
             "fix_id": e.fix_id,
             "fix": {"request_ops": fix.request_ops, "response_ops": fix.response_ops}
@@ -616,10 +664,18 @@ def create_app(
     async def mcp() -> dict:
         return await dash.mcp_info()
 
+    @app.get("/api/mcp/calls")
+    async def mcp_calls() -> dict:
+        if dash.gateway is not None:
+            tools = dash.gateway.tools()
+        else:
+            tools = (await dash.mcp_info())["front_door"]["tools"]
+        return mcp_tool_usage(tools, dash.store.call_events(), dash.store.audit_events())
+
     @app.get("/api/report")
     async def report() -> dict:
         try:
-            text = (ROOT / "bench" / "report.md").read_text(encoding="utf-8")
+            text = (ROOT / "REPORT.md").read_text(encoding="utf-8")
         except FileNotFoundError:
             text = None
         return {"report": text}
@@ -642,9 +698,25 @@ def create_app(
         await bad_request(dash.start(body.agent, body.step_delay))
         return dash.state()
 
+    @app.get("/api/drift-editor/schemas")
+    async def drift_editor_schemas() -> dict:
+        return {"tools": await dash.drift_schemas()}
+
     @app.post("/api/mutation")
     async def mutation(body: MutationIn) -> dict:
-        await bad_request(dash.mutate(body.id))
+        custom = None
+        if body.id == CUSTOM:
+            custom = body.custom
+            if body.fake_schema is not None:
+                tool = (body.custom or {}).get("tool")
+                actual = (await dash.drift_schemas()).get(tool)
+                if actual is None:
+                    raise HTTPException(400, f"unknown tool {tool!r}, one of {sorted(V1_REQUEST)}")
+                try:
+                    custom = custom_from_schema(tool, actual, body.fake_schema, body.header)
+                except ValueError as exc:
+                    raise HTTPException(400, str(exc)) from exc
+        await bad_request(dash.mutate(body.id, custom))
         if body.id and all(r["status"] != "running" for r in dash.runs.values()):
             # Nothing is calling the API, so a drift would go unseen: run a quick scripted
             # pass so the break is hit and healed, and the patch log shows it.

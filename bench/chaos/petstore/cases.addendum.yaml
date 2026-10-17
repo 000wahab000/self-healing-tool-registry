@@ -1,0 +1,7 @@
+# ADDENDUM, written AFTER a 2-case smoke run (D1, D4) of cases.yaml (cases.yaml sha256 prefix 4b7c267f754d94d9 unchanged).
+# Reason: smoke D1 showed the heal's verify step failing when Pet.name is renamed in BOTH request and response
+# (the shared Pet schema). This case isolates the request-side rename. Expectation written before it ran.
+version: 1
+suite: petstore
+cases:
+  - {id: D1b_body_rename_request_only, mut: D1b, tool: addPet, args: {id: 7, name: rex, photoUrls: ["http://x/1.png"], status: available}, expected: heal, why: "addPet request schema renames name -> petName; response schema still has name; move op on request only"}

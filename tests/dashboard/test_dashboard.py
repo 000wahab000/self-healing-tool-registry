@@ -382,6 +382,15 @@ async def test_report_endpoint_returns_text_or_null(client):
     assert body["report"] is None or isinstance(body["report"], str)
 
 
+async def test_report_endpoint_reads_root_report(monkeypatch, client, tmp_path):
+    from dashboard import app as dashboard_app
+
+    (tmp_path / "REPORT.md").write_text("# consolidated report", encoding="utf-8")
+    monkeypatch.setattr(dashboard_app, "ROOT", tmp_path)
+    body = (await client.get("/api/report")).json()
+    assert body["report"] == "# consolidated report"
+
+
 async def test_demo_runs_the_pitch_flow():
     events = await demo.main(step=0.02)
     assert [(e.tool, e.cls, e.outcome, e.reason) for e in events] == [

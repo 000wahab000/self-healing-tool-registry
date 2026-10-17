@@ -95,7 +95,9 @@ class SpecWatcher:
 
     def _snapshot(self, spec: LoadedSpec) -> None:
         if self._store is not None:
-            self._store.save_spec(spec.spec_hash, spec.raw)
+            sanitize = getattr(self._healer, "sanitize_spec", None)
+            raw = sanitize(spec.raw) if callable(sanitize) else spec.raw
+            self._store.save_spec(spec.spec_hash, raw)
 
     async def _precompute(self, old: LoadedSpec, new: LoadedSpec) -> None:
         """Contract 5: only the healer that provides precompute is called; snapshots still save."""

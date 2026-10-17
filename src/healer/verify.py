@@ -60,11 +60,17 @@ def _spec_constraints(
     collect(spec.get("body_schema") or {}, ("body",))
     collect(spec.get("response_schema") or {}, ())
     for param in spec.get("params", []):
-        p_path = (param.get("in", "query"), param["name"])
+        loc = param.get("in", "query")
+        p_path = (
+            "route_params" if loc == "path" else loc,
+            param["name"].casefold() if loc == "header" else param["name"],
+        )
         paths.add(p_path)
         p_enum = param.get("schema", {}).get("enum")
         if p_enum and isinstance(p_enum, (list, set, tuple)):
             enums[p_path] = set(p_enum)
+    if "bearer" in spec.get("security", []):
+        paths.add(("header", "authorization"))
     return paths, {(spec["method"], spec["path"])}, enums
 
 
@@ -93,7 +99,7 @@ class Verifier:
             return [first, *_skip_from(2)]
         if current_spec is None:
             second = _row(2, "request_schema", "skip", "spec_unavailable")
-        elif str(current_spec.get("method", "")).upper() in {"MCP", "GRAPHQL", "GRPC"}:
+        elif str(current_spec.get("method", "")).upper() in {"GRAPHQL", "GRPC"}:  # MCP: body_schema is the inputSchema, checked below
             second = _row(2, "request_schema", "skip", "protocol_schema")
         else:
             patched = apply_ops(fix.get("request_ops", []), base_doc, cfg)
@@ -187,7 +193,8 @@ def _invalid_request(doc: dict, spec: OperationSpec) -> bool:
     params = spec.get("params", [])
     for param in params:
         loc, name = param.get("in", "query"), param["name"]
-        values = doc.get(loc, {})
+        doc_loc = "route_params" if loc == "path" else loc
+        values = doc.get(doc_loc, {})
         if loc == "header":
             values = {str(key).casefold(): value for key, value in values.items()}
             name = name.casefold()
@@ -196,7 +203,15 @@ def _invalid_request(doc: dict, spec: OperationSpec) -> bool:
         if name in values and not Draft202012Validator(_strict(param["schema"])).is_valid(values[name]):
             return True
     query_names = {param["name"] for param in params if param.get("in", "query") == "query"}
-    return bool(set(doc.get("query", {})) - query_names)
+    path_names = {param["name"] for param in params if param.get("in") == "path"}
+    if "bearer" in spec.get("security", []):
+        headers = {str(key).casefold(): value for key, value in doc.get("header", {}).items()}
+        if not isinstance(headers.get("authorization"), str) or not headers["authorization"]:
+            return True
+    return bool(
+        set(doc.get("query", {})) - query_names
+        or set(doc.get("route_params", {})) - path_names
+    )
 
 
 def _readback_matches(observed: Any, expected: Any, checks: list[dict]) -> bool:

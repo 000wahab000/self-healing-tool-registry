@@ -1,0 +1,23 @@
+# Pre-registered expectations: GraphQL suite (live public Countries API baseline + local project-mock drift).
+# Written BEFORE the first run. No LLM. Read-only queries only against the live API.
+# Oracle for live cases: the same question asked directly with a hand-written query to
+# https://countries.trevorblades.com/graphql (independent of our adapter); the registry answer must match.
+# Oracle for local cases: the strawberry mock's own validation and data (mock_api/graphql_app.py, the project's
+# own mock: NOT an independent third-party schema; labelled as such).
+#
+#   success      : agent receives data equal to the oracle's answer, no audit row
+#   null_result  : agent receives the server's null/empty answer, not an error
+#   arg_error    : structured error before any upstream contact (AGENT_ARG_ERROR)
+#   heal         : RECOVERED audit row and the answer equals the oracle
+version: 1
+suite: graphql
+cases:
+  - {id: G1_country_BR,       kind: live, tool: country,   args: {code: BR}, oracle: {q: "{ country(code:\"BR\"){ name capital currency } }"}, expected: success, why: "baseline read of a nested object"}
+  - {id: G2_continent_EU,     kind: live, tool: continent, args: {code: EU}, oracle: {q: "{ continent(code:\"EU\"){ name code } }"}, expected: success, why: "baseline read"}
+  - {id: G3_language_pt,      kind: live, tool: language,  args: {code: pt}, oracle: {q: "{ language(code:\"pt\"){ name code } }"}, expected: success, why: "baseline read"}
+  - {id: G4_countries_filter, kind: live, tool: countries, args: {filter: {currency: {eq: EUR}}}, oracle: {q: "{ countries(filter:{currency:{eq:\"EUR\"}}){ code } }", min_count: 15}, expected: success, why: "list-of-objects root field with an input-object filter"}
+  - {id: G5_unknown_code,     kind: live, tool: country,   args: {code: ZZ}, oracle: {q: "{ country(code:\"ZZ\"){ name } }"}, expected: null_result, why: "unknown code: the server answers data.country = null, which is not an error"}
+  - {id: G6_wrong_arg_type,   kind: live, tool: country,   args: {code: 123}, expected: arg_error, why: "string expected, integer sent: rejected at the front door"}
+  - {id: L0_local_baseline,   kind: local, tool: get_user, args: {user_id: "123"}, mutation: null, expected: success, why: "local project mock, no drift"}
+  - {id: L1_local_arg_rename, kind: local, tool: get_user, args: {user_id: "123"}, mutation: M1, expected: heal, why: "mock mutation M1 renames get_user(user_id) to get_user(customer_id)"}
+  - {id: L2_local_envelope,   kind: local, tool: get_user, args: {user_id: "123"}, mutation: M3, expected: heal, why: "mock mutation M3 wraps the response in {data: ...}; response-side drift"}

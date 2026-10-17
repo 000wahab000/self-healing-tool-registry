@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
-# C1 to C3 are controls: they switch the mock but leave the spec unchanged (product.md §7).
+# C1 to C3 are controls: they switch the mock but leave the spec unchanged (AGENTS.md product requirements §7).
 MUTATIONS = (
     "M1",
     "M2",
@@ -370,7 +370,7 @@ def build(api: "MockApi", mid: str | None) -> FastAPI:
         new = body.email_address if mid in ("M7", "W1") else body.email
         if new is not None and mid != "W1":
             user["email"] = new
-        return {"id": uid, "email": new if (mid == "W1" and new is not None) else user["email"]}
+        return {"id": uid, "email": new if mid == "W1" and new is not None else user["email"]}
 
     def manager_ids(body) -> tuple[str, str]:  # 404 checks shared with the dry run
         uid, manager = (

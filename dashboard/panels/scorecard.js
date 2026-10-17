@@ -45,7 +45,7 @@
 
       const head = el("div", [
         el("div", [
-          el("p", "Measured benchmark results · bench/report.md", { class: "eyebrow" }),
+          el("p", "Measured benchmark results · REPORT.md", { class: "eyebrow" }),
           el("h3", "Benchmark Scorecard"),
         ]),
       ], { class: "head", style: "margin-bottom: 16px;" });
@@ -160,7 +160,7 @@
 
       // Footer
       const footer = el("div", [
-        el("span", [document.createTextNode("Source: "), el("code", data.source || "bench/report.md")]),
+        el("span", [document.createTextNode("Source: "), el("code", data.source || "REPORT.md")]),
         el("span", `Generated: ${data.generated_at || "—"}`),
         el("span", "Measured by bench/run.py", { style: "color: var(--ok);" }),
       ], {

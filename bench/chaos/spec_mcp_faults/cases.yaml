@@ -1,0 +1,38 @@
+# Pre-registered expectations: spec / upstream-MCP / registry-restart faults (suite "spec_mcp_faults").
+# Written BEFORE the first run. REST cases use bench/chaos/spec_mcp_faults/strict_api.py (v1 requires query
+# param `q`; v2 requires `query` and rejects the call otherwise: 422) behind an `apis` entry. The tool under
+# test is searchWidgets (GET, a read, so a heal needs no write guard). MCP cases use mock_api/mcp_drift_server.py
+# over Streamable HTTP and a tiny bizmcp.py (isError / -32603 results).
+# Oracle: strict_api's own 2xx + echoed `received_query`; the drift server's own tool result; never our verifier.
+#
+# vocabulary
+#   heal              : RECOVERED audit row, upstream accepted, intended value intact
+#   refuse_or_clue    : EITHER a structured refusal OR a heal that the upstream accepts with the intended value;
+#                       anything the upstream accepts with a wrong/changed value is a false patch
+#   refuse            : structured error, no heal, no crash, gateway still answers a health call afterwards
+#   pass_through      : upstream's own error reaches the caller unchanged; no RECOVERED row; no false patch
+#   structured_error  : error result (not an exception/hang), gateway alive
+#   recover           : after the upstream restarts, a later call succeeds without restarting the gateway
+#   tier0             : after a gateway restart, a stored fix is served with audit tier 0 (no new diagnosis)
+#   single_flight     : N concurrent calls on one drift => exactly 1 non-waiter audit row, all N reach upstream OK
+
+version: 1
+suite: spec_mcp_faults
+cases:
+  - {id: S1a_spec_500_during_heal,  kind: rest, spec: {status: 500},  expected: refuse_or_clue, why: "drifted API (q -> query); spec endpoint returns 500 when the heal tries to re-fetch it"}
+  - {id: S1b_spec_hangs_during_heal, kind: rest, spec: {status: hang}, expected: refuse_or_clue, why: "spec endpoint hangs 30 s; SPEC_FETCH_TIMEOUT_S 0.5 s must bound it; call returns well inside the 30 s deadline", max_latency_ms: 20000}
+  - {id: S2a_spec_not_json,         kind: rest, spec: {raw: "{this is not json"}, expected: refuse, why: "drifted API, spec endpoint returns text that is not JSON"}
+  - {id: S2b_spec_not_openapi,      kind: rest, spec: {raw: "{\"hello\": 1}"}, expected: refuse, why: "valid JSON, no openapi/paths"}
+  - {id: S2c_spec_paths_wrong_type, kind: rest, spec: {raw: "{\"openapi\": \"3.0.3\", \"info\": {\"title\": \"x\", \"version\": \"1\"}, \"paths\": 5}"}, expected: refuse, why: "paths is an integer"}
+  - {id: S2d_spec_html_200,         kind: rest, spec: {raw: "<html><body>maintenance</body></html>"}, expected: refuse, why: "HTML maintenance page served with 200 at the spec URL"}
+  - {id: S2e_invalid_spec_at_startup, kind: startup, spec: {raw: "{this is not json"}, expected: structured_error, why: "gateway start with an unparseable spec: must fail clearly or skip the API, never hang; observation recorded (startup_abort vs skip)"}
+  - {id: S3a_cyclic_ref_at_startup, kind: startup_cyclic, expected: structured_error, why: "valid spec with a self-referential schema (Widget.parent -> Widget) loaded at start: loads fine or is skipped; no RecursionError crash; searchWidgets still callable", note: "pass = gateway up and a call works or fails with a structured error"}
+  - {id: S3b_cyclic_ref_drifted,   kind: rest, spec: {cyclic: true}, expected: refuse_or_clue, why: "drifted spec (q -> query) that also contains a cyclic $ref; heal must load it or refuse, no recursion crash, no hang"}
+  - {id: M1_mcp_killed_restarted,   kind: mcp_kill, expected: recover, why: "kill the upstream MCP process: next call returns a structured error without hanging/crashing the gateway; after the upstream is restarted a later call succeeds without restarting the gateway", risk: "http MCP session id is stale after upstream restart; session may never be re-established"}
+  - {id: M2_tools_list_changes,     kind: mcp_drift, mutation: M1, expected: heal, why: "drift server mutation M1 renames get_user.user_id -> customer_id between calls; old-arg call must heal (upstream's own result is the oracle)"}
+  - {id: M2b_tool_renamed,          kind: mcp_drift, mutation: T-RENAME, expected: refuse_or_clue, why: "get_user -> fetch_user; no op exists to rename a tool; refuse or a correct tool-level mapping"}
+  - {id: M3a_jsonrpc_32602_not_drift, kind: mcp_notfound, expected: pass_through, why: "no drift: get_user for a user id that does not exist => upstream raises -32602 'User not found'. It must reach the caller as an error, no RECOVERED heal, no changed arguments", risk: "-32602 may be classified as schema drift E2 and trigger a pointless heal attempt"}
+  - {id: M3b_jsonrpc_32603,         kind: mcp_biz, call: {tool: boom, args: {item_id: boom}}, expected: structured_error, why: "upstream JSON-RPC -32603 internal error: structured error, no heal, gateway alive"}
+  - {id: M4_iserror_business,       kind: mcp_biz, call: {tool: lookup, args: {item_id: missing}}, expected: pass_through, why: "upstream returns isError:true with 'Item not found': business error passes through with its content, no heal"}
+  - {id: R1_gateway_restart_tier0,  kind: rest_restart, expected: tier0, why: "heal q -> query (stored fix), kill and restart the gateway on the same db, repeat the old-arg call: served by the stored fix at tier 0", plan: "stored fix served at tier 0", risk: "frozen agent schema is rebuilt from the live (drifted) spec at startup, so old args may be rejected as AGENT_ARG_ERROR instead of served from the store"}
+  - {id: R3_concurrent_one_heal,    kind: rest_concurrent, n: 5, expected: single_flight, why: "5 concurrent calls with old args on one drift: one heal, one non-waiter audit row, all 5 requests reach the upstream with `query`"}

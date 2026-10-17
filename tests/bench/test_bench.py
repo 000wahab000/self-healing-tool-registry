@@ -48,7 +48,7 @@ def main(rows):
 
 @pytest.fixture(scope="module")
 def report(out):
-    return (out / "report.md").read_text(encoding="utf-8")
+    return (out / "REPORT.md").read_text(encoding="utf-8")
 
 
 def one(rows, scenario, agent, phase="main"):
@@ -79,6 +79,61 @@ def test_one_row_per_scenario_agent_per_tier0_rerun_and_ablation(rows):
     # spec_mode on for the main and tier-0 passes, off only for the ablation (FR-6.4)
     assert {r["spec_mode"] for r in rows if r["phase"] != "ablation"} == {"on"}
     assert {r["spec_mode"] for r in rows if r["phase"] == "ablation"} == {"off"}
+
+
+def test_report_path_defaults_to_root_and_explicit_out_is_local(tmp_path):
+    assert bench_run.report_path(None) == bench_run.Path(__file__).parents[2] / "REPORT.md"
+    assert bench_run.report_path(tmp_path) == tmp_path / "REPORT.md"
+
+
+def test_report_generation_preserves_supplementary_evidence():
+    prior = f"generated report\n\n{bench_run.REPORT_MARKER}\n\n## Extra evidence\nproof"
+    assert bench_run.preserve_supplementary("new report", prior) == (
+        f"new report\n\n{bench_run.REPORT_MARKER}\n\n## Extra evidence\nproof"
+    )
+
+
+def test_chaos_report_append_retains_prior_report_and_marks_provenance(tmp_path):
+    from bench.chaos.github.run import append_chaos_report
+
+    prior = f"# Existing report\n\n{bench_run.REPORT_MARKER}\n\n## Prior proof\nretained"
+    report_path = tmp_path / "REPORT.md"
+    report_path.write_text(prior, encoding="utf-8")
+    append_chaos_report(
+        report_path,
+        "case summary",
+        mode="offline",
+        generated_at="2026-10-17T12:00:00+0000",
+        profile_count=2,
+        row_count=5,
+        claude_calls=0,
+    )
+    appended = report_path.read_text(encoding="utf-8")
+    assert appended.startswith(prior)
+    assert "## Prior proof\nretained" in appended
+    assert "Mode: offline; generated: 2026-10-17T12:00:00+0000; profiles: 2; rows: 5." in appended
+    assert "case summary" in appended and "claude calls used: 0" in appended
+
+
+def test_chaos_report_appends_missing_marker_once(tmp_path):
+    from bench.chaos.github.run import append_chaos_report
+
+    report_path = tmp_path / "REPORT.md"
+    report_path.write_text("# Existing report", encoding="utf-8")
+    for _ in range(2):
+        append_chaos_report(
+            report_path,
+            "case summary",
+            mode="live",
+            generated_at="2026-10-17T12:00:00+0000",
+            profile_count=1,
+            row_count=2,
+            claude_calls=1,
+        )
+    appended = report_path.read_text(encoding="utf-8")
+    assert appended.count(bench_run.REPORT_MARKER) == 1
+    assert appended.startswith("# Existing report")
+    assert appended.count("## GitHub MCP chaos run") == 2
 
 
 def test_clean_run_completes_for_both_agents(main):  # FR-15.6 token baselines

@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import sqlite3
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import replace
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
@@ -22,6 +24,7 @@ from healer.models import (
     Reason,
     Tier,
 )
+from healer.ops import OpError, validate_ops
 from healer.settings import NEG_CACHE_TTL_S, RETIRE_AT_LOSSES
 
 RAW_ERROR_MAX = 2048
@@ -44,16 +47,89 @@ _HEADER_VALUE = re.compile(
     re.IGNORECASE,
 )
 _BEARER = re.compile(r"\bbearer\s+[\w.~+/=-]+", re.IGNORECASE)
+_BASIC = re.compile(r"\bbasic\s+[A-Za-z0-9+/]+=*", re.IGNORECASE)
 _JWT = re.compile(r"\beyJ[\w-]+\.[\w-]+\.[\w-]*")
 
 
-def sanitize(text: str, secrets: Iterable[str] = ()) -> str:
-    """FR-5.7: the audit blob keeps no secret. Redact, then truncate (so a cut cannot expose one)."""
-    for secret in sorted(filter(None, secrets), key=len, reverse=True):
+# Agent-facing data: a known secret shorter than this is not removed by value ("t-1" would
+# blank "t-100"). Audit rows and prompts redact every value they are given.
+MIN_SECRET_LEN = 6
+_CREDENTIAL_KEY = re.compile(
+    r"authorization|bearer|token|secret|password|"
+    r"(?:api|client|access|auth|refresh)[-_]?key|cookie|credential",
+    re.IGNORECASE,
+)
+
+
+def credential_values(cfg: Mapping[str, str]) -> tuple[str, ...]:
+    """Config values that are credentials by key name; plain settings (tenant ids) are not."""
+    return tuple(
+        value
+        for key, value in cfg.items()
+        if isinstance(value, str) and value and _CREDENTIAL_KEY.search(key)
+    )
+
+
+def _secret_forms(secrets: Iterable[str], min_len: int = 1) -> list[str]:
+    forms: set[str] = set()
+    for secret in secrets:
+        if not isinstance(secret, str) or not secret:
+            continue
+        forms.update((secret, json.dumps(secret)[1:-1], json.dumps(secret, ensure_ascii=False)[1:-1]))
+        if secret.lower().startswith("basic "):
+            encoded = secret[6:].strip()
+            if not encoded:
+                continue
+            forms.add(encoded)
+            try:
+                decoded = base64.b64decode(encoded, validate=True).decode()
+            except (ValueError, UnicodeDecodeError):
+                continue
+            forms.add(decoded)
+            forms.update(part for part in decoded.split(":") if part)
+    return sorted(
+        (form for form in forms if len(form) >= min_len), key=len, reverse=True
+    )
+
+
+def redact_value(
+    value: object, secrets: Iterable[str] = (), *, generic: bool = True
+) -> object:
+    """Redact string leaves while preserving the value's JSON structure and size.
+    `generic=False` (agent-facing data) removes only the exact known secrets."""
+    secrets = tuple(secrets)
+    if isinstance(value, str):
+        return sanitize(value, secrets, max_chars=None, generic=generic)
+    if isinstance(value, list):
+        return [redact_value(item, secrets, generic=generic) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_value(item, secrets, generic=generic) for item in value)
+    if isinstance(value, dict):
+        return {
+            key: redact_value(item, secrets, generic=generic)
+            for key, item in value.items()
+        }
+    return value
+
+
+def sanitize(
+    text: str,
+    secrets: Iterable[str] = (),
+    *,
+    max_chars: int | None = RAW_ERROR_MAX,
+    generic: bool = True,
+) -> str:
+    """Redact text; truncate only when a caller explicitly supplies a storage limit.
+    The generic header/bearer/basic/JWT patterns are for audit rows, logs and prompts only."""
+    for secret in _secret_forms(secrets, 1 if generic else MIN_SECRET_LEN):
         text = text.replace(secret, REDACTED)
+    if not generic:
+        return text[:max_chars] if max_chars is not None else text
     text = _HEADER_VALUE.sub(rf"\1\2{REDACTED}", text)
     text = _BEARER.sub(f"Bearer {REDACTED}", text)
-    return _JWT.sub(REDACTED, text)[:RAW_ERROR_MAX]
+    text = _BASIC.sub(f"Basic {REDACTED}", text)
+    text = _JWT.sub(REDACTED, text)
+    return text[:max_chars] if max_chars is not None else text
 
 
 def _safe_layers(layers: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -132,7 +208,8 @@ CREATE TABLE IF NOT EXISTS call_events (
     run_id TEXT NOT NULL,
     tool TEXT NOT NULL,
     class TEXT NOT NULL {_in("class", ErrorClass)},
-    latency_ms INTEGER NOT NULL
+    latency_ms INTEGER NOT NULL,
+    patches TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS rules (
     rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -209,7 +286,14 @@ class FixStore(Protocol):
     def save_spec(self, spec_hash: str, spec: dict) -> None: ...
     def get_spec(self, spec_hash: str) -> dict | None: ...
     def log_call(
-        self, agent: str, run_id: str, tool: str, cls: ErrorClass, latency_ms: int
+        self,
+        agent: str,
+        run_id: str,
+        tool: str,
+        cls: ErrorClass,
+        latency_ms: int,
+        *,
+        patches: list[dict] | None = None,
     ) -> None: ...
     def call_events(self, after_id: int = 0) -> list[dict]: ...
     def get_candidate(self, fp: str) -> Fix | None: ...
@@ -229,6 +313,8 @@ class Store:
         self._db.executescript(SCHEMA)
         if "layers" not in {row["name"] for row in self._db.execute("PRAGMA table_info(heal_events)")}:
             self._db.execute("ALTER TABLE heal_events ADD COLUMN layers TEXT NOT NULL DEFAULT '[]'")
+        if "patches" not in {row["name"] for row in self._db.execute("PRAGMA table_info(call_events)")}:
+            self._db.execute("ALTER TABLE call_events ADD COLUMN patches TEXT NOT NULL DEFAULT '[]'")
         self._active = {
             f.fingerprint: f
             for f in map(
@@ -348,7 +434,7 @@ class Store:
                     fix.wins, fix.losses, fix.created_ms or self._now_ms(), fix.last_used_ms,
                 ),
             )
-            self._insert_audit(event)
+            self._insert_audit(replace(event, fix_id=cur.lastrowid))
         fix.fix_id = cur.lastrowid
         if fix.status is FixStatus.active:
             self._active[fix.fingerprint] = fix
@@ -403,7 +489,7 @@ class Store:
                     event.heal_ms,
                     event.jev_tokens,
                     event.llm_tokens,
-                    sanitize(event.raw_error),
+                    sanitize(event.raw_error, max_chars=RAW_ERROR_MAX),
                     canonical.dumps(_safe_layers(event.layers)),
                 ),
         )
@@ -451,22 +537,60 @@ class Store:
         return json.loads(row["spec"]) if row else None
 
     def log_call(
-        self, agent: str, run_id: str, tool: str, cls: ErrorClass, latency_ms: int
+        self,
+        agent: str,
+        run_id: str,
+        tool: str,
+        cls: ErrorClass,
+        latency_ms: int,
+        *,
+        patches: list[dict] | None = None,
     ) -> None:
+        safe_patches = []
+        for patch in patches or []:
+            if not isinstance(patch, dict) or type(patch.get("reused")) is not bool:
+                continue
+            request_ops = patch.get("request_ops", [])
+            response_ops = patch.get("response_ops", [])
+            if not isinstance(request_ops, list) or not isinstance(response_ops, list):
+                continue
+            try:
+                validate_ops(request_ops)
+                validate_ops(response_ops)
+            except OpError:
+                continue
+            if not request_ops and not response_ops:
+                continue
+            fix_id = patch.get("fix_id")
+            safe_patches.append(
+                {
+                    "fix_id": fix_id if type(fix_id) is int else None,
+                    "reused": patch["reused"],
+                    "request_ops": request_ops,
+                    "response_ops": response_ops,
+                }
+            )
         with self._db:
             self._db.execute(
-                "INSERT INTO call_events (ts_ms, agent, run_id, tool, class, latency_ms)"
-                " VALUES (?,?,?,?,?,?)",
-                (self._now_ms(), agent, run_id, tool, cls, latency_ms),
+                "INSERT INTO call_events (ts_ms, agent, run_id, tool, class, latency_ms, patches)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (self._now_ms(), agent, run_id, tool, cls, latency_ms, canonical.dumps(safe_patches)),
             )
 
     def call_events(self, after_id: int = 0) -> list[dict]:
         rows = self._db.execute(
-            "SELECT event_id, ts_ms, agent, run_id, tool, class, latency_ms"
+            "SELECT event_id, ts_ms, agent, run_id, tool, class, latency_ms, patches"
             " FROM call_events WHERE event_id > ? ORDER BY event_id",
             (after_id,),
         )
-        return [dict(r) for r in rows]
+        events = []
+        for row in rows:
+            event = dict(row)
+            patches = json.loads(event.pop("patches"))
+            if patches:
+                event["patches"] = patches
+            events.append(event)
+        return events
 
     def get_fix(self, fix_id: int) -> Fix | None:
         row = self._db.execute(

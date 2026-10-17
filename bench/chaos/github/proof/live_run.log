@@ -1,0 +1,41 @@
+[identity] control
+[rename_owner_repo] control
+[rename_owner_repo] agent
+[rename_issue_number] control
+[rename_issue_number] agent
+[int_to_string] control
+[int_to_string] agent
+[wrap_args] control
+[wrap_args] agent
+[nest_repo] control
+[nest_repo] agent
+[enum_case] control
+[enum_case] agent
+[enum_synonym] control
+[enum_synonym] agent
+[merge_owner_repo] control
+[merge_owner_repo] agent
+[decoy_unused] control
+[decoy_used] control
+| profile | kind | calls | verdicts | observed |
+|---|---|---|---|---|
+| identity | control | 6 | {'PASS': 3, 'MISSED': 1, 'REFUSED': 2} | {'pass_through': 3, 'missed': 1, 'refused': 2} |
+| rename_owner_repo | control | 6 | {'PASS': 2, 'REFUSED': 3, 'MISSED': 1} | {'pass_through': 2, 'refused': 3, 'missed': 1} |
+| rename_owner_repo | agent | 2 | {'REFUSED': 2} | {'refused': 2} |
+| rename_issue_number | control | 6 | {'PASS': 2, 'MISSED': 2, 'REFUSED': 2} | {'pass_through': 2, 'missed': 2, 'refused': 2} |
+| rename_issue_number | agent | 2 | {'PASS': 2} | {'pass_through': 2} |
+| int_to_string | control | 6 | {'PASS': 3, 'MISSED': 1, 'REFUSED': 2} | {'pass_through': 3, 'missed': 1, 'refused': 2} |
+| int_to_string | agent | 2 | {'PASS': 2} | {'pass_through': 2} |
+| wrap_args | control | 6 | {'PASS': 1, 'REFUSED': 4, 'MISSED': 1} | {'pass_through': 1, 'refused': 4, 'missed': 1} |
+| wrap_args | agent | 2 | {'REFUSED': 2} | {'refused': 2} |
+| nest_repo | control | 6 | {'PASS': 2, 'REFUSED': 3, 'MISSED': 1} | {'pass_through': 2, 'refused': 3, 'missed': 1} |
+| nest_repo | agent | 2 | {'PASS': 1, 'NOT_NEEDED': 1} | {'heal_correct': 1, 'pass_through': 1} |
+| enum_case | control | 6 | {'PASS': 2, 'FALSE_PATCH': 1, 'MISSED': 1, 'REFUSED': 2} | {'pass_through': 2, 'wrong': 1, 'missed': 1, 'refused': 2} |
+| enum_case | agent | 2 | {'FALSE_PATCH': 1, 'NOT_NEEDED': 1} | {'wrong': 1, 'pass_through': 1} |
+| enum_synonym | control | 6 | {'PASS': 3, 'MISSED': 1, 'REFUSED': 2} | {'pass_through': 2, 'refused': 3, 'missed': 1} |
+| enum_synonym | agent | 2 | {'PASS': 1, 'PASS_THROUGH': 1} | {'refused': 1, 'pass_through': 1} |
+| merge_owner_repo | control | 6 | {'PASS': 5, 'MISSED': 1} | {'pass_through': 2, 'refused': 3, 'missed': 1} |
+| merge_owner_repo | agent | 3 | {'PASS': 3} | {'refused': 3} |
+| decoy_unused | control | 6 | {'PASS': 3, 'MISSED': 1, 'REFUSED': 2} | {'pass_through': 3, 'missed': 1, 'refused': 2} |
+| decoy_used | control | 6 | {'PASS_THROUGH': 3, 'MISSED': 1, 'PASS': 2} | {'pass_through': 3, 'missed': 1, 'refused': 2} |
+claude calls used: 16

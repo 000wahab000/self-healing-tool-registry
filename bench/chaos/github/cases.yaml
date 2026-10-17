@@ -1,0 +1,99 @@
+# Pre-registered expectations for the GitHub-MCP schema-drift chaos test.
+# Written BEFORE the first run (see REPORT.md for the run date). Do not edit after a run;
+# a wrong expectation is fixed by adding a "corrections:" entry and reported as a correction.
+#
+# Setup per profile: the shim serves the FALSE ("fake") schema while the healer starts, so the
+# healer freezes the fake agent_schema. The shim is then switched to "real" (pure passthrough to
+# the upstream, whose schema is the real one). Calls use FAKE argument names; the registry must
+# translate them to the real schema.
+#
+# Outcome vocabulary
+#   pass_through : no drift visible to this call; no heal event expected; upstream accepts as-is.
+#   heal         : registry recovers (RECOVERED); upstream receives valid REAL args and every
+#                  value the caller supplied is preserved.
+#   refuse       : registry aborts (structured error, outcome ABORTED); upstream gets no
+#                  invalid or value-changed call accepted.
+# Anything else (accepted with changed/dropped values = "wrong"/false patch, crash, miss) is a fail.
+#
+# Reasoning source: agent.md invariants (no invented values, no executed model code) and the ops
+# available in ops.py (move, cast, header, route, enum_map, encoding). There is no "drop field" op
+# and no "split/merge value" op.
+
+version: 1
+defaults:
+  owner: octocat
+  repo: hello-world
+
+# The deterministic control: the same six read calls for every profile, written with REAL
+# arg names. run.py converts them to the profile's fake names with profiles.forward().
+calls:
+  - {id: get_me,              tool: get_me,              real_args: {}}
+  - {id: search_repositories, tool: search_repositories, real_args: {query: hello}}
+  - {id: list_issues,         tool: list_issues,         real_args: {owner: octocat, repo: hello-world, state: OPEN}}
+  - {id: get_issue,           tool: get_issue,           real_args: {owner: octocat, repo: hello-world, issue_number: 1}}
+  - {id: get_file_contents,   tool: get_file_contents,   real_args: {owner: octocat, repo: hello-world, path: README.md}}
+  - {id: list_commits,        tool: list_commits,        real_args: {owner: octocat, repo: hello-world, perPage: 2}}
+
+# Agent tasks (claude -p, 2 per profile, second resumes the first session).
+agent_tasks:
+  - "Using only the GitHub tools you have, list the open issues in the repository octocat/hello-world and report their titles. Make the tool call directly; do not ask me questions."
+  - "Now show issue number 1 of the same repository: report its title and state. Make the tool call directly."
+
+profiles:
+  - id: identity
+    description: No drift. Sanity baseline for the harness itself.
+    agent: false
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: pass_through, get_issue: pass_through, get_file_contents: pass_through, list_commits: pass_through}
+
+  - id: rename_owner_repo
+    description: owner -> repo_owner, repo -> repository on every tool that has them (D1 body field rename).
+    agent: true
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: heal, get_issue: heal, get_file_contents: heal, list_commits: heal}
+
+  - id: rename_issue_number
+    description: issue_number -> number on get_issue (D1).
+    agent: true
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: pass_through, get_issue: heal, get_file_contents: pass_through, list_commits: pass_through}
+
+  - id: int_to_string
+    description: every integer property becomes a string (issue_number, page, perPage). Values are lossless (D5).
+    agent: true
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: pass_through, get_issue: heal, get_file_contents: pass_through, list_commits: heal}
+
+  - id: wrap_args
+    description: all arguments wrapped under one object property "args" (D7/D8). Tools without properties (get_me) untouched.
+    agent: true
+    expect: {get_me: pass_through, search_repositories: heal, list_issues: heal, get_issue: heal, get_file_contents: heal, list_commits: heal}
+
+  - id: nest_repo
+    description: owner and repo nested under a "repository" object (inverse of flatten; move to a new path).
+    agent: true
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: heal, get_issue: heal, get_file_contents: heal, list_commits: heal}
+
+  - id: enum_case
+    description: list_issues state enum OPEN/CLOSED -> open/closed (D9, 1:1 mapping inferable by case-insensitive equality).
+    agent: true
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: heal, get_issue: pass_through, get_file_contents: pass_through, list_commits: pass_through}
+
+  - id: enum_synonym
+    description: list_issues state enum OPEN/CLOSED -> opened/shut (D9 without a derivable 1:1 mapping).
+    agent: true
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: refuse, get_issue: pass_through, get_file_contents: pass_through, list_commits: pass_through}
+
+  - id: merge_owner_repo
+    description: owner + repo merged into one repo_full_name "owner/repo" (field merge, inverse of D15). No value-splitting op exists.
+    agent: true
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: refuse, get_issue: refuse, get_file_contents: refuse, list_commits: refuse}
+
+  - id: decoy_unused
+    description: an optional decoy field include_details added to every tool; the caller does not use it.
+    agent: false
+    expect: {get_me: pass_through, search_repositories: pass_through, list_issues: pass_through, get_issue: pass_through, get_file_contents: pass_through, list_commits: pass_through}
+
+  - id: decoy_used
+    description: same schema as decoy_unused but the control call supplies include_details=true, which the real tool rejects. Healing would require dropping a caller value (no such op).
+    agent: false
+    control_extra_args: {include_details: true}
+    expect: {get_me: refuse, search_repositories: refuse, list_issues: refuse, get_issue: refuse, get_file_contents: refuse, list_commits: refuse}
+
+corrections: []

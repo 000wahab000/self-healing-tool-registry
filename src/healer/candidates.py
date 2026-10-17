@@ -241,7 +241,7 @@ def build(
 
     targets: list[tuple[dict, list[dict], bool]] = []
     for t in new:
-        if t["path"][0] not in ("body", "query"):
+        if t["path"][0] not in ("body", "query", "route_params"):
             continue
         usable = [s for s in sources if _dry_run(_fill_ops(s, t), base_doc)]
         named = [s for s in usable if _evidence(s, t, gone, new)]

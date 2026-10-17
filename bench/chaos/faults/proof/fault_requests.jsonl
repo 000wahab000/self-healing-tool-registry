@@ -1,0 +1,48 @@
+{"ts_ms": 1792196484565, "mono": 151951.3616335, "error": "IncompleteReadError('0 bytes read on a total of undefined expected bytes')"}
+{"ts_ms": 1792196490342, "mono": 151957.1385751, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196490497, "mono": 151957.2937048, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": false, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196490532, "mono": 151957.3293337, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196490793, "mono": 151957.5894597, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196492806, "mono": 151959.603053, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": false, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196492840, "mono": 151959.6368033, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196493099, "mono": 151959.8954717, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196493217, "mono": 151960.013739, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": false, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196493252, "mono": 151960.0486277, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196493518, "mono": 151960.3147352, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196494523, "mono": 151961.3195857, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": false, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196494544, "mono": 151961.3408803, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196494810, "mono": 151961.6064736, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196494949, "mono": 151961.7457106, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": true, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196495200, "mono": 151961.9967845, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": true, "n_seen": 3, "saved": 0}
+{"ts_ms": 1792196495624, "mono": 151962.4211942, "m": "GET", "p": "/items/1", "mode": "fail_n", "active": true, "n_seen": 4, "saved": 0}
+{"ts_ms": 1792196495645, "mono": 151962.4414511, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196495935, "mono": 151962.732137, "m": "GET", "p": "/items/1", "mode": "slow", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196498091, "mono": 151964.8877277, "m": "GET", "p": "/items/1", "mode": "slow", "active": true, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196500315, "mono": 151967.1116406, "m": "GET", "p": "/items/1", "mode": "slow", "active": true, "n_seen": 3, "saved": 0}
+{"ts_ms": 1792196502752, "mono": 151969.5488352, "m": "GET", "p": "/items/1", "mode": "slow", "active": true, "n_seen": 4, "saved": 0}
+{"ts_ms": 1792196504781, "mono": 151971.5774714, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196505045, "mono": 151971.8420168, "m": "GET", "p": "/items/1", "mode": "slow", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196507183, "mono": 151973.9801994, "m": "GET", "p": "/items/1", "mode": "slow", "active": false, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196507203, "mono": 151974.0003533, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196507469, "mono": 151974.2658836, "m": "GET", "p": "/items/1", "mode": "drop_mid", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196507470, "mono": 151974.2667061, "error": "ConnectionResetError('Connection lost')"}
+{"ts_ms": 1792196507623, "mono": 151974.4194717, "m": "GET", "p": "/items/1", "mode": "drop_mid", "active": true, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196507623, "mono": 151974.4200418, "error": "ConnectionResetError('Connection lost')"}
+{"ts_ms": 1792196507873, "mono": 151974.6696858, "m": "GET", "p": "/items/1", "mode": "drop_mid", "active": true, "n_seen": 3, "saved": 0}
+{"ts_ms": 1792196507873, "mono": 151974.6703609, "error": "ConnectionResetError('Connection lost')"}
+{"ts_ms": 1792196508283, "mono": 151975.0794604, "m": "GET", "p": "/items/1", "mode": "drop_mid", "active": true, "n_seen": 4, "saved": 0}
+{"ts_ms": 1792196508283, "mono": 151975.0800855, "error": "ConnectionResetError('Connection lost')"}
+{"ts_ms": 1792196508318, "mono": 151975.1150279, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196508581, "mono": 151975.3776295, "m": "GET", "p": "/items/1", "mode": "bad_json", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196508622, "mono": 151975.4188281, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196508871, "mono": 151975.6678482, "m": "GET", "p": "/items/1", "mode": "truncated", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196509018, "mono": 151975.8153401, "m": "GET", "p": "/items/1", "mode": "truncated", "active": true, "n_seen": 2, "saved": 0}
+{"ts_ms": 1792196509283, "mono": 151976.0803734, "m": "GET", "p": "/items/1", "mode": "truncated", "active": true, "n_seen": 3, "saved": 0}
+{"ts_ms": 1792196509737, "mono": 151976.533471, "m": "GET", "p": "/items/1", "mode": "truncated", "active": true, "n_seen": 4, "saved": 0}
+{"ts_ms": 1792196509756, "mono": 151976.5525198, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196510016, "mono": 151976.8131119, "m": "GET", "p": "/items/1", "mode": "big", "active": true, "n_seen": 1, "saved": 0}
+{"ts_ms": 1792196510457, "mono": 151977.2538694, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196510842, "mono": 151977.6388248, "m": "POST", "p": "/items", "mode": "save_then_fail", "active": true, "n_seen": 1, "saved": 1}
+{"ts_ms": 1792196510870, "mono": 151977.6667931, "m": "GET", "p": "/health", "action": "health"}
+{"ts_ms": 1792196511124, "mono": 151977.9208433, "m": "POST", "p": "/items", "mode": "save_then_fail", "active": true, "n_seen": 1, "saved": 1}
+{"ts_ms": 1792196511149, "mono": 151977.9462716, "m": "GET", "p": "/health", "action": "health"}

@@ -81,12 +81,22 @@ def flatten_request(op: dict) -> dict[tuple, dict]:
     body = op["body_schema"]
     out = _index(_leaves(body, ["body"], True)) if body is not None else {}
     for p in op["params"]:
-        if p["in"] not in ("query", "header"):
+        if p["in"] == "path":
+            out[("route_params", p["name"])] = _leaf(
+                ["route_params", p["name"]],
+                _type(_unwrap(p["schema"])),
+                True,
+                p["description"],
+                enum=p["schema"].get("enum"),
+            )
+            continue
+        if p["in"] not in ("query", "header", "path"):
             continue
         name = p["name"].lower() if p["in"] == "header" else p["name"]
+        loc = "route_params" if p["in"] == "path" else p["in"]
         schema = _unwrap(p["schema"])
-        out[(p["in"], name)] = _leaf(
-            [p["in"], name],
+        out[(loc, name)] = _leaf(
+            [loc, name],
             _type(schema),
             p["required"],
             p["description"],

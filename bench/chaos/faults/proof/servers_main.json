@@ -1,0 +1,15 @@
+{
+ "apis": [
+  {
+   "name": "flt",
+   "kind": "openapi",
+   "base_url": "http://127.0.0.1:4030",
+   "spec_path": "/openapi.json",
+   "selected_operations": [
+    "getItem",
+    "createItem",
+    "health"
+   ]
+  }
+ ]
+}

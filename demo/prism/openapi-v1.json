@@ -1,0 +1,158 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Demo Orders API",
+    "version": "1.0.0",
+    "description": "A static, illustrative order lookup contract; it does not represent live order state."
+  },
+  "paths": {
+    "/orders": {
+      "get": {
+        "operationId": "get_order",
+        "summary": "Look up an order",
+        "description": "Look up the illustrative order identified by its order ID.",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": true,
+            "description": "The order ID to look up.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Illustrative order result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "order_id",
+                    "status",
+                    "total"
+                  ],
+                  "properties": {
+                    "order_id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "total": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "example": {
+                  "order_id": "ORD-1001",
+                  "status": "shipped",
+                  "total": 49.95
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "Get this API's OpenAPI document",
+        "description": "Returns the published OpenAPI document for this version. This endpoint is intentionally not exposed as a tool.",
+        "responses": {
+          "200": {
+            "description": "This version's OpenAPI document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "openapi": "3.0.3",
+                  "info": {
+                    "title": "Demo Orders API",
+                    "version": "1.0.0",
+                    "description": "A static, illustrative order lookup contract; it does not represent live order state."
+                  },
+                  "paths": {
+                    "/orders": {
+                      "get": {
+                        "operationId": "get_order",
+                        "summary": "Look up an order",
+                        "description": "Look up the illustrative order identified by its order ID.",
+                        "parameters": [
+                          {
+                            "name": "order_id",
+                            "in": "query",
+                            "required": true,
+                            "description": "The order ID to look up.",
+                            "schema": {
+                              "type": "string"
+                            }
+                          }
+                        ],
+                        "responses": {
+                          "200": {
+                            "description": "Illustrative order result.",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "type": "object",
+                                  "required": [
+                                    "order_id",
+                                    "status",
+                                    "total"
+                                  ],
+                                  "properties": {
+                                    "order_id": {
+                                      "type": "string"
+                                    },
+                                    "status": {
+                                      "type": "string"
+                                    },
+                                    "total": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "example": {
+                                  "order_id": "ORD-1001",
+                                  "status": "shipped",
+                                  "total": 49.95
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "/openapi.json": {
+                      "get": {
+                        "summary": "Get this API's OpenAPI document",
+                        "description": "Returns the published OpenAPI document for this version. This endpoint is intentionally not exposed as a tool.",
+                        "responses": {
+                          "200": {
+                            "description": "This version's OpenAPI document.",
+                            "content": {
+                              "application/json": {
+                                "schema": {
+                                  "type": "object"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

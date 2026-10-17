@@ -1,0 +1,6 @@
+| Case | Expected | Observed | Verdict | Category | Note |
+|---|---|---|---|---|---|
+| ST1_post_customers_exposed | not_exposed | startup_hang | HUNG | hung | gateway did not open its port in 120 s (port 8103 did not open in 120s); process alive=True; cause: healer.openapi_loader.resolve_refs inlines the Stripe slice without memoisation (see loader_probe_output.txt) |
+| ST2_get_customer_exposed | exposed | startup_hang | HUNG | hung | gateway did not open its port in 120 s (port 8103 did not open in 120s); process alive=True; cause: healer.openapi_loader.resolve_refs inlines the Stripe slice without memoisation (see loader_probe_output.txt) |
+| ST3_list_customers_exposed | not_exposed | startup_hang | HUNG | hung | gateway did not open its port in 120 s (port 8103 did not open in 120s); process alive=True; cause: healer.openapi_loader.resolve_refs inlines the Stripe slice without memoisation (see loader_probe_output.txt) |
+| ST4_retrieve_across_real_version_diff | pass_through | startup_hang | HUNG | hung | gateway did not open its port in 120 s (port 8103 did not open in 120s); process alive=True; cause: healer.openapi_loader.resolve_refs inlines the Stripe slice without memoisation (see loader_probe_output.txt) |

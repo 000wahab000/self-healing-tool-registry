@@ -1,0 +1,2 @@
+unprefixed spec keys -> EXCEPTION AttributeError 'NoneType' object has no attribute 'get'
+namespaced spec keys (as gateway apis) -> Outcome(cls=<ErrorClass.E2: 'E2'>, protocol='graphql', raw_code='SCHEMA_VALIDATION', data=None, violations=[Violation(side=<Side.REQ: 'req'>, path=['body', 'code'], kind='unknown')])

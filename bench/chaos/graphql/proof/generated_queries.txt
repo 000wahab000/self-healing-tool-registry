@@ -1,0 +1,10 @@
+country 178 query { country(code: "BR") { awsRegion capital code continent { code countries name } currencies currency emoji emojiU languages name native phone phones states subdivisions } }
+  -> 200 {"errors":[{"message":"Field \"countries\" of type \"[Country!]!\" must have a selection of subfields. Did you mean \"countries { ... }\"?","locations":[{"line":8,"column":7}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"Field \"languages\" of type \"[Language!]!\" must have a sele
+continent 55 query { continent(code: "EU") { code countries name } }
+  -> 200 {"errors":[{"message":"Field \"countries\" of type \"[Country!]!\" must have a selection of subfields. Did you mean \"countries { ... }\"?","locations":[{"line":4,"column":5}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}
+language 65 query { language(code: "pt") { code countries name native rtl } }
+  -> 200 {"errors":[{"message":"Field \"countries\" of type \"[Country!]!\" must have a selection of subfields. Did you mean \"countries { ... }\"?","locations":[{"line":4,"column":5}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}
+languages 19 query { languages }
+  -> 200 {"errors":[{"message":"Field \"languages\" of type \"[Language!]!\" must have a selection of subfields. Did you mean \"languages { ... }\"?","locations":[{"line":2,"column":3}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}
+countries 19 query { countries }
+  -> 200 {"errors":[{"message":"Field \"countries\" of type \"[Country!]!\" must have a selection of subfields. Did you mean \"countries { ... }\"?","locations":[{"line":2,"column":3}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}

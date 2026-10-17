@@ -119,7 +119,7 @@ def parse_report_markdown(text: str) -> dict[str, Any]:
 
 def scorecard(report_path: Path | str | None = None) -> dict[str, Any]:
     """Load benchmark report and return scorecard metrics. Never invent numbers."""
-    path = Path(report_path) if report_path is not None else ROOT / "bench" / "report.md"
+    path = Path(report_path) if report_path is not None else ROOT / "REPORT.md"
     if not path.is_file():
         return {
             "available": False,
@@ -289,3 +289,34 @@ def fix_lifecycle(store: Any) -> dict[str, Any]:
         "snapshots": {"count": 0, "latest_ms": None},
         "unavailable": ["snapshots"],
     }
+
+
+def mcp_tool_usage(
+    tools: list[dict], calls: list[dict], audit: list[AuditEvent]
+) -> dict[str, Any]:
+    """Per-tool counts of calls made through the MCP front door (agent "mcp").
+
+    Heals count every audit event for the tool, whatever its source. Pure.
+    """
+    from statistics import median
+
+    mcp = [c for c in calls if c.get("agent") == "mcp"]
+    names = [t["name"] for t in tools]
+    names += sorted({c["tool"] for c in mcp} - set(names))
+    rows = []
+    for name in names:
+        own = [c for c in mcp if c["tool"] == name]
+        ok = sum(1 for c in own if c["class"] == "OK")
+        rows.append(
+            {
+                "name": name,
+                "calls": len(own),
+                "ok": ok,
+                "errors": len(own) - ok,
+                "heals": sum(1 for e in audit if e.tool == name),
+                "p50_ms": int(median(c["latency_ms"] for c in own)) if own else None,
+                "last_ms": max((c["ts_ms"] for c in own), default=None),
+            }
+        )
+    rows.sort(key=lambda r: (-r["calls"], r["name"]))
+    return {"tools": rows, "total_calls": len(mcp)}

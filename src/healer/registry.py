@@ -19,9 +19,12 @@ from healer.jev import JevClient
 from healer.models import ErrorClass, Fix, Outcome, SpecSource
 from healer.openapi_loader import openapi_source
 from healer.ops import apply_ops
+from healer.patch_trace import request_applied, response_applied
 from healer.repair import RepairAgent
 from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S, SPEC_MODE
-from healer.store import FixStore
+from healer.store import FixStore, credential_values, redact_value
+
+_CONNECTION_KEY_PREFIXES = ("connection:", "connection-secret:")
 
 # FR-3.4: value rules are the API's to enforce, so a rejected value reaches it and comes back
 # as BUSINESS. Argument pre-validation (FR-2.1) checks structure and types only.
@@ -54,14 +57,21 @@ class ToolDefinition:
     version: int = 1
     active_fix: Fix | None = None
 
+    @property
+    def strict_args(self) -> dict:
+        """Argument check for REST: unknown names are refused instead of reaching the body or a
+        header. The advertised `agent_schema` stays as frozen."""
+        if self.base_op["method"] in {"MCP", "GRAPHQL", "GRPC"}:
+            return self.agent_schema
+        return {**self.agent_schema, "additionalProperties": False}
+
 
 def _agent_schema(op: dict) -> dict:
-    # ponytail: body properties and query params only; path/cookie params are not exposed.
     body = op["body_schema"] or {}
     props = dict(body.get("properties", {}))
     required = list(body.get("required", []))
     for p in op["params"]:
-        if p["in"] != "query":
+        if p["in"] not in ("query", "path"):
             continue
         desc = {"description": p["description"]} if p["description"] else {}
         props[p["name"]] = {**p["schema"], **desc}
@@ -96,6 +106,17 @@ class Registry:
         self.client = client
         self.tools_config = tools_config
         self.cfg = cfg
+        secret_keys = tools_config.get("secret_keys")
+        # Only real credentials are secret: explicit secret_keys, else credential-named cfg keys.
+        self.secret_values = (
+            tuple(
+                cfg[key]
+                for key in secret_keys
+                if isinstance(key, str) and cfg.get(key)
+            )
+            if isinstance(secret_keys, list)
+            else credential_values(cfg)
+        )
         self.store = store
         self.grpc_channel = grpc_channel
         self.mcp_session = mcp_session
@@ -124,6 +145,7 @@ class Registry:
                 spec_mode=spec_mode,
                 tools=lambda: list(self.defs.values()),
                 repair=repair,
+                secret_values=self.secret_values,
             )
             if store
             else None
@@ -144,27 +166,54 @@ class Registry:
             for name, config in self.tools_config["tools"].items()
         }
         if self.store:
-            self.store.save_spec(self.spec_hash, spec.raw)
+            self.store.save_spec(
+                self.spec_hash,
+                redact_value(spec.raw, self.secret_values),
+            )
 
     def tools(self) -> list[dict]:
-        return [
+        return self._agent_view([
             {
                 "name": t.name,
                 "description": t.base_op["description"],
                 "parameters": t.agent_schema,
             }
             for t in self.defs.values()
-        ]
+        ])
+
+    def _agent_view(self, value):
+        """Agent-facing data loses only the exact known secrets; the generic patterns would
+        corrupt ordinary text ("Basic plan", `page_token=...`) and stay audit/prompt-only."""
+        return redact_value(value, self.secret_values, generic=False)
+
+    def _static_headers(self, op: dict) -> dict[str, str]:
+        """Header sources sent on every call: a connection's own credentials/headers (the
+        gateway's `connection:` keys) and any header the operation itself declares. Other
+        sources are only healing candidates (M4 adds Authorization after the fact)."""
+        declared = {p["name"].casefold() for p in op["params"] if p["in"] == "header"}
+        if "bearer" in op.get("security", []):
+            declared.add("authorization")
+        return {
+            name.casefold(): key
+            for name, key in self.tools_config.get("header_sources", {}).items()
+            if name.casefold() in declared or key.startswith(_CONNECTION_KEY_PREFIXES)
+        }
 
     def base_doc(self, tool: ToolDefinition, args: dict) -> dict:
         op = tool.base_op
         query = {p["name"] for p in op["params"] if p["in"] == "query"}
+        route = {p["name"] for p in op["params"] if p["in"] == "path"}
         doc = {
             "route": {"method": op["method"], "path": op["path"]},
-            "body": {k: v for k, v in args.items() if k not in query},
+            "body": {k: v for k, v in args.items() if k not in query | route},
             "query": {k: v for k, v in args.items() if k in query},
-            "header": {},
+            "header": {
+                name: {"ref": "config", "key": key}
+                for name, key in self._static_headers(op).items()
+            },
         }
+        if route:
+            doc["route_params"] = {k: v for k, v in args.items() if k in route}
         if op["method"] == "GRAPHQL":
             # The adapter uses this name to select the current introspected operation.
             doc["operation"] = op["operation_id"]
@@ -184,10 +233,18 @@ class Registry:
     ) -> Outcome:
         """Send `base` through `fix` (request ops, response ops), classify, check the contract.
         `route` replaces the sent route after the ops (a tool's `preverify` dry run)."""
-        doc = apply_ops(fix.request_ops, base, self.cfg) if fix else base
+        protocol = tool.base_op["method"]
+        if protocol in {"GRAPHQL", "MCP", "GRPC"}:
+            doc = apply_ops(fix.request_ops, base, self.cfg) if fix else copy.deepcopy(base)
+        else:
+            try:
+                doc = self.materialize_request(tool, base, fix)
+            except ValueError as exc:
+                # Deterministic configuration failure: retrying cannot change it.
+                return Outcome(ErrorClass.BUSINESS, "rest", str(exc), {"reason": str(exc)})
         if route:
             doc = {**doc, "route": route}
-        protocol = tool.base_op["method"]
+        request_sent = True
         if protocol == "GRAPHQL":
             from healer.adapters import graphql
 
@@ -203,6 +260,7 @@ class Registry:
             from healer.grpc_loader import _pool, message_class
 
             if self.grpc_source is None:
+                request_sent = False
                 return contract.check(
                     Outcome(ErrorClass.E1, "grpc", "REFLECTION_UNAVAILABLE"),
                     output_schema=tool.output_schema,
@@ -225,14 +283,18 @@ class Registry:
                 )
             except (ValueError, KeyError, TypeError):
                 # Reflection and descriptor failures are transport failures, not leaked details.
+                request_sent = False
                 outcome = Outcome(ErrorClass.E1, "grpc", "REFLECTION_UNAVAILABLE")
         else:
             resp, exc = await rest.send(self.client, doc, timeout)
             outcome = detect.classify(resp, exc)
-        if fix and outcome.cls is ErrorClass.OK:
+        if request_sent and fix and fix.request_ops:
+            request_applied(fix)
+        if fix and outcome.cls is ErrorClass.OK and fix.response_ops:
             outcome = replace(
                 outcome, data=apply_ops(fix.response_ops, outcome.data, self.cfg)
             )
+            response_applied(fix)
         return contract.check(
             outcome,
             output_schema=tool.output_schema,
@@ -240,11 +302,41 @@ class Registry:
             base_doc=base,
         )
 
+    def materialize_request(
+        self, tool: ToolDefinition, base: dict, fix: Fix | None = None,
+        operation: dict | None = None,
+    ) -> dict:
+        """Apply request fix and resolve approved header refs only in this transient wire copy."""
+        sources = self._static_headers(tool.base_op)
+        doc = apply_ops(fix.request_ops, base, self.cfg) if fix else copy.deepcopy(base)
+        fixed_headers = {
+            op.get("name", "").casefold(): op.get("src", {}).get("key")
+            for op in (fix.request_ops if fix else ()) if op.get("op") == "header"
+        }
+        for name, key in sources.items():
+            ref = {"ref": "config", "key": key}
+            value = doc.get("header", {}).get(name)
+            if value != ref and fixed_headers.get(name) != key:
+                raise ValueError("HEADER_REFERENCE_REQUIRED")
+            if key not in self.cfg:
+                raise ValueError("HEADER_SOURCE_UNAVAILABLE")
+            doc["header"][name] = self.cfg[key]
+        effective = {name.casefold(): value for name, value in doc["header"].items()}
+        for param in (operation or tool.base_op)["params"]:
+            if param["in"] != "header":
+                continue
+            value = effective.get(param["name"].casefold())
+            if value is None and param["required"]:
+                raise ValueError("REQUIRED_HEADER_UNAVAILABLE")
+            if value is not None and not Draft202012Validator(param["schema"]).is_valid(value):
+                raise ValueError("HEADER_SCHEMA_INVALID")
+        return doc
+
     async def call(self, name: str, args: dict) -> dict:
         tool = self.defs.get(name)
         if tool is None:
-            return {"error": "UNKNOWN_TOOL", "tool": name, "retry": False}
-        if not ArgumentValidator(tool.agent_schema).is_valid(args):
+            return {"error": "UNKNOWN_TOOL", "tool": self._agent_view(name), "retry": False}
+        if not ArgumentValidator(tool.strict_args).is_valid(args):
             return {"error": "AGENT_ARG_ERROR", "tool": name, "retry": False}
         t0 = self._clock()
         base = self.base_doc(tool, args)
@@ -262,7 +354,7 @@ class Registry:
                 jitter=self._jitter,
             )
         if outcome.cls is ErrorClass.OK:
-            return outcome.data
+            return self._agent_view(outcome.data)
         if outcome.cls in (ErrorClass.BUSINESS, ErrorClass.E1) or self.healer is None:
-            return api_error(outcome)
-        return await self.healer.heal(tool, base, outcome, t0)
+            return self._agent_view(api_error(outcome))
+        return self._agent_view(await self.healer.heal(tool, base, outcome, t0))
