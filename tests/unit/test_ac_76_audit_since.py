@@ -121,6 +121,7 @@ async def test_ac_76_scripted_state_matches_legacy_render_and_live_reset_counts(
                 "baseline": [{**trace, "heal_event": None} for trace in dash.traces["baseline"]],
             },
             "events": dash.store.call_events(max(0, dash.base_event)),
+            "patch_calls": [],
             "heals": [dash._heal(heal) for heal in audit],
             "metrics": {
                 "mttr": {str(int(ts)): value for ts, value in metrics.mttr_summary(audit).items()},

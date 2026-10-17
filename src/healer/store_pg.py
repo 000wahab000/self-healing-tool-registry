@@ -209,7 +209,14 @@ class PostgresStore:
         return json.loads(row["spec"]) if row else None
 
     def log_call(
-        self, agent: str, run_id: str, tool: str, cls: ErrorClass, latency_ms: int
+        self,
+        agent: str,
+        run_id: str,
+        tool: str,
+        cls: ErrorClass,
+        latency_ms: int,
+        *,
+        patches: list[dict] | None = None,
     ) -> None:
         with self._db.cursor() as cur:
             cur.execute(

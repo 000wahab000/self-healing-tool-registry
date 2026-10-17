@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import sys
 from collections.abc import AsyncIterator
@@ -12,6 +13,7 @@ from fastapi import FastAPI
 from starlette.routing import Mount
 
 from dashboard.app import create_app as create_dashboard_app
+from dashboard.connections import read_saved_config
 from healer import mcp_server
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -29,30 +31,34 @@ def create_app(args: argparse.Namespace) -> FastAPI:
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         async with AsyncExitStack() as stack:
             await stack.enter_async_context(dashboard_lifespan(app))
-            registry = await stack.enter_async_context(
-                mcp_server.registry_context(args)
-            )
-            app.state.dash.gateway = registry
-            token = os.environ.get(args.token_env) if args.token_env else None
-            if args.token_env and not token:
-                raise ValueError(
-                    "configured bearer-token environment variable is empty"
-                )
-            mcp_app = mcp_server.create_http_app(
-                registry,
-                host=args.host,
-                bearer_token=token,
-                allowed_hosts=args.allowed_host,
-                allowed_origins=args.allowed_origin,
-                store=getattr(registry, "log_store", None),
-            )
-            await stack.enter_async_context(mcp_app.router.lifespan_context(mcp_app))
-            mount = Mount("/", app=mcp_app)
-            app.router.routes.append(mount)
+            app.state.connection_startup_config = None
+            startup_config = read_saved_config(args.mcp_servers)
+            registry = await stack.enter_async_context(mcp_server.registry_context(args))
+            app.state.connection_startup_config = copy.deepcopy(startup_config)
             try:
-                yield
+                app.state.dash.gateway = registry
+                token = os.environ.get(args.token_env) if args.token_env else None
+                if args.token_env and not token:
+                    raise ValueError(
+                        "configured bearer-token environment variable is empty"
+                    )
+                mcp_app = mcp_server.create_http_app(
+                    registry,
+                    host=args.host,
+                    bearer_token=token,
+                    allowed_hosts=args.allowed_host,
+                    allowed_origins=args.allowed_origin,
+                    store=getattr(registry, "log_store", None),
+                )
+                await stack.enter_async_context(mcp_app.router.lifespan_context(mcp_app))
+                mount = Mount("/", app=mcp_app)
+                app.router.routes.append(mount)
+                try:
+                    yield
+                finally:
+                    app.router.routes.remove(mount)
             finally:
-                app.router.routes.remove(mount)
+                app.state.connection_startup_config = None
 
     app.router.lifespan_context = lifespan
     return app

@@ -23,6 +23,7 @@ from healer.models import (
     Reason,
     Tier,
 )
+from healer.ops import OpError, validate_ops
 from healer.settings import NEG_CACHE_TTL_S, RETIRE_AT_LOSSES
 
 RAW_ERROR_MAX = 2048
@@ -206,7 +207,8 @@ CREATE TABLE IF NOT EXISTS call_events (
     run_id TEXT NOT NULL,
     tool TEXT NOT NULL,
     class TEXT NOT NULL {_in("class", ErrorClass)},
-    latency_ms INTEGER NOT NULL
+    latency_ms INTEGER NOT NULL,
+    patches TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS rules (
     rule_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -283,7 +285,14 @@ class FixStore(Protocol):
     def save_spec(self, spec_hash: str, spec: dict) -> None: ...
     def get_spec(self, spec_hash: str) -> dict | None: ...
     def log_call(
-        self, agent: str, run_id: str, tool: str, cls: ErrorClass, latency_ms: int
+        self,
+        agent: str,
+        run_id: str,
+        tool: str,
+        cls: ErrorClass,
+        latency_ms: int,
+        *,
+        patches: list[dict] | None = None,
     ) -> None: ...
     def call_events(self, after_id: int = 0) -> list[dict]: ...
     def get_candidate(self, fp: str) -> Fix | None: ...
@@ -303,6 +312,8 @@ class Store:
         self._db.executescript(SCHEMA)
         if "layers" not in {row["name"] for row in self._db.execute("PRAGMA table_info(heal_events)")}:
             self._db.execute("ALTER TABLE heal_events ADD COLUMN layers TEXT NOT NULL DEFAULT '[]'")
+        if "patches" not in {row["name"] for row in self._db.execute("PRAGMA table_info(call_events)")}:
+            self._db.execute("ALTER TABLE call_events ADD COLUMN patches TEXT NOT NULL DEFAULT '[]'")
         self._active = {
             f.fingerprint: f
             for f in map(
@@ -525,22 +536,60 @@ class Store:
         return json.loads(row["spec"]) if row else None
 
     def log_call(
-        self, agent: str, run_id: str, tool: str, cls: ErrorClass, latency_ms: int
+        self,
+        agent: str,
+        run_id: str,
+        tool: str,
+        cls: ErrorClass,
+        latency_ms: int,
+        *,
+        patches: list[dict] | None = None,
     ) -> None:
+        safe_patches = []
+        for patch in patches or []:
+            if not isinstance(patch, dict) or type(patch.get("reused")) is not bool:
+                continue
+            request_ops = patch.get("request_ops", [])
+            response_ops = patch.get("response_ops", [])
+            if not isinstance(request_ops, list) or not isinstance(response_ops, list):
+                continue
+            try:
+                validate_ops(request_ops)
+                validate_ops(response_ops)
+            except OpError:
+                continue
+            if not request_ops and not response_ops:
+                continue
+            fix_id = patch.get("fix_id")
+            safe_patches.append(
+                {
+                    "fix_id": fix_id if type(fix_id) is int else None,
+                    "reused": patch["reused"],
+                    "request_ops": request_ops,
+                    "response_ops": response_ops,
+                }
+            )
         with self._db:
             self._db.execute(
-                "INSERT INTO call_events (ts_ms, agent, run_id, tool, class, latency_ms)"
-                " VALUES (?,?,?,?,?,?)",
-                (self._now_ms(), agent, run_id, tool, cls, latency_ms),
+                "INSERT INTO call_events (ts_ms, agent, run_id, tool, class, latency_ms, patches)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (self._now_ms(), agent, run_id, tool, cls, latency_ms, canonical.dumps(safe_patches)),
             )
 
     def call_events(self, after_id: int = 0) -> list[dict]:
         rows = self._db.execute(
-            "SELECT event_id, ts_ms, agent, run_id, tool, class, latency_ms"
+            "SELECT event_id, ts_ms, agent, run_id, tool, class, latency_ms, patches"
             " FROM call_events WHERE event_id > ? ORDER BY event_id",
             (after_id,),
         )
-        return [dict(r) for r in rows]
+        events = []
+        for row in rows:
+            event = dict(row)
+            patches = json.loads(event.pop("patches"))
+            if patches:
+                event["patches"] = patches
+            events.append(event)
+        return events
 
     def get_fix(self, fix_id: int) -> Fix | None:
         row = self._db.execute(

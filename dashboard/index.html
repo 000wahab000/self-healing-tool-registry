@@ -291,7 +291,7 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
     <nav class="tabs" aria-label="Views">
       <a href="/">Home</a>
       <button type="button" aria-pressed="true" data-tab="live">Live stream</button>
-      <button type="button" aria-pressed="false" data-tab="heals">Patch log <span class="count" id="heal-count">0</span></button>
+      <button type="button" aria-pressed="false" data-tab="heals">Patch log <span class="count" id="heal-count" title="Recovery attempts" aria-label="Recovery attempts">0</span></button>
       <button type="button" aria-pressed="false" data-tab="metrics">Metrics</button>
       <button type="button" aria-pressed="false" data-tab="mcp">MCP</button>
       <button type="button" aria-pressed="false" data-tab="report" id="tab-report">Report</button>
@@ -392,7 +392,13 @@ tr.fresh td { animation: row-flash 1.6s ease-out; }
 
   <!-- PATCH LOG -->
   <div id="view-heals" hidden>
-    <div class="head"><div><p class="eyebrow">Audit</p><h2>Patch log <span class="dim">· one row per heal attempt, written before the agent sees the result</span></h2></div></div>
+    <div class="head"><div><p class="eyebrow">Audit</p><h2>Patch log <span class="dim">· patched requests and recovery attempts</span></h2></div></div>
+    <section class="card pad" aria-labelledby="patched-requests-title">
+      <div class="head"><div><p class="eyebrow">Every patched MCP request · <span id="patch-call-count">0</span></p><h3 id="patched-requests-title">Patched requests</h3></div></div>
+      <p class="hint muted">Each row is an incoming request that used a patch. Request time is the full call duration, not recovery time.</p>
+      <div class="scroll"><table class="log"><thead><tr><th>Time</th><th>Tool</th><th>Patch applied</th><th>Final outcome</th><th>Request time</th><th>Operations</th></tr></thead><tbody id="patch-calls"></tbody></table></div>
+    </section>
+    <div class="head" style="margin-top:24px"><div><p class="eyebrow">Separate count · <span id="recovery-count">0</span></p><h3 style="margin:0">Recovery attempts</h3><p class="hint muted">One row per heal attempt. Existing patch applications above do not count as recoveries.</p></div></div>
     <section class="card scroll">
       <table class="log">
         <thead><tr><th>Time</th><th>Tool</th><th>Class</th><th>Tier</th><th>Path</th><th>Outcome</th><th>MTTR</th><th>Heal</th><th>Fix operations</th></tr></thead>
@@ -1425,7 +1431,7 @@ $("start-scripted").onclick = () => act("/api/start", { agent: "scripted", step_
 $("start-llm").onclick = () => act("/api/start", { agent: "llm" });
 $("reset").onclick = () => act("/api/reset", {});
 
-let after = 0, epoch = null, healSig = "", impactSig = "", busy = false, connected = false, lastLiveMut, liveRunScenario = null;
+let after = 0, epoch = null, healSig = "", patchCallSig = null, impactSig = "", busy = false, connected = false, lastLiveMut, liveRunScenario = null;
 const openHeals = new Set(); let seenHeals = 0;
 const counts = { healing: 0, baseline: 0 };
 const liveCalls = { healing: [], baseline: [] };
@@ -1438,7 +1444,7 @@ function emptyCalls(agent) {
   list.replaceChildren(li);
 }
 function clearView() {
-  after = 0; healSig = ""; liveRunScenario = null; $("scenario-note").textContent = "";
+  after = 0; healSig = ""; patchCallSig = null; liveRunScenario = null; $("scenario-note").textContent = "";
   for (const a of AGENTS) { counts[a] = 0; liveCalls[a] = []; const list = $("calls-" + a); if (list) list.classList.remove("calls"); emptyCalls(a); }
 }
 // Scripted runs carry full traces, so each call becomes the same dropdown the presets show.
@@ -1520,6 +1526,7 @@ function pipelineView(h) {
 }
 function renderHeals(heals) {
   $("heal-count").textContent = String(heals.length);
+  $("recovery-count").textContent = String(heals.length);
   const sig = heals.length + ":" + (heals.length ? heals[heals.length - 1].ts_ms : 0);
   if (sig === healSig) return;
   healSig = sig;
@@ -1566,6 +1573,37 @@ function renderHeals(heals) {
     tr.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } };
     body.append(tr, dt);
   });
+}
+function renderPatchCalls(calls) {
+  calls = calls || [];
+  $("patch-call-count").textContent = String(calls.length);
+  const sig = calls.map((c) => c.event_id).join(",");
+  if (sig === patchCallSig) return;
+  patchCallSig = sig;
+  const body = $("patch-calls");
+  if (!calls.length) {
+    const tr = el("tr");
+    tr.appendChild(el("td", "No patched requests yet. Once a fix exists, it can be applied without another recovery attempt.", { colspan: "6", class: "empty" }));
+    body.replaceChildren(tr);
+    return;
+  }
+  body.replaceChildren(...[...calls].sort((a, b) => b.ts_ms - a.ts_ms || b.event_id - a.event_id).map((c) => {
+    const hasNewPatch = c.patches.some((p) => !p.reused);
+    const label = c.class !== "OK" ? "Patch attempted" : hasNewPatch ? "Recovered and patched" : "Existing patch applied";
+    const tr = el("tr");
+    const operations = el("div", null, { class: "ops" });
+    for (const p of c.patches) {
+      for (const o of p.request_ops || []) operations.appendChild(opChip(o, false));
+      for (const o of p.response_ops || []) operations.appendChild(opChip(o, true));
+    }
+    if (!operations.children.length) operations.appendChild(el("span", "No operations", { class: "muted" }));
+    const outcome = el("td"); outcome.appendChild(badge(c.class));
+    tr.append(el("td", clock(c.ts_ms)), el("td", c.tool, { class: "mono" }), el("td", label), outcome,
+      el("td", c.latency_ms + " ms"), Object.assign(el("td"), { style: "white-space:normal;min-width:260px" }));
+    tr.lastChild.appendChild(operations);
+    tr.dataset.eventId = String(c.event_id);
+    return tr;
+  }));
 }
 function metric(title, value, unit, sub) {
   const c = el("div", null, { class: "card metric" });
@@ -1678,6 +1716,7 @@ function render(s) {
   for (const e of s.events) { addCall(e); after = e.event_id; }
   for (const a of AGENTS) renderRun(a, s);
   renderHeals(s.heals);
+  renderPatchCalls(s.patch_calls);
   renderMetrics(s.metrics);
 }
 

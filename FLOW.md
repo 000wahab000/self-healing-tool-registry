@@ -48,6 +48,7 @@ flowchart LR
 ```
 
 - The agent sees only the front door. `tools/list` is the frozen `agent_schema` of every tool (upstream tools are named `<server>__<tool>`); `tools/call` goes to `Gateway.call`, which finds the `Registry` that owns the tool. The front door adds no healing logic and never sends `tools/list_changed`.
+- MCP call logging persists the final call class and any non-empty fix operations actually applied (including warm reuse) in `call_events`; `/api/state` exposes patched MCP calls since the dashboard reset baseline. Routine reuse adds no `heal_events` row, so healing metrics remain attempt-only.
 - Each upstream has its own `Registry`: it holds the tool definitions, validates arguments, and talks to the upstream through an adapter. Every spec loader returns the same `dict[str, OperationSpec]`, so diagnosis does not depend on the protocol.
 - Upstreams come from `config/mcp_servers.json` (`--mcp-servers`). Tokens are stored as environment-variable names only.
 

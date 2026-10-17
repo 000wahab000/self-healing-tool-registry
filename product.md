@@ -665,7 +665,7 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 | AC-74 | Explorer correctness checks the full task when no tools were called, while retaining scoped checks for called tools and accepting seeded state for C2/C3 controls | Unit (`tests/dashboard/test_ac_74_zero_call_run.py`) |
 | AC-75 | The unsupported Postgres store warns at construction, matches every public `FixStore` method signature, and raises a clear deferred `NotImplementedError` for operations it does not implement | Unit (`tests/unit/test_ac_75_store_contract.py`; `tests/store_pg/test_unsupported_contract.py`) |
 
-## 25. External connections (AC-102–AC-111)
+## 25. External connections (AC-102–AC-112)
 
 - **FR-25.1** Normalize legacy connections at runtime without rewriting config; support isolated none, bearer, header API-key, basic and custom secret-header env references with validated nonsecret defaults.
 - **FR-25.2** Separate spec and API credentials/clients; exact-origin credentials, HTTPS externally, no credential redirects, SSRF/DNS-rebinding controls and explicit operator internal-service allowlisting.
@@ -685,6 +685,7 @@ AC-37 evidence: those snippets plus the opt-in `test_ac_37_live_client_config` i
 | AC-109 | CRUD/test and pending-restart/removal warnings work; stdio remains file-only. | Dashboard tests/browser checks |
 | AC-110 | Raw/derived credentials stay out of errors, repair prompts, logs, probes and store. | Secret-echo tests |
 | AC-111 | Frozen schemas, no invented values/model code, one replay/audit row and cleanup remain intact. | Existing and new integration tests |
+| AC-112 | The dashboard exposes each MCP call that actually applies non-empty request/response fix operations, including active-fix reuse, with final outcome and operations; ordinary calls do not create heal events, and call metadata persists across restart without storing request/response data. | MCP call-log, store migration/round-trip and dashboard baseline tests |
 
 
 AC-83 to AC-98 are reserved for the remaining Z tasks (`docs/prompts/Z0`–`Z15`).

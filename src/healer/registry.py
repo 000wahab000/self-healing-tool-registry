@@ -19,6 +19,7 @@ from healer.jev import JevClient
 from healer.models import ErrorClass, Fix, Outcome, SpecSource
 from healer.openapi_loader import openapi_source
 from healer.ops import apply_ops
+from healer.patch_trace import request_applied, response_applied
 from healer.repair import RepairAgent
 from healer.settings import HEAL_DEADLINE_S, REQUEST_TIMEOUT_S, SPEC_MODE
 from healer.store import FixStore, credential_values, redact_value
@@ -243,6 +244,7 @@ class Registry:
                 return Outcome(ErrorClass.BUSINESS, "rest", str(exc), {"reason": str(exc)})
         if route:
             doc = {**doc, "route": route}
+        request_sent = True
         if protocol == "GRAPHQL":
             from healer.adapters import graphql
 
@@ -258,6 +260,7 @@ class Registry:
             from healer.grpc_loader import _pool, message_class
 
             if self.grpc_source is None:
+                request_sent = False
                 return contract.check(
                     Outcome(ErrorClass.E1, "grpc", "REFLECTION_UNAVAILABLE"),
                     output_schema=tool.output_schema,
@@ -280,14 +283,18 @@ class Registry:
                 )
             except (ValueError, KeyError, TypeError):
                 # Reflection and descriptor failures are transport failures, not leaked details.
+                request_sent = False
                 outcome = Outcome(ErrorClass.E1, "grpc", "REFLECTION_UNAVAILABLE")
         else:
             resp, exc = await rest.send(self.client, doc, timeout)
             outcome = detect.classify(resp, exc)
-        if fix and outcome.cls is ErrorClass.OK:
+        if request_sent and fix and fix.request_ops:
+            request_applied(fix)
+        if fix and outcome.cls is ErrorClass.OK and fix.response_ops:
             outcome = replace(
                 outcome, data=apply_ops(fix.response_ops, outcome.data, self.cfg)
             )
+            response_applied(fix)
         return contract.check(
             outcome,
             output_schema=tool.output_schema,
