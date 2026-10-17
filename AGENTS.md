@@ -210,7 +210,7 @@ A non-idempotent write is never retried on `E1`. MCP results map onto the same c
 
 ```mermaid
 flowchart TD
-    S["Healer.heal<br/>3.5 s deadline"] --> FP["fingerprint<br/>(tool, class, violations)"]
+    S["Healer.heal<br/>30 s deadline"] --> FP["fingerprint<br/>(tool, class, violations)"]
     FP --> NC{"negative cache<br/>(60 s)?"}
     NC -- hit --> KU["REFUSE KNOWN_UNFIXABLE"]
     NC -- miss --> SF{"same fingerprint<br/>already healing?"}
@@ -239,7 +239,7 @@ In plain words: look the break up in memory first; if it is new, compare the sch
 - **Safety gate (`safety.py`).** Provenance (every source exists in the arguments, config or spec), lossless casts, operation count, replay rule (`E4`/`E6` replay only for an idempotent tool or with an idempotency key; `E5` is remapped locally), write-tool ambiguity, unknown operations.
 - **Verify (`contract.py`).** The whole detection pipeline reruns on the replay; only `OK` counts.
 - **Tier 2.** If tier 1 refuses with `NO_CANDIDATE`, `LOW_CONFIDENCE`, `UNSAFE_PATCH` or `VERIFY_FAILED`, `Healer._triage` decides whether the repair agent may try. Without Jev only `NO_CANDIDATE` is tried; with Jev, Jev decides between repair and passing the error through. `NO_SAFE_VALUE` (a required value with no source) never goes to tier 2, nor does a failed replay on a write tool. `repair.py` shows the model argument types and enum values (not values) and accepts only a DSL proposal; `repair.check` rejects unknown operations and enum values absent from the new schema. The proposal then runs through the same gate and live verification.
-- **Bounds.** One heal per call, one replay per heal, 3.5 s deadline (tier 2 gets its own 30 s), Jev 1.5 s, negative cache 60 s.
+- **Bounds.** One heal per call, one replay per heal, 30 s deadline (tier 2 has its own 30 s), Jev 1.5 s, negative cache 60 s.
 - **Audit.** Exactly one `heal_events` row per attempt, written before the agent sees a result; the raw error is sanitized first.
 
 A refusal returns `{error: "SCHEMA_DRIFT_UNRECOVERABLE", tool, class, fingerprint, reason, retry: false}`. The agent should treat that tool as unavailable and continue.
@@ -500,7 +500,7 @@ A self-healing registry sits between an agent and its upstreams (MCP servers, RE
   - never heal.
 - **FR-11.2** One heal attempt per call.
 - **FR-11.3** (STRETCH, S7) Negative cache: if a heal ends with `VERIFY_FAILED`, `POSTCHECK_FAILED_AFTER_WRITE`, `NO_CANDIDATE`, `NO_SAFE_VALUE`, `LOW_CONFIDENCE`, `UNSAFE_PATCH`, `UNSAFE_REPLAY` or `UNSUPPORTED_CLASS`, its fingerprint aborts immediately with `KNOWN_UNFIXABLE` for the next 60 s. Transient reasons (`DEADLINE`, and a `LOW_CONFIDENCE` that followed a Jev timeout or error) are not cached. Without S7, loop prevention rests on the one-attempt-per-call rule (FR-11.2), the `retry: false` instruction to the agent (FR-11.5) and the agent's iteration cap.
-- **FR-11.4** If a heal exceeds its 3.5 s deadline, abort with `DEADLINE`.
+- **FR-11.4** If a heal exceeds its 30 s deadline, abort with `DEADLINE`.
 - **FR-11.5** The structured error returned to the agent is `{error: "SCHEMA_DRIFT_UNRECOVERABLE", tool, class, fingerprint, reason, retry: false}`. The agent's instructions forbid re-calling with the same arguments when `retry` is `false`, and, for `SCHEMA_DRIFT_UNRECOVERABLE`, treat the tool as unavailable for the rest of the task, report it as skipped and continue with the remaining steps. A refusal skips one tool; it never ends the task.
 
 #### F12 Mock drift API
@@ -721,7 +721,7 @@ New operations are added only through code review (see `AGENTS.md` § Coding rul
 | Concurrent calls hit the same new break (STRETCH, S7) | Single-flight: one heal, shared outcome. Without S7, each call heals at most once and each result is verified |
 | `E4` or `E6` on a non-idempotent tool without `Idempotency-Key` | Abort `UNSAFE_REPLAY`, flagged as a possible partial write |
 | Injected instructions in an error body or OpenAPI description (M10, STRETCH) | Ignored. No operation, field or value is derived from the text; the heal proceeds or aborts exactly as it would without it |
-| Heal exceeds 3.5 s | Abort `DEADLINE` |
+| Heal exceeds 30 s | Abort `DEADLINE` |
 | SQLite write fails during commit | The heal is treated as failed and `retry: false` is returned. No unlogged patch is ever applied. |
 
 ### 15. Acceptance Criteria

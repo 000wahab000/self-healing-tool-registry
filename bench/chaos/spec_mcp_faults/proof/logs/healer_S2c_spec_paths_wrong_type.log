@@ -1,0 +1,5 @@
+INFO:     Started server process [16936]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8100 (Press CTRL+C to quit)
+ERROR:healer.heal:heal failed for wid__searchWidgets: 'int' object has no attribute 'items'

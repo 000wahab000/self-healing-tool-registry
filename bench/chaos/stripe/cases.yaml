@@ -1,0 +1,19 @@
+# Pre-registered expectations: Stripe slice suite (suite "stripe"). Written BEFORE the first run.
+# NO real Stripe calls and no real key: Prism serves a slice (customers list/retrieve/create) of the public
+# stripe/openapi spec3.json. Old = tag v1000 (info.version 2024-04-10); new = master at download time
+# (info.version 2026-09-30.endive). Real diff of the slice (bench/chaos/stripe/diff_customers.py):
+#   POST /v1/customers body: removed coupon, promotion_code; added business_name, individual_name.
+#   GET /v1/customers and GET /v1/customers/{customer}: no parameter or required-field change.
+# The registry is frozen on OLD, then the spec endpoint and Prism switch to NEW (same flow as petstore).
+# The key is a FAKE string in env API_STRIPE_TEST_KEY (sk_test_ prefix) used only against loopback Prism.
+#
+#   exposed          : operation present in tools/list at freeze time
+#   not_exposed      : operation absent (discovery diagnostic: unsupported media type / serialization / security)
+#   pass_through     : call succeeds on NEW, no audit row
+version: 1
+suite: stripe
+cases:
+  - {id: ST1_post_customers_exposed, kind: discovery, op: PostCustomers, expected: not_exposed, why: "Stripe writes are application/x-www-form-urlencoded; the connection discovery only accepts application/json bodies => UNSUPPORTED_MEDIA_TYPE, so creating a customer is impossible through an apis entry (known limit, documented)"}
+  - {id: ST2_get_customer_exposed,   kind: discovery, op: GetCustomersCustomer, expected: exposed, why: "path param + optional query expand[]; bearer auth configured"}
+  - {id: ST3_list_customers_exposed, kind: discovery, op: GetCustomers, expected: not_exposed, why: "list has deepObject/array query params (created, expand[]) => unsupported query serialization", risk: "may be exposed if the params are tolerated"}
+  - {id: ST4_retrieve_across_real_version_diff, kind: call, tool: GetCustomersCustomer, args: {customer: cus_chaos_1}, expected: pass_through, why: "frozen on 2024-04-10 slice, Prism serves 2026-09-30 slice: the retrieve operation did not change, so no heal and no audit row; Prism accepts the call"}
