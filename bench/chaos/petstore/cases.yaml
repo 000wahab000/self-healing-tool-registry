@@ -1,0 +1,44 @@
+# Pre-registered expectations: Petstore v3 + Prism drift chaos (suite "petstore").
+# Written BEFORE the first run. Not edited after a run (corrections go in a separate "corrections:" list).
+#
+# Setup per case: spec server + healer start on the BASE spec (public petstore3 openapi.json with
+# `security` stripped, see REPORT.md), healer freezes the agent schema; then the spec server and Prism
+# switch to the DRIFTED spec; then ONE call is made with ORIGINAL (frozen-schema) arguments.
+# Oracle: Prism's own request validation (2xx = accepted; 404/405/422 = rejected) plus the request Prism
+# received (logged by the fixture proxy). A "heal" needs: Prism accepted AND the received request carries
+# every intended value under the new wire shape (oracle `check` in run.py). Accepted with a changed or
+# dropped value = FALSE PATCH.
+#
+# expected vocabulary
+#   heal          : RECOVERED audit row, Prism accepts, intended values intact
+#   refuse        : ABORTED audit row (structured error), Prism never accepts the call
+#   pass_through  : the call is valid on the new wire as-is; no heal expected, Prism accepts original values
+#   known_miss    : drift invisible to every tier (call accepted, meaning silently wrong, or response drift
+#                   with no postcheck); expected to be missed, reported as a known limit
+# Where my prediction differs from docs/plans/chaos-test-plan.md 4.1 the plan value is in `plan:`.
+
+version: 1
+suite: petstore
+cases:
+  - {id: D1_body_rename,        mut: D1,  tool: addPet,           args: {id: 7, name: rex, photoUrls: ["http://x/1.png"], status: available}, expected: heal, why: "Pet.name -> petName (required); move op"}
+  - {id: D2_query_rename,       mut: D2,  tool: findPetsByStatus, args: {status: available}, expected: heal, why: "required query status -> state; move op"}
+  - {id: D3_path_param_rename,  mut: D3,  tool: getPetById,       args: {petId: 7}, expected: pass_through, plan: heal, why: "{petId} -> {pet_id} in the same URL position is invisible on the wire; nothing fails"}
+  - {id: D4_route_move,         mut: D4,  tool: getPetById,       args: {petId: 7}, expected: heal, why: "/pet/{petId} -> /v2/pet/{petId}; Prism 404 NO_PATH_MATCHED; route op"}
+  - {id: D5_str_to_int,         mut: D5,  tool: createUser,       args: {id: 1, username: alice, phone: "12345"}, expected: heal, why: "phone string -> integer, value 12345 lossless; cast op"}
+  - {id: D6_str_to_int_nonnum,  mut: D5,  tool: createUser,       args: {id: 1, username: alice, phone: "555-0100"}, expected: refuse, why: "non-numeric cannot be cast"}
+  - {id: D6b_str_to_int_leadzero, mut: D5, tool: createUser,      args: {id: 1, username: alice, phone: "00123"}, expected: refuse, why: "leading zeros would be lost (00123 -> 123): lossy cast must be refused", risk: "a naive int() cast would heal and silently change the value = false patch"}
+  - {id: D7_wrap,               mut: D7,  tool: addPet,           args: {id: 7, name: rex, photoUrls: ["http://x/1.png"], status: available}, expected: heal, why: "body wrapped under {pet: ...}; move ops"}
+  - {id: D8_unwrap,             mut: D8,  base: D7, tool: addPet, args: {pet: {id: 7, name: rex, photoUrls: ["http://x/1.png"], status: available}}, expected: heal, why: "base spec wraps under pet; drifted spec is flat (the original)"}
+  - {id: D9a_enum_case,         mut: D9a, tool: placeOrder,       args: {id: 9, petId: 7, quantity: 3, status: placed}, expected: heal, why: "enum placed -> PLACED etc.; enum_map op (case-normalised 1:1)"}
+  - {id: D9b_enum_synonym,      mut: D9b, tool: placeOrder,       args: {id: 9, petId: 7, quantity: 3, status: placed}, expected: refuse, plan: "heal if 1:1 in spec", why: "placed -> ordered is a synonym, not provable from the spec; no invented values"}
+  - {id: D10_required_default,  mut: D10, tool: placeOrder,       args: {id: 9, petId: 7, quantity: 3, status: placed}, expected: heal, why: "new required `channel` with schema default web; value comes from the spec"}
+  - {id: D11_required_nodefault, mut: D11, tool: placeOrder,      args: {id: 9, petId: 7, quantity: 3, status: placed}, expected: refuse, why: "new required `channel`, no default: would need an invented value"}
+  - {id: D12_header_rename,     mut: D12, tool: deletePet,        args: {petId: 7, api_key: k-123}, expected: heal, plan: heal, why: "api_key header -> X-Pet-Key (required); value is agent-supplied", risk: "header op only takes config refs; may refuse instead"}
+  - {id: D13_method_change,     mut: D13, tool: updatePet,        args: {id: 7, name: rex, photoUrls: ["http://x/1.png"]}, expected: refuse, plan: "heal or out_of_scope", why: "PUT /pet -> PATCH /pet; no method op exists in ops.py"}
+  - {id: D14_response_rename,   mut: D14, tool: getPetById,       args: {petId: 7}, expected: heal, plan: heal, why: "response Pet.name -> petName; agent must still see `name`", risk: "REST api tools have no postchecks, so response drift is probably never detected = known miss"}
+  - {id: D15_field_split,       mut: D15, tool: addPet,           args: {id: 7, name: rex the dog, photoUrls: ["http://x/1.png"]}, expected: refuse, why: "name -> first_name + last_name; no split op, no invented values"}
+  - {id: D16_units_change,      mut: D16, tool: placeOrder,       args: {id: 9, petId: 7, quantity: 3, status: placed}, expected: known_miss, why: "description-only units change (quantity: dozens, not units); same name/type; undetectable"}
+  - {id: D17_swap_same_type,    mut: D17, tool: placeOrder,       args: {id: 9, petId: 7, quantity: 3, status: placed}, expected: known_miss, why: "id and petId swap meaning (names swapped in the schema); both int64, request stays valid; undetectable"}
+  - {id: D19_description_only,  mut: D19, tool: getPetById,       args: {petId: 7}, expected: pass_through, why: "descriptions/summaries changed only; no heal, no audit row"}
+  - {id: D20_flipflop,          mut: D1,  flipflop: true, tool: addPet, args: {id: 7, name: rex, photoUrls: ["http://x/1.png"], status: available}, expected: heal, why: "drift D1 -> call heals -> spec and Prism revert to base -> same call must succeed with `name` on the wire (no stale fix); verdict applies to call 2; call 1 must also heal"}
+  - {id: D21_two_drifts,        mut: D21, tool: addPet,           args: {id: 7, name: rex, photoUrls: ["http://x/1.png"], status: available}, expected: heal, why: "name -> petName AND new required `source` with default; two ops needed in one fix"}

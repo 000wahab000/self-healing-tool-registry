@@ -1,0 +1,32 @@
+# Pre-registered expectations: transport fault chaos (suite "faults"). Written BEFORE the first run.
+# Fault server: bench/chaos/faults/fault_server.py (raw asyncio HTTP). Healer REQUEST_TIMEOUT_S = 2.0 s,
+# E1 backoff (0.1, 0.2, 0.4) s => at most 4 attempts per call (src/healer/retry.py), heal deadline 30 s.
+# After every case a /health call (always OK) checks the gateway is still serving.
+#
+# expected vocabulary (machine-checked in run.py)
+#   retry_success   : agent gets the success body; fault server saw >= 2 attempts; no heal audit row
+#   structured_error: agent gets {"error": ...} (is_error true, no exception, no hang); attempts <= 4;
+#                     no heal audit row; gateway alive
+#   no_replay       : a write already saved is not sent again: saved_writes == 1 (agent sees an error or success)
+#   bounded         : no hang (call returns in < 30 s) and gateway alive; success or structured error both OK
+#   blocked         : request refused before it leaves the gateway (0 requests at the fault server)
+# `plan:` = the expectation in docs/plans/chaos-test-plan.md 4.2 where my prediction differs.
+
+version: 1
+suite: faults
+cases:
+  - {id: F1_500_once,          mode: {name: fail_n, status: 500, n: 1},                       call: {tool: getItem, args: {id: 1}}, expected: retry_success, why: "500 once then OK: E1 retried"}
+  - {id: F2a_503_retry_after_seconds, mode: {name: fail_n, status: 503, n: 1, retry_after: "2"}, call: {tool: getItem, args: {id: 1}}, expected: retry_success, min_gap_s: 1.9, why: "Retry-After: 2 honoured: second attempt >= 1.9 s after first"}
+  - {id: F2b_503_retry_after_httpdate, mode: {name: fail_n, status: 503, n: 1, retry_after: "date+3"}, call: {tool: getItem, args: {id: 1}}, expected: retry_success, min_gap_s: 2.5, why: "Retry-After as HTTP-date (now+3 s) honoured per plan", plan: honoured, risk: "src/healer/detect.py:_retry_after ignores HTTP-date (documented ponytail): expect retry after ~0.1 s, i.e. a miss"}
+  - {id: F3a_429_once,         mode: {name: fail_n, status: 429, n: 1, retry_after: "1"},       call: {tool: getItem, args: {id: 1}}, expected: retry_success, min_gap_s: 0.9, why: "429 with Retry-After 1: backoff then success, no heal"}
+  - {id: F3b_429_always,       mode: {name: fail_n, status: 429, n: 1000},                     call: {tool: getItem, args: {id: 1}}, expected: structured_error, why: "persistent 429: bounded retries then structured error"}
+  - {id: F4a_slow_always,      mode: {name: slow, seconds: 5, n: 1000},                        call: {tool: getItem, args: {id: 1}}, expected: structured_error, why: "response slower than REQUEST_TIMEOUT_S (2 s) every time: E1 retried <= 4 attempts, then structured error"}
+  - {id: F4b_slow_once,        mode: {name: slow, seconds: 5, n: 1},                           call: {tool: getItem, args: {id: 1}}, expected: retry_success, why: "slow once then OK: timeout retried, success"}
+  - {id: F5_drop_mid_response, mode: {name: drop_mid, n: 1000},                                call: {tool: getItem, args: {id: 1}}, expected: structured_error, why: "connection reset after partial response, every time: structured error, gateway survives"}
+  - {id: F6_malformed_json,    mode: {name: bad_json, n: 1000},                                call: {tool: getItem, args: {id: 1}}, expected: structured_error, why: "200 application/json with body '{not json': structured error (E3), no heal/patch"}
+  - {id: F7_truncated_body,    mode: {name: truncated, n: 1000},                               call: {tool: getItem, args: {id: 1}}, expected: structured_error, why: "Content-Length 4000 but 20 bytes sent then close"}
+  - {id: F8_big_body_10mb,     mode: {name: big, mb: 10, n: 1000},                             call: {tool: getItem, args: {id: 1}}, expected: bounded, why: "10 MB valid JSON response: no hang, no gateway crash; success or size error both acceptable"}
+  - {id: F9_503_after_saved_write, mode: {name: save_then_fail, status: 503, n: 1000},         call: {tool: createItem, args: {name: widget}}, expected: no_replay, why: "POST saved then 503 each time: exactly one saved write (writes must not be replayed on E1)", risk: "retry.py retries any E1 without a write guard; relies on tool config"}
+  - {id: F9b_503_then_ok_write, mode: {name: save_then_fail, status: 503, n: 1},               call: {tool: createItem, args: {name: widget}}, expected: no_replay, why: "POST saved then 503 once, would succeed on replay: still exactly one saved write"}
+  - {id: F11a_loopback_not_allowlisted, startup: {origin_allowlisted: false},                  expected: blocked, why: "base_url http://127.0.0.1 without CONNECTIONS_ALLOWED_ORIGINS: egress guard refuses; healer must report it and not crash silently; second (allowed) API in the same config should still serve", risk: "startup may abort the whole gateway if any one API is blocked"}
+  - {id: F11b_metadata_ip,     startup: {base_url: "http://169.254.169.254", origin_allowlisted: false}, expected: blocked, why: "link-local cloud metadata IP: egress guard refuses"}

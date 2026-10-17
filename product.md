@@ -163,7 +163,7 @@ A self-healing registry sits between an agent and its upstreams (MCP servers, RE
   - never heal.
 - **FR-11.2** One heal attempt per call.
 - **FR-11.3** (STRETCH, S7) Negative cache: if a heal ends with `VERIFY_FAILED`, `POSTCHECK_FAILED_AFTER_WRITE`, `NO_CANDIDATE`, `NO_SAFE_VALUE`, `LOW_CONFIDENCE`, `UNSAFE_PATCH`, `UNSAFE_REPLAY` or `UNSUPPORTED_CLASS`, its fingerprint aborts immediately with `KNOWN_UNFIXABLE` for the next 60 s. Transient reasons (`DEADLINE`, and a `LOW_CONFIDENCE` that followed a Jev timeout or error) are not cached. Without S7, loop prevention rests on the one-attempt-per-call rule (FR-11.2), the `retry: false` instruction to the agent (FR-11.5) and the agent's iteration cap.
-- **FR-11.4** If a heal exceeds its 3.5 s deadline, abort with `DEADLINE`.
+- **FR-11.4** If a heal exceeds its 30 s deadline, abort with `DEADLINE`.
 - **FR-11.5** The structured error returned to the agent is `{error: "SCHEMA_DRIFT_UNRECOVERABLE", tool, class, fingerprint, reason, retry: false}`. The agent's instructions forbid re-calling with the same arguments when `retry` is `false`, and, for `SCHEMA_DRIFT_UNRECOVERABLE`, treat the tool as unavailable for the rest of the task, report it as skipped and continue with the remaining steps. A refusal skips one tool; it never ends the task.
 
 ### F12 Mock drift API
@@ -384,7 +384,7 @@ New operations are added only through code review (see `agent.md`). No operation
 | Concurrent calls hit the same new break (STRETCH, S7) | Single-flight: one heal, shared outcome. Without S7, each call heals at most once and each result is verified |
 | `E4` or `E6` on a non-idempotent tool without `Idempotency-Key` | Abort `UNSAFE_REPLAY`, flagged as a possible partial write |
 | Injected instructions in an error body or OpenAPI description (M10, STRETCH) | Ignored. No operation, field or value is derived from the text; the heal proceeds or aborts exactly as it would without it |
-| Heal exceeds 3.5 s | Abort `DEADLINE` |
+| Heal exceeds 30 s | Abort `DEADLINE` |
 | SQLite write fails during commit | The heal is treated as failed and `retry: false` is returned. No unlogged patch is ever applied. |
 
 ## 15. Acceptance Criteria

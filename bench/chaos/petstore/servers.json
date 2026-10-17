@@ -1,0 +1,11 @@
+{
+  "apis": [
+    {
+      "name": "pet",
+      "kind": "openapi",
+      "base_url": "http://127.0.0.1:4020",
+      "spec_url": "http://127.0.0.1:4020/__spec.json",
+      "selected_operations": ["addPet", "updatePet", "findPetsByStatus", "getPetById", "updatePetWithForm", "deletePet", "placeOrder", "getOrderById", "createUser", "updateUser", "getUserByName", "loginUser"]
+    }
+  ]
+}
