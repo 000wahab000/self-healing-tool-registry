@@ -3,43 +3,12 @@
     {
       "name": "users",
       "transport": "stdio",
-      "command": [
-        "python",
-        "-m",
-        "mock_api.mcp_drift_server",
-        "--profile",
-        "users"
-      ]
+      "command": ["python", "-m", "mock_api.mcp_drift_server", "--profile", "users"]
     },
     {
       "name": "tickets",
       "transport": "stdio",
-      "command": [
-        "python",
-        "-m",
-        "mock_api.mcp_drift_server",
-        "--profile",
-        "tickets"
-      ]
-    }
-  ],
-  "apis": [
-    {
-      "name": "saksiprism",
-      "kind": "openapi",
-      "base_url": "https://saksiprism.tail8d9630.ts.net",
-      "auth": {
-        "type": "none"
-      },
-      "spec_auth": {
-        "type": "none"
-      },
-      "spec_reuse_api_auth": false,
-      "secret_headers": {},
-      "headers": {},
-      "selected_operations": [
-        "get_order"
-      ]
+      "command": ["python", "-m", "mock_api.mcp_drift_server", "--profile", "tickets"]
     }
   ]
 }

@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def test_ac_112_patch_call_ui_keeps_each_request_distinct_and_truthful() -> None:
-    page = (Path(__file__).parents[2] / "dashboard" / "index.html").read_text()
+    page = (Path(__file__).parents[2] / "dashboard" / "index.html").read_text(encoding="utf-8")
     render = page.split("function renderPatchCalls(calls)", 1)[1].split("\nfunction ", 1)[0]
     assert "calls.map((c) => c.event_id)" in render
     assert "[...calls].sort((a, b) => b.ts_ms - a.ts_ms || b.event_id - a.event_id)" in render

@@ -88,7 +88,7 @@ async def test_unified_runtime_status_tracks_exact_startup_config(
             "billing": "pending",
         }
 
-    html = (Path(__file__).parents[2] / "dashboard" / "connections.html").read_text()
+    html = (Path(__file__).parents[2] / "dashboard" / "connections.html").read_text(encoding="utf-8")
     assert '"Active"' in html and '"Saved · restart required"' in html
     assert '"Saved · status unknown"' in html
     assert 'a.spec_url || (a.base_url +' in html
