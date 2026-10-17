@@ -4,7 +4,7 @@ The model writes operations in the existing DSL and names the operation of the c
 the call should go to. It never sees argument values (only their types, plus enum values),
 and it cannot add a value of its own: `check` rejects an unknown operation or an enum value
 the new schema lacks, then the healer runs the same safety gate, dry run and live
-verification as tier 1. A wrong or manipulated model ends in a refusal (agent.md §2).
+verification as tier 1. A wrong or manipulated model ends in a refusal (AGENTS.md § Coding rules).
 """
 
 from __future__ import annotations

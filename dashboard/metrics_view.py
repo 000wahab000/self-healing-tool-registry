@@ -119,7 +119,7 @@ def parse_report_markdown(text: str) -> dict[str, Any]:
 
 def scorecard(report_path: Path | str | None = None) -> dict[str, Any]:
     """Load benchmark report and return scorecard metrics. Never invent numbers."""
-    path = Path(report_path) if report_path is not None else ROOT / "bench" / "report.md"
+    path = Path(report_path) if report_path is not None else ROOT / "REPORT.md"
     if not path.is_file():
         return {
             "available": False,

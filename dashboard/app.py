@@ -444,6 +444,16 @@ class Dashboard:
     def state(self, after: int = 0) -> dict:
         self._refresh_audit()
         audit = self._audit
+        calls_since_reset = self.store.call_events(self.base_event)
+        calls = [event for event in calls_since_reset if event["event_id"] > after]
+        patch_calls = [
+            {
+                key: event[key]
+                for key in ("event_id", "ts_ms", "agent", "tool", "class", "latency_ms", "patches")
+            }
+            for event in calls_since_reset
+            if event["agent"] == "mcp" and event.get("patches")
+        ]
         return {
             "epoch": self.epoch,
             "active_mutation": self.mutation,
@@ -455,7 +465,8 @@ class Dashboard:
                 "healing": self.traces["healing"],
                 "baseline": [{**t, "heal_event": None} for t in self.traces["baseline"]],
             },
-            "events": self.store.call_events(max(after, self.base_event)),
+            "events": calls,
+            "patch_calls": patch_calls,
             "heals": self._heal_summaries.copy(),
             "metrics": {
                 "mttr": {
@@ -664,7 +675,7 @@ def create_app(
     @app.get("/api/report")
     async def report() -> dict:
         try:
-            text = (ROOT / "bench" / "report.md").read_text(encoding="utf-8")
+            text = (ROOT / "REPORT.md").read_text(encoding="utf-8")
         except FileNotFoundError:
             text = None
         return {"report": text}

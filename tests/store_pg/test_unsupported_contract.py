@@ -24,7 +24,7 @@ def test_missing_fix_store_methods_fail_loudly(name: str) -> None:
     method = getattr(store, name)
     with pytest.raises(
         NotImplementedError,
-        match=f"^PostgresStore: {name} not implemented yet, see plan\\.md \\(deferred\\)$",
+        match=f"^PostgresStore: {name} not implemented yet, see PLAN\\.md \\(deferred\\)$",
     ):
         if name == "save_fix_and_audit":
             method(None, None)

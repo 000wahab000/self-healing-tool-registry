@@ -163,7 +163,7 @@ function render(list, rows) {
   for (const r of rows) list.append(r);
 }
 
-function row(name, kind, url, token, readonly) {
+function row(name, kind, url, token, readonly, runtimeStatus) {
   const r = el("div", { className: "row" },
     el("span", { className: "name", textContent: name }),
     el("span", { className: "pill plain", textContent: kind }),
@@ -172,7 +172,8 @@ function row(name, kind, url, token, readonly) {
   if (readonly) {
     r.append(el("span", { className: "pill warn plain", textContent: "configured in file" }));
   } else {
-    r.append(el("span", { className: "pill warn plain", textContent: "Saved · restart required" }));
+    const status = runtimeStatus === "active" ? "Active" : runtimeStatus === "pending" ? "Saved · restart required" : "Saved · status unknown";
+    r.append(el("span", { className: "pill warn plain", textContent: status }));
     r.append(el("button", { className: "btn small", type: "button", textContent: "Edit", onclick: () => edit(name) }));
     r.append(el("button", { className: "btn small", type: "button", textContent: "Remove", onclick: () => remove(name) }));
   }
@@ -189,8 +190,8 @@ async function load() {
   $("preset").replaceChildren(el("option", {value:"", textContent:"Custom connection"}));
   for (const [key, p] of Object.entries(presets)) $("preset").append(el("option", {value:key, textContent:p.name + " · " + key}));
   const kindLabel = { openapi: "OpenAPI 3", swagger2: "Swagger 2.0", graphql: "GraphQL" };
-  render($("servers"), d.servers.map((s) => row(s.name, s.transport === "http" ? "MCP / HTTP" : "MCP / " + s.transport, s.url, s.token_env, s.readonly)));
-  render($("apis"), d.apis.map((a) => row(a.name, kindLabel[a.kind] || a.kind, a.base_url + (a.spec_url || a.spec_path || defaults[a.kind] || ""), a.token_env, false)));
+  render($("servers"), d.servers.map((s) => row(s.name, s.transport === "http" ? "MCP / HTTP" : "MCP / " + s.transport, s.url, s.token_env, s.readonly, s.runtime_status)));
+  render($("apis"), d.apis.map((a) => row(a.name, kindLabel[a.kind] || a.kind, a.spec_url || (a.base_url + (a.spec_path || defaults[a.kind] || "")), a.token_env, false, a.runtime_status)));
   window.connectionRows = [...d.servers, ...d.apis];
 }
 

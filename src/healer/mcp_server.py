@@ -32,6 +32,7 @@ from healer import canonical, jev, repair
 from healer.gateway import Gateway, connect_upstreams
 from healer.models import ErrorClass
 from healer.openapi_loader import openapi_source
+from healer.patch_trace import collect_patch_call
 from healer.registry import Registry
 from healer.settings import REQUEST_TIMEOUT_S
 from healer.spec_watcher import SpecWatcher
@@ -53,6 +54,7 @@ def create_server(registry: Registry, *, store: Store | None = None) -> Server:
 
     With a store, each tools/call is logged as one call_events row (logging only).
     """
+    store = store or getattr(registry, "log_store", None)
     run_id = uuid.uuid4().hex[:8]
 
     async def list_tools(_context: Any, _params: Any) -> ListToolsResult:
@@ -72,10 +74,11 @@ def create_server(registry: Registry, *, store: Store | None = None) -> Server:
 
     async def call_tool(_context: Any, params: Any) -> CallToolResult:
         t0 = time.monotonic()
-        try:
-            result = await registry.call(params.name, params.arguments or {})
-        except Exception:  # noqa: BLE001 - do not expose registry exceptions through MCP
-            result = {"error": "MCP_TOOL_ERROR", "retry": False}
+        with collect_patch_call() as patch_trace:
+            try:
+                result = await registry.call(params.name, params.arguments or {})
+            except Exception:  # noqa: BLE001 - do not expose registry exceptions through MCP
+                result = {"error": "MCP_TOOL_ERROR", "retry": False}
         if store is not None:
             with suppress(Exception):  # logging must never break a call
                 store.log_call(
@@ -84,6 +87,7 @@ def create_server(registry: Registry, *, store: Store | None = None) -> Server:
                     params.name,
                     _call_class(result),
                     int((time.monotonic() - t0) * 1000),
+                    patches=patch_trace.as_list(),
                 )
         is_error = isinstance(result, dict) and "error" in result
         return CallToolResult(

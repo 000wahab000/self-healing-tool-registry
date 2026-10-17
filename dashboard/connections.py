@@ -23,7 +23,11 @@ HERE = Path(__file__).parent
 router = APIRouter()
 
 
-def config_path() -> Path:
+def config_path(request: Request | None = None) -> Path:
+    if request is not None:
+        path = getattr(request.app.state.dash, "upstream_config_path", None)
+        if path is not None:
+            return Path(path)
     return Path(os.environ.get("MCP_SERVERS_CONFIG") or "config/mcp_servers.json")
 
 
@@ -46,9 +50,9 @@ def require_write(request: Request) -> None:
         raise HTTPException(401, "missing or wrong connections token")
 
 
-def _load() -> dict:
+def read_saved_config(path: str | Path) -> dict:
     try:
-        data = json.loads(config_path().read_text(encoding="utf-8"))
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError:
         data = {}
     data.setdefault("servers", [])
@@ -56,8 +60,12 @@ def _load() -> dict:
     return data
 
 
-def _save(data: dict) -> None:
-    path = config_path()
+def _load(request: Request | None = None) -> dict:
+    return read_saved_config(config_path(request))
+
+
+def _save(data: dict, request: Request | None = None) -> None:
+    path = config_path(request)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".mcp_servers-", suffix=".tmp")
     try:
@@ -93,6 +101,13 @@ def _view_server(s: dict) -> dict:
     }
 
 
+def _runtime_status(entry: dict, collection: str, request: Request) -> str:
+    active_config = getattr(request.app.state, "connection_startup_config", None)
+    if active_config is None:
+        return "unknown"
+    return "active" if entry in active_config.get(collection, []) else "pending"
+
+
 @router.get("/connections", include_in_schema=False)
 async def page() -> FileResponse:
     return FileResponse(
@@ -102,14 +117,17 @@ async def page() -> FileResponse:
 
 @router.get("/api/connections", dependencies=[Depends(require_write)])
 async def list_connections(request: Request) -> dict:
-    data = _load()
+    data = _load(request)
     return {
-        "servers": [_view_server(s) for s in data["servers"]],
+        "servers": [
+            {**_view_server(s), "runtime_status": _runtime_status(s, "servers", request)}
+            for s in data["servers"]
+        ],
         "apis": [
             {
                 k: a.get(k)
                 for k in ("name", "kind", "base_url", "spec_path", "spec_url", "token_env", "auth", "spec_auth", "spec_reuse_api_auth", "headers", "secret_headers", "selected_operations", "preset")
-            }
+            } | {"runtime_status": _runtime_status(a, "apis", request)}
             for a in data["apis"]
         ],
         "auth_required": is_remote(request),
@@ -119,19 +137,19 @@ async def list_connections(request: Request) -> dict:
 
 
 @router.post("/api/connections", dependencies=[Depends(require_write)])
-async def add_connection(body: dict) -> dict:
+async def add_connection(body: dict, request: Request) -> dict:
     entry = clean_entry(body)
-    data = _load()
+    data = _load(request)
     if any(e["name"] == entry["name"] for e in data["servers"] + data["apis"]):
         raise HTTPException(409, "name already in use")
     data["apis" if "kind" in entry else "servers"].append(entry)
-    _save(data)
+    _save(data, request)
     return {"ok": True, "name": entry["name"], "pending_restart": True}
 
 
 @router.put("/api/connections/{name}", dependencies=[Depends(require_write)])
-async def update_connection(name: str, body: dict) -> dict:
-    data = _load()
+async def update_connection(name: str, body: dict, request: Request) -> dict:
+    data = _load(request)
     for collection in ("servers", "apis"):
         for index, existing in enumerate(data[collection]):
             if existing["name"] != name:
@@ -150,21 +168,24 @@ async def update_connection(name: str, body: dict) -> dict:
                     merged["secret_headers"] = {**existing.get("secret_headers", {}), **body["secret_headers"]}
             merged.pop("clear_secret_refs", None)
             data[collection][index] = clean_entry(merged, existing)
-            _save(data)
+            _save(data, request)
             return {"ok": True, "name": name, "pending_restart": True}
     raise HTTPException(404, "no such connection")
 
 
 @router.delete("/api/connections/{name}", dependencies=[Depends(require_write)])
-async def remove_connection(name: str) -> dict:
-    data = _load()
+async def remove_connection(name: str, request: Request) -> dict:
+    data = _load(request)
     for key in ("servers", "apis"):
+        if key == "servers" and any(
+            server["name"] == name and server.get("transport") == "stdio"
+            for server in data[key]
+        ):
+            raise HTTPException(403, "stdio connections are file-only")
         kept = [e for e in data[key] if e["name"] != name]
         if len(kept) != len(data[key]):
             data[key] = kept
-            if any(s["name"] == name and s.get("transport") == "stdio" for s in _load()["servers"]):
-                raise HTTPException(403, "stdio connections are file-only")
-            _save(data)
+            _save(data, request)
             return {"ok": True, "pending_restart": True}
     raise HTTPException(404, "no such connection")
 

@@ -1,4 +1,4 @@
-"""Thresholds and timeouts (product.md). Seconds unless the name says otherwise."""
+"""Thresholds and timeouts (AGENTS.md product requirements). Seconds unless the name says otherwise."""
 
 HEAL_DEADLINE_S = 30.0  # remote MCP upstreams need network round trips; still bounded (no loops)
 JEV_TIMEOUT_S = 1.5

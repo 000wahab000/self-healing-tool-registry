@@ -43,6 +43,7 @@ from healer.models import (
     Violation,
 )
 from healer.ops import OpError, apply_ops
+from healer.patch_trace import response_applied
 from healer.settings import HEAL_DEADLINE_S, REPLAY_TIMEOUT_MAX_S, SPEC_MODE
 from healer.store import FixStore, credential_values, redact_value, sanitize
 from healer.verify import Verifier
@@ -630,6 +631,7 @@ class Healer:
             h.replay_attempted = True
             return await self._send(h, fix)
         data = apply_ops(fix.response_ops, h.outcome.data, self._cfg)
+        response_applied(fix)
         return contract.check(
             replace(h.outcome, cls=ErrorClass.OK, violations=[], data=data),
             output_schema=h.tool.output_schema,
